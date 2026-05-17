@@ -232,7 +232,7 @@ export class RendererWorker {
     this.setTargetFps(event.targetFps)
     this.codec = event.codec ?? 'h264'
     this.hwAcceleration = Boolean(event.hwAcceleration)
-    console.log(`[RENDER.WORKER] codec: ${this.codec} (hwAcceleration=${this.hwAcceleration})`)
+    console.debug(`[RENDER.WORKER] codec: ${this.codec} (hwAcceleration=${this.hwAcceleration})`)
 
     await this.evaluateRendererCapabilities()
 
@@ -352,7 +352,7 @@ export class RendererWorker {
         hardwareAcceleration: 'prefer-hardware'
       })
       hw = !!res.supported
-      console.log(
+      console.debug(
         `[RENDER.WORKER] probe ${codec} prefer-hardware → supported=${!!res.supported}`,
         res.config ?? null
       )
@@ -367,7 +367,7 @@ export class RendererWorker {
       const cfgHw = res.config?.hardwareAcceleration
       const browserOverrodeToHw = cfgHw === 'prefer-hardware'
       sw = !!res.supported && !browserOverrodeToHw
-      console.log(
+      console.debug(
         `[RENDER.WORKER] probe ${codec} prefer-software → supported=${!!res.supported}` +
           (browserOverrodeToHw ? ' (browser overrode → prefer-hardware, no real SW path)' : ''),
         res.config ?? null
@@ -379,7 +379,7 @@ export class RendererWorker {
     if (!hw && !sw) {
       try {
         const res = await VideoDecoder.isConfigSupported({ codec })
-        console.log(
+        console.debug(
           `[RENDER.WORKER] probe ${codec} no-preference → supported=${!!res.supported}`,
           res.config ?? null
         )
@@ -492,7 +492,7 @@ export class RendererWorker {
     ): Promise<boolean> => {
       const cfg: VideoDecoderConfig = { ...baseConfig, hardwareAcceleration }
       try {
-        console.log('[RENDER.WORKER] Configuring decoder with:', cfg)
+        console.debug('[RENDER.WORKER] Configuring decoder with:', cfg)
         this.decoder.configure(cfg)
         this.isConfigured = true
         console.log(`[RENDER.WORKER] Selected decoder mode: ${hardwareAcceleration}`)
@@ -521,7 +521,7 @@ export class RendererWorker {
             : this.rendererSwSupported
 
     if (!this.hwAcceleration) {
-      console.log(
+      console.debug(
         `[RENDER.WORKER] hwAcceleration=false → skipping prefer-hardware for ${this.codec}`
       )
     } else if (hwSupp) {
@@ -567,7 +567,7 @@ export class RendererWorker {
     }
 
     if (sps && !this.isConfigured) {
-      console.log('[RENDER.WORKER] SPS detected, length:', sps.rawNalu?.length)
+      console.debug('[RENDER.WORKER] SPS detected, length:', sps.rawNalu?.length)
       this.lastSPS = sps.rawNalu
     }
 
@@ -583,7 +583,7 @@ export class RendererWorker {
       } else {
         this.pendingExtraData = videoData
       }
-      console.log(
+      console.debug(
         `[RENDER.WORKER] Cached param-set chunk (${videoData.length}B, total ${this.pendingExtraData.length}B)`
       )
     }
@@ -595,7 +595,9 @@ export class RendererWorker {
     }
 
     if (key && this.lastSPS && !this.isConfigured) {
-      console.log(`[RENDER.WORKER] First keyframe detected (${this.codec}), configuring decoder...`)
+      console.debug(
+        `[RENDER.WORKER] First keyframe detected (${this.codec}), configuring decoder...`
+      )
       const config = getDecoderConfig(this.lastSPS, this.codec)
       if (config && (await this.configureDecoder(config))) {
         try {
@@ -609,7 +611,7 @@ export class RendererWorker {
             firstChunk = new Uint8Array(this.pendingExtraData.length + videoData.length)
             firstChunk.set(this.pendingExtraData, 0)
             firstChunk.set(videoData, this.pendingExtraData.length)
-            console.log(
+            console.debug(
               `[RENDER.WORKER] Prepended ${this.pendingExtraData.length}B param-sets to ${videoData.length}B IDR`
             )
           }
@@ -619,7 +621,7 @@ export class RendererWorker {
             data: firstChunk
           })
           this.decoder.decode(chunk)
-          console.log('[RENDER.WORKER] keyframe sent to decoder')
+          console.debug('[RENDER.WORKER] keyframe sent to decoder')
           this.awaitingValidKeyframe = false
           this.pendingExtraData = null
           return

@@ -251,8 +251,8 @@ function AppInner() {
         updateCameras(setCameraFound, saveSettings, settings)
       }
     }
-    window.projection.usb.listenForEvents(usbHandler)
-    return () => window.projection.usb.unlistenForEvents(usbHandler)
+    const unsubscribe = window.projection.usb.listenForEvents(usbHandler)
+    return unsubscribe
   }, [settings, saveSettings, setCameraFound])
 
   const reverse = useStatusStore((s) => s.reverse)

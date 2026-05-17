@@ -1,6 +1,7 @@
 import { DEBUG } from '@main/constants'
 import { decryptVendorSessionText } from '@main/helpers/vendorSessionInfo'
 import type { PendingStartupConnectTarget } from '@main/services/projection/services/types'
+import { CARLINKIT_PIDS, CARLINKIT_VID } from '@main/services/usb/constants'
 import { HeaderBuildError, MessageHeader } from '@projection/messages/common'
 import {
   BluetoothPeerConnected,
@@ -33,8 +34,8 @@ import {
   SendString,
   SendViewArea
 } from '@projection/messages/sendable'
-import type { DongleConfig } from '@shared/types'
-import { DEFAULT_EXTRA_CONFIG, MicType, PhoneWorkMode } from '@shared/types'
+import type { Config } from '@shared/types'
+import { DEFAULT_CONFIG, MicType, PhoneWorkMode } from '@shared/types'
 import type { CommandValue } from '@shared/types/ProjectionEnums'
 import { matchFittingAAResolution } from '@shared/utils'
 import EventEmitter from 'events'
@@ -61,8 +62,6 @@ export enum AndroidWorkMode {
   Search = 7
 }
 
-export const DEFAULT_CONFIG: DongleConfig = DEFAULT_EXTRA_CONFIG
-
 export class DriverStateError extends Error {}
 
 export class DongleDriver extends EventEmitter {
@@ -82,7 +81,7 @@ export class DongleDriver extends EventEmitter {
   private _boxInfo?: BoxInfoSettings
   private _lastDongleInfoEmitKey = ''
 
-  private _cfg: DongleConfig | null = null
+  private _cfg: Config | null = null
   private _postOpenConfigSent = false
 
   private _wifiConnectTimer: ReturnType<typeof setTimeout> | null = null
@@ -174,10 +173,10 @@ export class DongleDriver extends EventEmitter {
     await this._modeSwitchInFlight
   }
 
-  static knownDevices = [
-    { vendorId: 0x1314, productId: 0x1520 },
-    { vendorId: 0x1314, productId: 0x1521 }
-  ]
+  static knownDevices = CARLINKIT_PIDS.map((productId) => ({
+    vendorId: CARLINKIT_VID,
+    productId
+  }))
 
   private scheduleWifiConnect(delayMs: number) {
     if (this._wifiConnectTimer) {
@@ -622,7 +621,7 @@ export class DongleDriver extends EventEmitter {
     }
   }
 
-  start = async (cfg: DongleConfig) => {
+  start = async (cfg: Config) => {
     if (!this._device) throw new DriverStateError('initialise() first')
     if (!this._device.opened) return
     if (this._started) return

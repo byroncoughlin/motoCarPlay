@@ -7,8 +7,7 @@ declare global {
         sendCommand: (cmd: string) => void
       }
       usb: {
-        listenForEvents: (...args: any[]) => void
-        unlistenForEvents: (...args: any[]) => void
+        listenForEvents: (callback: (...args: any[]) => void) => () => void
       }
     }
   }

@@ -874,18 +874,16 @@ export class Session extends EventEmitter {
       )
   }
 
-  // Tell the phone we have PROJECTED focus on the main video channel.
-  // Sent on AA-UI entry and whenever the renderer's decoder needs a keyframe.
-  // Phone resumes streaming (if it had stopped) and emits an IDR when ready.
-  requestKeyframe(): void {
+  // VideoFocusRequestNotification: mode=PROJECTED(1), reason=UNKNOWN(0)
+  requestVideoFocus(): void {
     if (this._state !== State.RUNNING) return
     this._sendEncrypted(
       CH.VIDEO,
       FRAME_FLAGS.ENC_SIGNAL,
-      AV_MSG.VIDEO_FOCUS_INDICATION,
-      Buffer.from([0x08, 0x01])
+      AV_MSG.VIDEO_FOCUS_REQUEST,
+      Buffer.from([0x10, 0x01, 0x18, 0x00])
     )
-    if (DEBUG) console.log('[Session] main video focus indication (PROJECTED) sent')
+    if (DEBUG) console.log('[Session] main video focus request (PROJECTED) sent')
   }
 
   // Tell the phone we have PROJECTED focus on the cluster channel. Same

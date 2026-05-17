@@ -236,8 +236,8 @@ export function NavMini({ className, iconSize = 56 }: NavMiniProps) {
       else void hydrate()
     }
 
-    window.projection.ipc.onEvent(handler)
-    return () => window.projection.ipc.offEvent(handler)
+    const unsubscribe = window.projection.ipc.onEvent(handler)
+    return unsubscribe
   }, [hydrate])
 
   const t = React.useMemo(() => translateNavigation(navi, locale), [navi, locale])

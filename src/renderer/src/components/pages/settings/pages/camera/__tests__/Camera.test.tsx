@@ -1,8 +1,8 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { Camera } from '../Camera'
 
-const listenForEvents = jest.fn()
-const unlistenForEvents = jest.fn()
+const unsubscribeUsb = jest.fn()
+const listenForEvents = jest.fn(() => unsubscribeUsb)
 const setCameraFound = jest.fn()
 
 const detectCameras = jest.fn().mockResolvedValue([
@@ -24,12 +24,12 @@ describe('Settings Camera page', () => {
     setCameraFound.mockClear()
     ;(window as any).projection = {
       usb: {
-        listenForEvents,
-        unlistenForEvents
+        listenForEvents
       }
     }
     listenForEvents.mockClear()
-    unlistenForEvents.mockClear()
+    listenForEvents.mockImplementation(() => unsubscribeUsb)
+    unsubscribeUsb.mockClear()
   })
 
   test('loads camera options and subscribes to usb events', async () => {
@@ -43,7 +43,7 @@ describe('Settings Camera page', () => {
     expect(screen.getByText('Source')).toBeInTheDocument()
     expect(listenForEvents).toHaveBeenCalled()
     unmount()
-    expect(unlistenForEvents).toHaveBeenCalled()
+    expect(unsubscribeUsb).toHaveBeenCalled()
   })
 
   test('safeCameraPersist skips onChange when camera is already configured', async () => {

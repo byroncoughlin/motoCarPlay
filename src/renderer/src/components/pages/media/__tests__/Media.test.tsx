@@ -40,8 +40,7 @@ describe('Media component', () => {
     window.projection = {
       ipc: { sendCommand: jest.fn(), setVisualizerEnabled: jest.fn() },
       usb: {
-        listenForEvents: jest.fn(),
-        unlistenForEvents: jest.fn()
+        listenForEvents: jest.fn(() => jest.fn())
       }
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     } as unknown as typeof window.projection
@@ -60,8 +59,8 @@ describe('Media component', () => {
       usb: {
         listenForEvents: jest.fn((cb: any) => {
           usbEventCb = cb
-        }),
-        unlistenForEvents: jest.fn()
+          return jest.fn()
+        })
       }
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     } as unknown as typeof window.projection
@@ -114,11 +113,14 @@ describe('Media component', () => {
   })
 
   it('cleans up USB listeners on unmount', () => {
+    const unsub = jest.fn()
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    ;(window.projection.usb.listenForEvents as jest.Mock).mockImplementationOnce(() => unsub)
+
     const { unmount } = render(<Media />)
     unmount()
 
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    expect(window.projection.usb.unlistenForEvents).toHaveBeenCalled()
+    expect(unsub).toHaveBeenCalled()
   })
 
   it('artwork button toggles FFT spectrum on click', async () => {

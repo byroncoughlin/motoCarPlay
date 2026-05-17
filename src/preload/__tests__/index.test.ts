@@ -108,12 +108,14 @@ describe('preload api bridge', () => {
     expect(cb).toHaveBeenCalledWith(expect.anything(), 'plugged', { vendorId: 1 })
   })
 
-  test('usb unlistenForEvents removes handler', () => {
+  test('usb listenForEvents returns an unsubscribe closure that removes the handler', () => {
     const { projection } = loadPreload()
     const cb = jest.fn()
 
-    projection.usb.listenForEvents(cb)
-    projection.usb.unlistenForEvents(cb)
+    const unsubscribe = projection.usb.listenForEvents(cb)
+    expect(typeof unsubscribe).toBe('function')
+
+    unsubscribe()
     emit('usb-event', 'plugged')
 
     expect(cb).not.toHaveBeenCalled()
@@ -148,17 +150,18 @@ describe('preload api bridge', () => {
     expect(ipcRendererMock.removeListener).toHaveBeenCalledWith('settings', cb)
   })
 
-  test('ipc onEvent and offEvent manage projection-event handlers via preload fan-out', () => {
+  test('ipc onEvent returns an unsubscribe closure that stops the projection-event fan-out', () => {
     const { projection } = loadPreload()
     const cb = jest.fn()
 
-    projection.ipc.onEvent(cb)
+    const unsubscribe = projection.ipc.onEvent(cb)
     emit('projection-event', { type: 'plugged' })
 
+    expect(typeof unsubscribe).toBe('function')
     expect(cb).toHaveBeenCalledTimes(1)
     expect(cb).toHaveBeenCalledWith(expect.anything(), { type: 'plugged' })
 
-    projection.ipc.offEvent(cb)
+    unsubscribe()
     emit('projection-event', { type: 'unplugged' })
 
     expect(cb).toHaveBeenCalledTimes(1)

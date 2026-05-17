@@ -101,8 +101,8 @@ export function Debug() {
       if (msg.type === 'media' && autoUpdateMediaSnapshotRef.current) void readMediaSnapshot()
     }
 
-    window.projection.ipc.onEvent(handler)
-    return () => window.projection.ipc.offEvent(handler)
+    const unsubscribe = window.projection.ipc.onEvent(handler)
+    return unsubscribe
   }, [readAllSnapshots, readNavigationSnapshot, readMediaSnapshot])
 
   const sourceEvents = React.useMemo(

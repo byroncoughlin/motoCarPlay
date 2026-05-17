@@ -167,10 +167,8 @@ export const Media = ({ forceHydrate = false }: MediaProps = {}) => {
         setShowFft(false)
       }
     }
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    window.projection.usb.listenForEvents(usbHandler)
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    return () => window.projection.usb.unlistenForEvents(usbHandler)
+    const unsubscribe = window.projection.usb.listenForEvents(usbHandler)
+    return unsubscribe
   }, [clearOverride, resetPress])
 
   // Progress from elapsed/total

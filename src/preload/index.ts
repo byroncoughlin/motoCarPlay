@@ -1,4 +1,4 @@
-import type { ExtraConfig } from '@shared/types'
+import type { Config } from '@shared/types'
 import type { MultiTouchPoint } from '@shared/types/TouchTypes'
 import { contextBridge, IpcRendererEvent, ipcRenderer } from 'electron'
 
@@ -115,25 +115,32 @@ const api = {
     getSysdefaultPrettyName: (): Promise<string> => ipcRenderer.invoke('get-sysdefault-mic-label'),
     uploadIcons: () => ipcRenderer.invoke('projection-upload-icons'),
     uploadLiviScripts: () => ipcRenderer.invoke('projection-upload-livi-scripts'),
-    listenForEvents: (callback: ApiCallback): void => {
+    listenForEvents: (callback: ApiCallback): (() => void) => {
       usbEventHandlers.push(callback)
       usbEventQueue.forEach(([evt, ...args]) => callback(evt, ...args))
       usbEventQueue = []
-    },
-    unlistenForEvents: (callback: ApiCallback): void => {
-      usbEventHandlers = usbEventHandlers.filter((cb) => cb !== callback)
+      return () => {
+        usbEventHandlers = usbEventHandlers.filter((cb) => cb !== callback)
+      }
     }
   },
 
   settings: {
-    get: (): Promise<ExtraConfig> => ipcRenderer.invoke('getSettings'),
-    save: (settings: Partial<ExtraConfig>): Promise<void> =>
+    get: (): Promise<Config> => ipcRenderer.invoke('getSettings'),
+    save: (settings: Partial<Config>): Promise<void> =>
       ipcRenderer.invoke('save-settings', settings),
-    onUpdate: (callback: ApiCallback<[ExtraConfig]>): (() => void) => {
+    onUpdate: (callback: ApiCallback<[Config]>): (() => void) => {
       const ch = 'settings'
       ipcRenderer.on(ch, callback)
       return () => ipcRenderer.removeListener(ch, callback)
     }
+  },
+
+  audio: {
+    listSinks: (): Promise<Array<{ id: string; name: string; isDefault: boolean }>> =>
+      ipcRenderer.invoke('audio:listSinks'),
+    listSources: (): Promise<Array<{ id: string; name: string; isDefault: boolean }>> =>
+      ipcRenderer.invoke('audio:listSources')
   },
 
   ipc: {
@@ -170,13 +177,13 @@ const api = {
         data: Array.from(data)
       })
     },
-    onEvent: (callback: ApiCallback): void => {
+    onEvent: (callback: ApiCallback): (() => void) => {
       projectionEventHandlers.push(callback)
       projectionEventQueue.forEach(([evt, ...args]) => callback(evt, ...args))
       projectionEventQueue = []
-    },
-    offEvent: (callback: ApiCallback): void => {
-      projectionEventHandlers = projectionEventHandlers.filter((cb) => cb !== callback)
+      return () => {
+        projectionEventHandlers = projectionEventHandlers.filter((cb) => cb !== callback)
+      }
     },
     readMedia: (): Promise<unknown> => ipcRenderer.invoke('projection-media-read'),
     readNavigation: (): Promise<unknown> => ipcRenderer.invoke('projection-navigation-read'),

@@ -133,8 +133,8 @@ export const Cluster: React.FC<ClusterProps> = ({ visible }) => {
       if (!renderReady) return
       void window.projection.ipc.requestCluster(true).catch(() => {})
     }
-    window.projection.ipc.onEvent(handler)
-    return () => window.projection.ipc.offEvent(handler)
+    const unsubscribe = window.projection.ipc.onEvent(handler)
+    return unsubscribe
   }, [renderReady, wantCluster])
 
   // Init Render.worker
@@ -242,7 +242,7 @@ export const Cluster: React.FC<ClusterProps> = ({ visible }) => {
       const d = args[0] as { type?: string; payload?: { codec?: unknown } } | undefined
       if (d?.type !== 'cluster-video-codec') return
       const codec = d.payload?.codec
-      console.log(`[MAPS] cluster-video-codec event received: codec=${codec}`)
+      console.debug(`[MAPS] cluster-video-codec event received: codec=${codec}`)
       if (codec === 'h264' || codec === 'h265' || codec === 'vp9' || codec === 'av1') {
         if (codec !== clusterCodecRef.current) {
           console.log(`[MAPS] switching worker codec ${clusterCodecRef.current} → ${codec}`)
@@ -251,8 +251,8 @@ export const Cluster: React.FC<ClusterProps> = ({ visible }) => {
         }
       }
     }
-    window.projection.ipc.onEvent(handler)
-    return () => window.projection.ipc.offEvent(handler)
+    const unsubscribe = window.projection.ipc.onEvent(handler)
+    return unsubscribe
   }, [])
 
   // Forward video chunks to Render.worker port. Register only once the
@@ -302,8 +302,8 @@ export const Cluster: React.FC<ClusterProps> = ({ visible }) => {
       } catch {}
       void window.projection.ipc.requestCluster(false).catch(() => {})
     }
-    window.projection.ipc.onEvent(handler)
-    return () => window.projection.ipc.offEvent(handler)
+    const unsubscribe = window.projection.ipc.onEvent(handler)
+    return unsubscribe
   }, [])
 
   const canShowVideo = !rendererError

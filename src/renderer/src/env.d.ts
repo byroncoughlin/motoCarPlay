@@ -1,7 +1,7 @@
 /// <reference types="@webgpu/types" />
 
 import type { ElectronAPI } from '@electron-toolkit/preload'
-import type { DongleFirmwareAction, ExtraConfig } from '@shared/types'
+import type { Config, DongleFirmwareAction } from '@shared/types'
 import type { MultiTouchPoint } from '@shared/types/TouchTypes'
 
 // Should move to src/types/usb.ts
@@ -124,16 +124,19 @@ declare global {
         getSysdefaultPrettyName(): Promise<string>
         uploadIcons(): Promise<void>
         uploadLiviScripts(): Promise<DevToolsUploadResult>
-        listenForEvents(callback: (event: unknown, ...args: unknown[]) => void): void
-        unlistenForEvents(callback: (event: unknown, ...args: unknown[]) => void): void
+        listenForEvents(callback: (event: unknown, ...args: unknown[]) => void): () => void
       }
 
       settings: {
-        get(): Promise<ExtraConfig>
-        save(settings: Partial<ExtraConfig>): Promise<void>
+        get(): Promise<Config>
+        save(settings: Partial<Config>): Promise<void>
         onUpdate(
-          callback: (event: import('electron').IpcRendererEvent, settings: ExtraConfig) => void
+          callback: (event: import('electron').IpcRendererEvent, settings: Config) => void
         ): () => void
+      }
+      audio: {
+        listSinks(): Promise<Array<{ id: string; name: string; isDefault: boolean }>>
+        listSources(): Promise<Array<{ id: string; name: string; isDefault: boolean }>>
       }
       ipc: {
         start(): Promise<void>
@@ -148,8 +151,7 @@ declare global {
         sendCommand(key: string): void
         sendRawMessage(type: number, data: Uint8Array): void
 
-        onEvent(callback: (event: unknown, ...args: unknown[]) => void): void
-        offEvent(callback: (event: unknown, ...args: unknown[]) => void): void
+        onEvent(callback: (event: unknown, ...args: unknown[]) => void): () => void
 
         onTelemetry(handler: (payload: unknown) => void): void
         offTelemetry(handler: (payload: unknown) => void): void

@@ -301,8 +301,8 @@ export function NavFull({ className }: NavFullProps) {
       }
     }
 
-    window.projection.ipc.onEvent(handler)
-    return () => window.projection.ipc.offEvent(handler)
+    const unsubscribe = window.projection.ipc.onEvent(handler)
+    return unsubscribe
   }, [hydrate])
 
   const t = React.useMemo(() => translateNavigation(navi, locale), [navi, locale])

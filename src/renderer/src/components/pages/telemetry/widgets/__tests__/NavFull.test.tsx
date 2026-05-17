@@ -2,6 +2,7 @@ import { act, render, screen, waitFor } from '@testing-library/react'
 import { NavFull } from '../NavFull'
 
 let onEventCb: ((event: unknown, ...args: unknown[]) => void) | undefined
+let unsubscribeMock: jest.Mock
 
 const useLiviStoreMock = jest.fn()
 const translateNavigationMock = jest.fn()
@@ -19,6 +20,7 @@ describe('NavFull', () => {
   beforeEach(() => {
     jest.clearAllMocks()
     onEventCb = undefined
+    unsubscribeMock = jest.fn()
 
     useLiviStoreMock.mockImplementation((selector: (state: any) => unknown) =>
       selector({
@@ -54,8 +56,8 @@ describe('NavFull', () => {
         }),
         onEvent: jest.fn((cb: (event: unknown, ...args: unknown[]) => void) => {
           onEventCb = cb
-        }),
-        offEvent: jest.fn()
+          return unsubscribeMock
+        })
       }
     }
   })
@@ -146,10 +148,9 @@ describe('NavFull', () => {
     expect((window as any).projection.ipc.onEvent).toHaveBeenCalledTimes(1)
     expect(onEventCb).toBeDefined()
 
-    const cb = onEventCb
     unmount()
 
-    expect((window as any).projection.ipc.offEvent).toHaveBeenCalledWith(cb)
+    expect(unsubscribeMock).toHaveBeenCalledTimes(1)
   })
 
   test('ignores non-navigation events', async () => {

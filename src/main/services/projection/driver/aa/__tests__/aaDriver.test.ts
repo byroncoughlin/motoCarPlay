@@ -5,7 +5,7 @@ class MockAAStack extends EventEmitter {
   start = jest.fn()
   stop = jest.fn()
   attachSocket = jest.fn()
-  requestKeyframe = jest.fn()
+  requestVideoFocus = jest.fn()
   requestClusterKeyframe = jest.fn()
   requestShutdown = jest.fn(async () => undefined)
   sendTouch = jest.fn()
@@ -90,7 +90,7 @@ jest.mock('node:net', () => ({
 }))
 
 import * as net from 'node:net'
-import type { DongleConfig } from '@shared/types'
+import type { Config } from '@shared/types'
 import { CommandMapping, MultiTouchAction, TouchAction } from '@shared/types/ProjectionEnums'
 import {
   SendCloseDongle,
@@ -101,7 +101,7 @@ import {
 } from '../../../messages/sendable'
 import { AaDriver } from '../aaDriver'
 
-const baseCfg = (): DongleConfig =>
+const baseCfg = (): Config =>
   ({
     width: 1280,
     height: 720,
@@ -130,7 +130,7 @@ const baseCfg = (): DongleConfig =>
     clusterSafeAreaRight: 0,
     cluster: { main: true, dash: false, aux: false },
     disableAudioOutput: false
-  }) as unknown as DongleConfig
+  }) as unknown as Config
 
 const fakeUsbDevice = () =>
   ({
@@ -190,21 +190,21 @@ describe('AaDriver.start — wireless', () => {
 
   test('config seed: fps=60 → videoFps=60', async () => {
     const d = new AaDriver()
-    await d.start({ ...baseCfg(), fps: 60 } as DongleConfig)
+    await d.start({ ...baseCfg(), fps: 60 } as Config)
     const cfg = lastAaStack.instance!.cfg as Record<string, unknown>
     expect(cfg.videoFps).toBe(60)
   })
 
   test('config seed: hand=1 → driverPosition=1', async () => {
     const d = new AaDriver()
-    await d.start({ ...baseCfg(), hand: 1 } as DongleConfig)
+    await d.start({ ...baseCfg(), hand: 1 } as Config)
     const cfg = lastAaStack.instance!.cfg as Record<string, unknown>
     expect(cfg.driverPosition).toBe(1)
   })
 
   test('config seed: empty carName falls back to "LIVI"', async () => {
     const d = new AaDriver()
-    await d.start({ ...baseCfg(), carName: '   ' } as unknown as DongleConfig)
+    await d.start({ ...baseCfg(), carName: '   ' } as unknown as Config)
     const cfg = lastAaStack.instance!.cfg as Record<string, unknown>
     expect(cfg.huName).toBe('LIVI')
     expect(cfg.wifiSsid).toBe('LIVI')
@@ -212,7 +212,7 @@ describe('AaDriver.start — wireless', () => {
 
   test('config seed: wifiPassword defaults to "12345678" when empty', async () => {
     const d = new AaDriver()
-    await d.start({ ...baseCfg(), wifiPassword: '' } as DongleConfig)
+    await d.start({ ...baseCfg(), wifiPassword: '' } as Config)
     const cfg = lastAaStack.instance!.cfg as Record<string, unknown>
     expect(cfg.wifiPassword).toBe('12345678')
   })
@@ -331,13 +331,9 @@ describe('AaDriver.send — SendCommand', () => {
     aa = lastAaStack.instance!
   })
 
-  test('frame triggers requestKeyframe', async () => {
-    jest.useFakeTimers()
+  test('frame triggers a single requestVideoFocus (VIDEO_FOCUS_REQUEST)', async () => {
     await d.send(new SendCommand('frame'))
-    expect(aa.requestKeyframe).toHaveBeenCalledTimes(1)
-    jest.advanceTimersByTime(500)
-    expect(aa.requestKeyframe).toHaveBeenCalledTimes(2)
-    jest.useRealTimers()
+    expect(aa.requestVideoFocus).toHaveBeenCalledTimes(1)
   })
 
   test('requestClusterStreamFocus triggers requestClusterKeyframe', async () => {

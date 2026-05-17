@@ -589,10 +589,8 @@ export function USBDongle() {
       }
     }
 
-    window.projection?.ipc?.onEvent?.(handler)
-    return () => {
-      window.projection?.ipc?.offEvent?.(handler)
-    }
+    const unsubscribe = window.projection?.ipc?.onEvent?.(handler)
+    return unsubscribe
   }, [])
 
   useEffect(() => {

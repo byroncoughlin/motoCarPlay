@@ -23,7 +23,7 @@ export type MediaEventPayload = { type: 'media'; payload: { payload: MediaPayloa
 // Typed view of the pieces we use on window (no `any`)
 export type Bridge = {
   projection?: {
-    ipc?: { onEvent?: (cb: (e: unknown, ...a: unknown[]) => void) => void | (() => void) }
+    ipc?: { onEvent?: (cb: (e: unknown, ...a: unknown[]) => void) => () => void }
   }
   electron?: {
     ipcRenderer?: {
