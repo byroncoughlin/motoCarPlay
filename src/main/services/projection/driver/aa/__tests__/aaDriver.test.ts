@@ -5,7 +5,7 @@ class MockAAStack extends EventEmitter {
   start = jest.fn()
   stop = jest.fn()
   attachSocket = jest.fn()
-  requestKeyframe = jest.fn()
+  requestVideoFocus = jest.fn()
   requestClusterKeyframe = jest.fn()
   requestShutdown = jest.fn(async () => undefined)
   sendTouch = jest.fn()
@@ -331,13 +331,9 @@ describe('AaDriver.send — SendCommand', () => {
     aa = lastAaStack.instance!
   })
 
-  test('frame triggers requestKeyframe', async () => {
-    jest.useFakeTimers()
+  test('frame triggers a single requestVideoFocus (VIDEO_FOCUS_REQUEST)', async () => {
     await d.send(new SendCommand('frame'))
-    expect(aa.requestKeyframe).toHaveBeenCalledTimes(1)
-    jest.advanceTimersByTime(500)
-    expect(aa.requestKeyframe).toHaveBeenCalledTimes(2)
-    jest.useRealTimers()
+    expect(aa.requestVideoFocus).toHaveBeenCalledTimes(1)
   })
 
   test('requestClusterStreamFocus triggers requestClusterKeyframe', async () => {

@@ -691,10 +691,6 @@ const CarplayComponent: React.FC<CarplayProps> = ({
     let unsubscribe: (() => void) | undefined
     if (!aaActive) {
       unsubscribe = window.projection.usb.listenForEvents(usbHandler)
-      ;(async () => {
-        const last = await window.projection.usb.getLastEvent()
-        if (last) usbHandler(undefined, last as unknown)
-      })()
     }
 
     return () => {

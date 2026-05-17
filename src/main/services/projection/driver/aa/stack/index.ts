@@ -223,8 +223,8 @@ export class AAStack extends EventEmitter {
     this._activeSession?.sendMicPcm(buf, ts)
   }
 
-  requestKeyframe(): void {
-    this._activeSession?.requestKeyframe()
+  requestVideoFocus(): void {
+    this._activeSession?.requestVideoFocus()
   }
 
   requestClusterKeyframe(): void {

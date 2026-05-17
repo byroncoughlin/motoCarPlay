@@ -367,6 +367,20 @@ export class USBService {
           }
         }
       }
+
+      // Direct-USB AA path: phone in accessory mode without a dongle.
+      if (this.lastPhoneState && this.connectedPhoneDevice) {
+        const dev = this.connectedPhoneDevice
+        return {
+          type: 'plugged',
+          device: {
+            vendorId: dev.deviceDescriptor.idVendor,
+            productId: dev.deviceDescriptor.idProduct,
+            deviceName: ''
+          }
+        }
+      }
+
       return { type: 'unplugged', device: null }
     })
 

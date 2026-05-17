@@ -10,7 +10,7 @@ class MockSocket extends EventEmitter {
   })
 }
 
-import { CH, CTRL_MSG, FRAME_FLAGS } from '../../constants'
+import { AV_MSG, CH, CTRL_MSG, FRAME_FLAGS } from '../../constants'
 import { Session, type SessionConfig } from '../Session'
 
 const RUNNING_STATE = 6
@@ -180,22 +180,26 @@ describe('Session — outbound input API gated by state', () => {
     expect(() => session.sendMicPcm(Buffer.alloc(0))).not.toThrow()
   })
 
-  test('requestKeyframe / requestClusterKeyframe are no-ops outside RUNNING', () => {
+  test('requestVideoFocus / requestClusterKeyframe are no-ops outside RUNNING', () => {
     const { session } = makeSession()
     const sent = captureEncrypted(session)
-    session.requestKeyframe()
+    session.requestVideoFocus()
     session.requestClusterKeyframe()
     expect(sent).not.toHaveBeenCalled()
   })
 
-  test('requestKeyframe emits a VIDEO_FOCUS_INDICATION on the video channel', () => {
+  test('requestVideoFocus emits a VIDEO_FOCUS_REQUEST(mode=PROJECTED) on the video channel', () => {
     const { session } = makeSession()
     forceRunning(session)
     const sent = captureEncrypted(session)
-    session.requestKeyframe()
+    session.requestVideoFocus()
     expect(sent.mock.calls[0][0]).toBe(CH.VIDEO)
     expect(sent.mock.calls[0][1]).toBe(FRAME_FLAGS.ENC_SIGNAL)
-    expect((sent.mock.calls[0][3] as Buffer).equals(Buffer.from([0x08, 0x01]))).toBe(true)
+    expect(sent.mock.calls[0][2]).toBe(AV_MSG.VIDEO_FOCUS_REQUEST)
+    // VideoFocusRequestNotification: mode=PROJECTED(1), reason=UNKNOWN(0)
+    expect((sent.mock.calls[0][3] as Buffer).equals(Buffer.from([0x10, 0x01, 0x18, 0x00]))).toBe(
+      true
+    )
   })
 
   test('requestClusterKeyframe emits a VIDEO_FOCUS_INDICATION on the cluster channel', () => {
@@ -826,11 +830,11 @@ describe('Session.start() — channel wiring', () => {
 })
 
 describe('Session — RUNNING state guarded methods', () => {
-  test('requestKeyframe still does nothing when state is CLOSED', () => {
+  test('requestVideoFocus still does nothing when state is CLOSED', () => {
     const { session } = makeSession()
     session.close()
     const sent = captureEncrypted(session)
-    session.requestKeyframe()
+    session.requestVideoFocus()
     expect(sent).not.toHaveBeenCalled()
   })
 })

@@ -628,8 +628,7 @@ export class AaDriver extends EventEmitter implements IPhoneDriver {
         case CommandMapping.frame:
         case CommandMapping.requestVideoFocus:
           this._bridge?.emitPlugged()
-          this._aa.requestKeyframe()
-          setTimeout(() => this._aa?.requestKeyframe(), 500)
+          this._aa.requestVideoFocus()
           return true
 
         case CommandMapping.releaseVideoFocus:
