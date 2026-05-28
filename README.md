@@ -115,30 +115,47 @@ Steps:
 
 Make sure the following packages and tools are installed on your system before building:
 
+- **Node.js 24.x** (with `corepack` for `pnpm`)
 - **Python 3.x** (for native module builds via `node-gyp`)
 - **build-essential** (Linux: includes `gcc`, `g++`, `make`, etc.)
 - **libusb-1.0-0-dev** (required for `node-usb`)
 - **libudev-dev** (optional but recommended for USB detection on Linux)
 - **fuse** (required to run AppImages)
 
+On Debian/Ubuntu/Raspberry Pi OS, install everything with:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y git build-essential python3 python3-dev \
+  libusb-1.0-0-dev libudev-dev
+curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
+sudo apt-get install -y nodejs
+sudo corepack enable
+```
+
 ### Clone & Build
 
 ```bash
+# Git clone
 git clone --branch main --single-branch https://github.com/f-io/LIVI.git \
-  && cd LIVI \
-  && corepack enable \
-  && corepack install
+  && cd LIVI
 
 # Install dependencies from lockfile
 pnpm run install:ci
 
 # --- Build targets ---
 
-# Linux x86_64 (AppImage)
+# Linux x86_64 (AppImage + deb)
 pnpm run build:linux
 
-# Linux ARM64 (AppImage)
+# Linux ARM64 (AppImage + deb)
 pnpm run build:armLinux
+
+# Single-format variants
+pnpm run build:linux:appimage      # x86_64 AppImage
+pnpm run build:linux:deb           # x86_64 deb
+pnpm run build:armLinux:appimage   # ARM64 AppImage
+pnpm run build:armLinux:deb        # ARM64 deb
 
 # macOS (arm64 dmg)
 pnpm run build:mac
