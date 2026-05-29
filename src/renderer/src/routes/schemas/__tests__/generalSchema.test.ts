@@ -39,7 +39,7 @@ describe('generalSchema', () => {
     expect(connections.children[3]).toEqual(
       expect.objectContaining({
         type: 'checkbox',
-        path: 'wirelessEnabled'
+        path: 'wirelessAaEnabled'
       })
     )
     expect(connections.children[4]).toEqual(

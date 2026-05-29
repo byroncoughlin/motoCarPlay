@@ -227,8 +227,8 @@ export class ProjectionService {
     }
 
     if (
-      typeof next.wirelessEnabled === 'boolean' &&
-      next.wirelessEnabled !== prev?.wirelessEnabled
+      typeof next.wirelessAaEnabled === 'boolean' &&
+      next.wirelessAaEnabled !== prev?.wirelessAaEnabled
     ) {
       this.syncAaBtSupervisor()
       this.emitTransportState()
@@ -244,10 +244,10 @@ export class ProjectionService {
 
   private syncAaBtSupervisor(): void {
     // BT stack runs on Linux whenever the host has a BlueZ adapter, regardless
-    // of wirelessEnabled. The mode (wireless / monitor) is passed via env to
-    // the python supervisor, toggling wirelessEnabled restarts it.
+    // of wirelessAaEnabled. The mode (wireless / monitor) is passed via env to
+    // the python supervisor, toggling wirelessAaEnabled restarts it.
     const want = process.platform === 'linux'
-    const desiredMode = this.config.wirelessEnabled === true ? 'wireless' : 'monitor'
+    const desiredMode = this.config.wirelessAaEnabled === true ? 'wireless' : 'monitor'
 
     if (want && this.aaBtSupervisor && this.aaBtSupervisorMode !== desiredMode) {
       console.log(
@@ -783,7 +783,8 @@ export class ProjectionService {
 
     this.arbiter = new TransportArbiter({
       getPreference: () => this.getConnectionPreference(),
-      isWirelessEnabled: () => this.config.wirelessEnabled === true && process.platform === 'linux',
+      isWirelessEnabled: () =>
+        this.config.wirelessAaEnabled === true && process.platform === 'linux',
       isWirelessPhoneInRange: () => this.wirelessPhoneInRange,
       getActiveTransport: () => this.getActiveTransport(),
       isDongleSessionActive: () => this.started && !this.drivers.getAa(),

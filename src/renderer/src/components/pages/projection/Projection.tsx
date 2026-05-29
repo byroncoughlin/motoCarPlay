@@ -119,7 +119,7 @@ const CarplayComponent: React.FC<CarplayProps> = ({
   const isAaActiveFlag = useStatusStore((s) => s.isAaActive)
   const negotiatedWidth = useLiviStore((s) => s.negotiatedWidth)
   const negotiatedHeight = useLiviStore((s) => s.negotiatedHeight)
-  const wirelessEnabled = useLiviStore((s) => Boolean(s.settings?.wirelessEnabled))
+  const wirelessAaEnabled = useLiviStore((s) => Boolean(s.settings?.wirelessAaEnabled))
 
   const prevPathnameRef = useRef(pathname)
   useEffect(() => {
@@ -960,7 +960,7 @@ const CarplayComponent: React.FC<CarplayProps> = ({
         case 'plugged': {
           const phoneType = (d as { phoneType?: number }).phoneType
           const useAa =
-            phoneType !== undefined ? phoneType === PhoneType.AndroidAuto : wirelessEnabled
+            phoneType !== undefined ? phoneType === PhoneType.AndroidAuto : wirelessAaEnabled
           if (useAa) setAaActive(true)
           else setDongleConnected(true)
           break

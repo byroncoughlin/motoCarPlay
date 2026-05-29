@@ -29,7 +29,7 @@ export function useSmartSettings<T extends Record<string, unknown>>(
   const markRestartBaseline = useLiviStore((s) => s.markRestartBaseline)
   const isDongleConnected = useStatusStore((s) => s.isDongleConnected || s.isAaActive)
   const isAaActive = useStatusStore((s) => s.isAaActive)
-  const wirelessEnabled = useLiviStore((s) => Boolean(s.settings?.wirelessEnabled))
+  const wirelessAaEnabled = useLiviStore((s) => Boolean(s.settings?.wirelessAaEnabled))
 
   useEffect(() => {
     setState({ ...initial })
@@ -88,7 +88,7 @@ export function useSmartSettings<T extends Record<string, unknown>>(
   const restart = async () => {
     if (!needsRestart) return false
 
-    if (wirelessEnabled || isAaActive) {
+    if (wirelessAaEnabled || isAaActive) {
       await window.projection.ipc.restart()
     } else {
       if (!isDongleConnected) return false

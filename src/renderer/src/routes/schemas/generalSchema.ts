@@ -99,11 +99,18 @@ export const generalSchema: SettingsNode<Config> = {
         },
         {
           type: 'checkbox',
-          label: 'Wireless',
-          labelKey: 'settings.wirelessEnabled',
-          path: 'wirelessEnabled',
+          label: 'Wireless Android Auto',
+          labelKey: 'settings.wirelessAaEnabled',
+          path: 'wirelessAaEnabled',
           disabled: window.app?.platform !== 'linux'
         },
+        // {
+        //   type: 'checkbox',
+        //   label: 'Wireless CarPlay',
+        //   labelKey: 'settings.wirelessCpEnabled',
+        //   path: 'wirelessCpEnabled',
+        //   disabled: window.app?.platform !== 'linux'
+        // },
         {
           type: 'checkbox',
           label: 'Auto Connect',

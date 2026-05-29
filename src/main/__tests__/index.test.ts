@@ -115,7 +115,7 @@ describe('main index bootstrap', () => {
       width: 800,
       height: 480,
       kiosk: false,
-      wirelessEnabled: true
+      wirelessAaEnabled: true
     })
 
     const original = process.platform

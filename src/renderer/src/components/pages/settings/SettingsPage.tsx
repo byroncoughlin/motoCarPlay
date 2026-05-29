@@ -31,8 +31,8 @@ export function SettingsPage() {
   const btDirty = useLiviStore((s) => s.bluetoothPairedDirty)
   const applyBtList = useLiviStore((s) => s.applyBluetoothPairedList)
 
-  const wirelessEnabled = Boolean(settings?.wirelessEnabled)
-  const restartAvailable = isDongleConnected || wirelessEnabled
+  const wirelessAaEnabled = Boolean(settings?.wirelessAaEnabled)
+  const restartAvailable = isDongleConnected || wirelessAaEnabled
 
   const handleRestart = async () => {
     if (!restartAvailable) return

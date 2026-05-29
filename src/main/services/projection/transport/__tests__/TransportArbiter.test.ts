@@ -4,7 +4,7 @@ import type { ArbiterDeps, ConnectionPreference, Transport } from '../types'
 
 type DepStubs = {
   preference: ConnectionPreference
-  wirelessEnabled: boolean
+  wirelessAaEnabled: boolean
   wirelessPhoneInRange: boolean
   active: Transport | null
   dongleSessionActive: boolean
@@ -18,7 +18,7 @@ type DepStubs = {
 function makeArbiter(overrides: Partial<DepStubs> = {}) {
   const stubs: DepStubs = {
     preference: 'auto',
-    wirelessEnabled: false,
+    wirelessAaEnabled: false,
     wirelessPhoneInRange: true,
     active: null,
     dongleSessionActive: false,
@@ -31,7 +31,7 @@ function makeArbiter(overrides: Partial<DepStubs> = {}) {
   }
   const deps: ArbiterDeps = {
     getPreference: () => stubs.preference,
-    isWirelessEnabled: () => stubs.wirelessEnabled,
+    isWirelessEnabled: () => stubs.wirelessAaEnabled,
     isWirelessPhoneInRange: () => stubs.wirelessPhoneInRange,
     getActiveTransport: () => stubs.active,
     isDongleSessionActive: () => stubs.dongleSessionActive,
@@ -231,12 +231,12 @@ describe('TransportArbiter', () => {
     })
 
     test('returns wireless aa when only wireless is eligible', () => {
-      const { arbiter } = makeArbiter({ wirelessEnabled: true })
+      const { arbiter } = makeArbiter({ wirelessAaEnabled: true })
       expect(arbiter.pickPreferred()).toEqual(AA_WIRELESS)
     })
 
     test("preference='auto' with dongle+wireless prefers dongle when no session yet", () => {
-      const { arbiter } = makeArbiter({ wirelessEnabled: true })
+      const { arbiter } = makeArbiter({ wirelessAaEnabled: true })
       arbiter.markDongleConnected(true)
       expect(arbiter.pickPreferred()).toEqual(DONGLE)
     })
@@ -308,7 +308,7 @@ describe('TransportArbiter', () => {
     test("preference='native' defers dongle while wireless is enabled but no phone in range", () => {
       const { arbiter } = makeArbiter({
         preference: 'native',
-        wirelessEnabled: true,
+        wirelessAaEnabled: true,
         wirelessPhoneInRange: false
       })
       arbiter.markDongleConnected(true)
@@ -321,7 +321,7 @@ describe('TransportArbiter', () => {
       jest.setSystemTime(t0)
       const { arbiter, stubs } = makeArbiter({
         preference: 'native',
-        wirelessEnabled: true,
+        wirelessAaEnabled: true,
         wirelessPhoneInRange: false
       })
       arbiter.markDongleConnected(true)
@@ -341,7 +341,7 @@ describe('TransportArbiter', () => {
       jest.setSystemTime(t0)
       const { arbiter } = makeArbiter({
         preference: 'native',
-        wirelessEnabled: true,
+        wirelessAaEnabled: true,
         wirelessPhoneInRange: false
       })
       arbiter.markDongleConnected(true)
@@ -353,7 +353,7 @@ describe('TransportArbiter', () => {
     test('explicit override skips the defer', () => {
       const { arbiter } = makeArbiter({
         preference: 'native',
-        wirelessEnabled: true,
+        wirelessAaEnabled: true,
         wirelessPhoneInRange: false
       })
       arbiter.markDongleConnected(true)
@@ -367,7 +367,7 @@ describe('TransportArbiter', () => {
       jest.setSystemTime(t0)
       const { arbiter } = makeArbiter({
         preference: 'native',
-        wirelessEnabled: true,
+        wirelessAaEnabled: true,
         wirelessPhoneInRange: false
       })
       arbiter.markDongleConnected(true)
@@ -416,7 +416,7 @@ describe('TransportArbiter', () => {
       const { arbiter } = makeArbiter({
         active: 'aa',
         wiredAaSessionActive: true,
-        wirelessEnabled: true
+        wirelessAaEnabled: true
       })
       arbiter.markPhoneConnected(true, fakeDevice())
       const r = arbiter.prepareSwitch()
@@ -427,7 +427,7 @@ describe('TransportArbiter', () => {
       const { arbiter } = makeArbiter({
         active: 'aa',
         wiredAaSessionActive: false,
-        wirelessEnabled: true
+        wirelessAaEnabled: true
       })
       arbiter.markPhoneConnected(true, fakeDevice())
       const r = arbiter.prepareSwitch()

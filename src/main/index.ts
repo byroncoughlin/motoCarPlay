@@ -57,7 +57,7 @@ app.whenReady().then(async () => {
   if (win) await checkAndInstallUdevRule(win)
 
   // Wireless AA needs root for BlueZ + hostapd + dnsmasq.
-  if (win && runtimeState.config.wirelessEnabled === true && process.platform === 'linux') {
+  if (win && runtimeState.config.wirelessAaEnabled === true && process.platform === 'linux') {
     await checkAndInstallAaSudoers(win)
   }
 

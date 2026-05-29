@@ -122,7 +122,7 @@ function envFromConfig(cfg: Config): NodeJS.ProcessEnv {
 
   return {
     ...process.env,
-    LIVI_MODE: cfg.wirelessEnabled === true ? 'wireless' : 'monitor',
+    LIVI_MODE: cfg.wirelessAaEnabled === true ? 'wireless' : 'monitor',
     LIVI_SSID: name,
     LIVI_BTNAME: name,
     LIVI_PASSPHRASE: cfg.wifiPassword || '12345678',
