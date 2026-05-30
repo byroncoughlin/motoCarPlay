@@ -891,9 +891,10 @@ export class ProjectionService {
     }
     console.log(
       `[ProjectionService] GStreamer codecs: ` +
-        `h265(av=${p.h265.available} hw=${p.h265.hw}) ` +
-        `vp9(av=${p.vp9.available} hw=${p.vp9.hw}) ` +
-        `av1(av=${p.av1.available} hw=${p.av1.hw})`
+        `h264(hw=${p.h264.hw} sw=${p.h264.sw}) ` +
+        `h265(hw=${p.h265.hw} sw=${p.h265.sw}) ` +
+        `vp9(hw=${p.vp9.hw} sw=${p.vp9.sw}) ` +
+        `av1(hw=${p.av1.hw} sw=${p.av1.sw})`
     )
     this.recomputeCodecCapabilities()
   }
