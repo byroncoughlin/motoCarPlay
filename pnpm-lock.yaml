@@ -7,6 +7,9 @@ settings:
 overrides:
   node-gyp: ^12.3.0
 
+patchedDependencies:
+  usb@2.17.0: 637ad8f28856b4066e7f64b0f03f115820120a4cff9fd910c6fcd727e07b4f7d
+
 importers:
 
   .:
@@ -76,7 +79,7 @@ importers:
         version: 3.0.0
       usb:
         specifier: ^2.17.0
-        version: 2.17.0
+        version: 2.17.0(patch_hash=637ad8f28856b4066e7f64b0f03f115820120a4cff9fd910c6fcd727e07b4f7d)
       vite-plugin-esmodule:
         specifier: ^1.5.0
         version: 1.5.0
@@ -7996,7 +7999,7 @@ snapshots:
     dependencies:
       punycode: 2.3.1
 
-  usb@2.17.0:
+  usb@2.17.0(patch_hash=637ad8f28856b4066e7f64b0f03f115820120a4cff9fd910c6fcd727e07b4f7d):
     dependencies:
       '@types/w3c-web-usb': 1.0.14
       node-addon-api: 8.8.0
