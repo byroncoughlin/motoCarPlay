@@ -124,27 +124,27 @@ describe('Cluster page', () => {
     statusState.isAaActive = false
   })
 
-  test('onClusterResolution applies the crop math to the canvas', async () => {
+  test('onClusterResolution hides the map placeholder once cluster frames arrive', async () => {
     let resCb: ((p: unknown) => void) | null = null
     ;(window as any).projection.ipc.onClusterResolution = jest.fn((cb: (p: unknown) => void) => {
       resCb = cb
     })
-    // Set user-facing cluster dims so clusterCrop branch fires
-    liviState.settings = {
-      fps: 60,
-      clusterFps: 60,
-      cluster: { main: true, dash: false, aux: false },
-      clusterWidth: 800,
-      clusterHeight: 480
-    }
-    const { container } = renderCluster()
+    liviState.boxInfo = { supportFeatures: 'naviScreen' }
+
+    render(
+      <MemoryRouter initialEntries={['/cluster']}>
+        <Cluster visible />
+      </MemoryRouter>
+    )
+
     await waitFor(() => expect(resCb).not.toBeNull())
+    expect(screen.getAllByTestId('MapOutlinedIcon')).toHaveLength(1)
+
     act(() => {
       resCb!({ width: 1920, height: 1080 })
     })
-    const canvas = container.querySelector('canvas') as HTMLCanvasElement
-    // After resolution arrives, width style is computed (not literal 100%)
-    expect(canvas.style.width.endsWith('%')).toBe(true)
+
+    await waitFor(() => expect(screen.queryByTestId('MapOutlinedIcon')).not.toBeInTheDocument())
   })
 
   test('onClusterResolution callback is skipped if IPC method is missing', () => {

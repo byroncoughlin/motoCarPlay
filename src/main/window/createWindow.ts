@@ -34,7 +34,7 @@ function readMainBounds(rs: runtimeStateProps): WindowBounds | undefined {
 export function createMainWindow(runtimeState: runtimeStateProps, services: ServicesProps) {
   const { projectionService } = services
   const isMac = isMacPlatform()
-  const isLinux = process.platform === 'linux'
+  const compositorMode = process.env.LIVI_COMPOSITOR === '1'
 
   const savedBounds = readMainBounds(runtimeState)
 
@@ -43,12 +43,14 @@ export function createMainWindow(runtimeState: runtimeStateProps, services: Serv
     height: savedBounds?.height ?? runtimeState.config.height,
     x: savedBounds?.x,
     y: savedBounds?.y,
-    frame: true,
+    // Compositor mode: frameless and non-resizable
+    frame: !compositorMode,
+    resizable: !compositorMode,
     useContentSize: true,
     kiosk: false,
     autoHideMenuBar: true,
-    transparent: isLinux,
-    backgroundColor: isLinux ? '#00000000' : '#000',
+    transparent: compositorMode,
+    backgroundColor: compositorMode ? '#00000000' : '#000',
     fullscreenable: true,
     simpleFullscreen: false,
     webPreferences: {

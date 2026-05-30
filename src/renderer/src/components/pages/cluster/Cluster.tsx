@@ -1,6 +1,5 @@
 import MapOutlinedIcon from '@mui/icons-material/MapOutlined'
 import { Box, Typography, useTheme } from '@mui/material'
-import { aaContentArea } from '@shared/utils'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useLiviStore, useStatusStore } from '../../../store/store'
 
@@ -38,13 +37,11 @@ export const Cluster: React.FC<ClusterProps> = ({ visible }) => {
   const isStreaming = useStatusStore((s) => s.isStreaming)
   const isAaActive = useStatusStore((s) => s.isAaActive)
 
-  const [renderReady] = useState(false)
   const [rendererError] = useState<string | null>(null)
   const [clusterStreamActive, setClusterStreamActive] = useState(false)
-  const [clusterFrameSize, setClusterFrameSize] = useState<{ w: number; h: number } | null>(null)
 
+  const renderReady: boolean = true
   const rootRef = useRef<HTMLDivElement>(null)
-  const canvasRef = useRef<HTMLCanvasElement>(null)
 
   const supportsNaviScreen = useMemo(() => {
     // AA-native exposes a cluster sink (ch=19, display_type=CLUSTER) when any cluster display is active
@@ -102,8 +99,7 @@ export const Cluster: React.FC<ClusterProps> = ({ visible }) => {
     return unsubscribe
   }, [renderReady, wantCluster])
 
-  // Track the negotiated cluster frame dims so the canvas crop math below
-  // matches whatever tier the phone actually picked.
+  // Cluster frames negotiated -> the compositor renders the cluster plane
   useEffect(() => {
     const ipc = (window.projection?.ipc ?? {}) as {
       onClusterResolution?: (cb: (payload: unknown) => void) => void
@@ -113,7 +109,7 @@ export const Cluster: React.FC<ClusterProps> = ({ visible }) => {
       const d = payload as { width?: number; height?: number } | undefined
       const w = typeof d?.width === 'number' ? d.width : 0
       const h = typeof d?.height === 'number' ? d.height : 0
-      if (w > 0 && h > 0) setClusterFrameSize({ w, h })
+      if (w > 0 && h > 0) setClusterStreamActive(true)
     })
   }, [])
 
@@ -127,25 +123,6 @@ export const Cluster: React.FC<ClusterProps> = ({ visible }) => {
     const unsubscribe = window.projection.ipc.onEvent(handler)
     return unsubscribe
   }, [])
-
-  const canShowVideo = !rendererError
-
-  const userClusterW = settings?.clusterWidth ?? 0
-  const userClusterH = settings?.clusterHeight ?? 0
-  const clusterCrop = (() => {
-    if (!clusterFrameSize || userClusterW <= 0 || userClusterH <= 0) return null
-    const frameW = clusterFrameSize.w
-    const frameH = clusterFrameSize.h
-    const content = aaContentArea(
-      { width: frameW, height: frameH },
-      { width: userClusterW, height: userClusterH }
-    )
-    const overX = frameW > content.contentWidth ? frameW / content.contentWidth : 1
-    const overY = frameH > content.contentHeight ? frameH / content.contentHeight : 1
-    const leftPct = ((frameW - content.contentWidth) / 2 / content.contentWidth) * 100
-    const topPct = ((frameH - content.contentHeight) / 2 / content.contentHeight) * 100
-    return { overX, overY, leftPct, topPct }
-  })()
 
   return (
     <Box
@@ -183,42 +160,6 @@ export const Cluster: React.FC<ClusterProps> = ({ visible }) => {
           <MapOutlinedIcon sx={{ fontSize: 84, opacity: 0.55 }} />
         </Box>
       )}
-
-      {/* Canvas is ALWAYS mounted so the renderer can init immediately*/}
-      <Box
-        sx={{
-          width: '100%',
-          height: '100%',
-          display: canShowVideo ? 'flex' : 'none',
-          justifyContent: 'center',
-          alignItems: 'flex-start'
-        }}
-      >
-        <Box
-          sx={{
-            width: '100%',
-            height: '100%',
-            maxWidth: '100%',
-            position: 'relative',
-            overflow: 'hidden'
-          }}
-        >
-          <canvas
-            ref={canvasRef}
-            style={{
-              position: 'absolute',
-              width: clusterCrop ? `${clusterCrop.overX * 100}%` : '100%',
-              height: clusterCrop ? `${clusterCrop.overY * 100}%` : '100%',
-              left: clusterCrop ? `-${clusterCrop.leftPct}%` : '0',
-              top: clusterCrop ? `-${clusterCrop.topPct}%` : '0',
-              display: 'block',
-              userSelect: 'none',
-              pointerEvents: 'none',
-              background: '#000'
-            }}
-          />
-        </Box>
-      </Box>
 
       {isStreaming && !supportsNaviScreen && (
         <Box

@@ -10,7 +10,8 @@ jest.mock('electron', () => ({
 }))
 
 jest.mock('@main/utils', () => ({
-  linuxPresetAngleVulkan: jest.fn()
+  linuxPresetAngleVulkan: jest.fn(),
+  setFeatureFlags: jest.fn()
 }))
 
 const mockedAppendSwitch = app.commandLine.appendSwitch as jest.Mock
@@ -63,14 +64,15 @@ describe('gpu module', () => {
     expect(mockedLinuxPresetAngleVulkan).toHaveBeenCalledTimes(1)
   })
 
-  test('on linux non-x64 import does not apply linux gpu preset side effects', () => {
+  test('on linux non-x64 import applies gpu toggles but not the vulkan preset', () => {
     Object.defineProperty(process, 'platform', { value: 'linux' })
     Object.defineProperty(process, 'arch', { value: 'arm64' })
 
     loadGpuModule()
 
+    expect(mockedAppendSwitch).toHaveBeenCalledWith('ignore-gpu-blocklist')
+    expect(mockedAppendSwitch).toHaveBeenCalledWith('enable-gpu-rasterization')
     expect(mockedLinuxPresetAngleVulkan).not.toHaveBeenCalled()
-    expect(mockedAppendSwitch).not.toHaveBeenCalled()
   })
 
   test('on darwin import applies no startup gpu side effects', () => {

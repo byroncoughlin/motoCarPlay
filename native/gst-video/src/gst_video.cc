@@ -181,12 +181,16 @@ static const char* decoder_for(const std::string& c) {
 #endif
 }
 
-// Render sink per platform. Linux render path (Wayland/DRM) refined on-device.
-static const char* sink_for() {
-#ifdef _WIN32
-  return "d3d11videosink";
+// Sink chain per platform. Linux presents the decoded dmabuf to the
+// livi-compositor via waylandsink (zero-copy); the compositor lays it under the
+// Electron UI. mac/Windows render into the window surface directly.
+static std::string sink_chain() {
+#ifdef __APPLE__
+  return "glimagesink name=sink sync=false qos=false";
+#elif defined(_WIN32)
+  return "d3d11videosink name=sink sync=false qos=false";
 #else
-  return "glimagesink";
+  return "waylandsink name=sink sync=false";
 #endif
 }
 
@@ -274,7 +278,7 @@ static napi_value CreatePlayer(napi_env env, napi_callback_info info) {
     " min-latency=0 max-latency=0 caps=" +
     caps_for(codec) + " ! " + parser_for(codec) + " ! " + decoder_for(codec) + " name=dec" +
     " ! queue max-size-buffers=1 max-size-bytes=0 max-size-time=0 leaky=downstream" +
-    " ! " + sink_for() + " name=sink sync=false qos=false";
+    " ! " + sink_chain();
 
   fprintf(stderr, "[gst_video] codec=%s decoder=%s | %s\n",
     codec.c_str(), decoder_for(codec), desc.c_str());
@@ -282,7 +286,10 @@ static napi_value CreatePlayer(napi_env env, napi_callback_info info) {
   GError* err = nullptr;
   GstElement* pipeline = gst_parse_launch(desc.c_str(), &err);
   if (!pipeline || err) {
+    fprintf(stderr, "[gst_video] pipeline parse FAILED: %s\n",
+      err ? err->message : "unknown");
     if (err) g_error_free(err);
+    if (pipeline) gst_object_unref(pipeline);
     napi_value n;
     napi_get_null(env, &n);
     return n;
@@ -309,12 +316,17 @@ static napi_value CreatePlayer(napi_env env, napi_callback_info info) {
   gst_bus_set_sync_handler(bus, bus_sync, NULL, NULL);
   gst_object_unref(bus);
 
-  // Render into a hit-test-transparent host view (mac) on top of the hidden UI
+  // mac/Windows embed the sink into the window surface (NSView/HWND). Linux runs
+  // under livi-compositor, where waylandsink is its own client and gets its own
+  // toplevel that the compositor lays under the UI; no handle embedding there.
+#ifndef __linux__
   guintptr overlay = handle ? livi_attach_view(handle, &p->view) : handle;
-
   if (p->sink && GST_IS_VIDEO_OVERLAY(p->sink) && overlay) {
     gst_video_overlay_set_window_handle(GST_VIDEO_OVERLAY(p->sink), overlay);
   }
+#else
+  (void)handle;
+#endif
 
   napi_value ext;
   napi_create_external(env, p, player_finalize, NULL, &ext);

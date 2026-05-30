@@ -135,6 +135,8 @@ export class ProjectionService {
   private gstVideo: GstVideo | null = null
   private gstVideoCodec: GstVideoCodec = 'h264'
   private gstVideoVisible = true
+  private gstVideoCluster: GstVideo | null = null
+  private gstVideoClusterCodec: GstVideoCodec = 'h264'
   private dongleFwVersion?: string
   private boxInfo?: unknown
   private hostDevList: DevListEntry[] = []
@@ -531,13 +533,7 @@ export class ProjectionService {
           }
         }
 
-        this.sendChunked(
-          'cluster-video-chunk',
-          msg.data?.buffer as ArrayBuffer,
-          512 * 1024,
-          undefined,
-          clusterTargets
-        )
+        if (msg.data) this.pushGstVideoCluster(msg.data)
         return
       }
 
@@ -727,6 +723,16 @@ export class ProjectionService {
     this.gstVideo.push(this.gstVideoCodec, nal)
   }
 
+  private pushGstVideoCluster(nal: Buffer): void {
+    if (process.platform !== 'linux') return
+    const wc = this.webContents
+    if (!wc || wc.isDestroyed?.()) return
+    if (!this.gstVideoCluster) {
+      this.gstVideoCluster = new GstVideo(wc)
+    }
+    this.gstVideoCluster.push(this.gstVideoClusterCodec, nal)
+  }
+
   // Renderer reports whether the projection screen is currently shown
   public setVideoVisible(visible: boolean): void {
     this.gstVideoVisible = visible
@@ -736,6 +742,7 @@ export class ProjectionService {
   // Cluster channel codec selection
   private readonly onDriverClusterVideoCodec = (codec: 'h264' | 'h265' | 'vp9' | 'av1'): void => {
     this.lastClusterCodec = codec
+    this.gstVideoClusterCodec = codec
     for (const wc of this.getClusterTargetWebContents()) {
       try {
         wc.send('projection-event', { type: 'cluster-video-codec', payload: { codec } })
@@ -1722,6 +1729,9 @@ export class ProjectionService {
       this.gstVideo?.dispose()
       this.gstVideo = null
       this.gstVideoCodec = 'h264'
+      this.gstVideoCluster?.dispose()
+      this.gstVideoCluster = null
+      this.gstVideoClusterCodec = 'h264'
 
       this.started = false
       this.resetMediaSnapshot('session-stop')

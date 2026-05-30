@@ -29,6 +29,9 @@ if (role === 'main') {
 if (role === 'dash') document.title = 'Dash'
 else if (role === 'aux') document.title = 'Auxiliary'
 
+// Under the livi-compositor the window is transparent so the GPU video plane behind it shows through
+if (window.app?.compositor) document.documentElement.classList.add('compositor')
+
 export const Root = () => {
   const settings = useLiviStore((s) => s.settings)
 

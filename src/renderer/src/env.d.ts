@@ -186,6 +186,7 @@ declare global {
 
     app: {
       platform: NodeJS.Platform
+      compositor: boolean
       notifyUserActivity(): void
       quitApp(): Promise<void>
       restartApp(): Promise<void>

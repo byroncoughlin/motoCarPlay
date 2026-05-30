@@ -128,8 +128,9 @@ const CarplayComponent: React.FC<CarplayProps> = ({
   useEffect(() => {
     const visible = pathname === '/' || navVideoOverlayActive
     void window.projection.ipc.setVisible(visible).catch(() => {})
-    document.documentElement.classList.toggle('video-on', visible)
-    return () => document.documentElement.classList.remove('video-on')
+    if (window.app?.compositor) {
+      document.documentElement.classList.toggle('show-video', visible)
+    }
   }, [pathname, navVideoOverlayActive])
 
   useEffect(() => {
@@ -138,7 +139,6 @@ const CarplayComponent: React.FC<CarplayProps> = ({
   }, [isDongleConnected, isAaActiveFlag])
 
   // Refs
-  const canvasRef = useRef<HTMLCanvasElement>(null)
   const mainElem = useRef<HTMLDivElement>(null)
   const videoContainerRef = useRef<HTMLDivElement>(null)
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -212,11 +212,6 @@ const CarplayComponent: React.FC<CarplayProps> = ({
   const [overlayX, setOverlayX] = useState(0)
   const [overlayY, setOverlayY] = useState(0)
 
-  const [viewportSize, setViewportSize] = useState({
-    width: window.innerWidth,
-    height: window.innerHeight
-  })
-
   useLayoutEffect(() => {
     const getAnchor = () => document.getElementById('content-root')
 
@@ -248,44 +243,6 @@ const CarplayComponent: React.FC<CarplayProps> = ({
       ro?.disconnect()
     }
   }, [settings?.hand])
-
-  useLayoutEffect(() => {
-    const updateViewportSize = () => {
-      const el = mainElem.current
-      if (!el) {
-        setViewportSize({
-          width: window.innerWidth,
-          height: window.innerHeight
-        })
-        return
-      }
-
-      const rect = el.getBoundingClientRect()
-      const width = Math.round(rect.width)
-      const height = Math.round(rect.height)
-
-      setViewportSize((prev) =>
-        prev.width === width && prev.height === height ? prev : { width, height }
-      )
-    }
-
-    updateViewportSize()
-    const raf = requestAnimationFrame(updateViewportSize)
-
-    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(updateViewportSize) : null
-
-    if (ro && mainElem.current) {
-      ro.observe(mainElem.current)
-    }
-
-    window.addEventListener('resize', updateViewportSize)
-
-    return () => {
-      cancelAnimationFrame(raf)
-      window.removeEventListener('resize', updateViewportSize)
-      ro?.disconnect()
-    }
-  }, [])
 
   // Visual delay for FFT so spectrum matches audio playback
   const fftVisualDelayMs = 0
@@ -511,7 +468,7 @@ const CarplayComponent: React.FC<CarplayProps> = ({
     }
 
     const onUsbDisconnect = async () => {
-      const token = ++usbOpTokenRef.current
+      usbOpTokenRef.current += 1
       clearRetryTimeout()
       setReceivingVideo(false)
       setStreaming(false)
@@ -519,13 +476,6 @@ const CarplayComponent: React.FC<CarplayProps> = ({
       hasStartedRef.current = false
       resetInfo()
       await window.projection.ipc.stop()
-
-      if (disposed || token !== usbOpTokenRef.current) return
-
-      if (canvasRef.current) {
-        canvasRef.current.style.width = '0'
-        canvasRef.current.style.height = '0'
-      }
     }
     const usbHandler = (_evt: unknown, ...args: unknown[]) => {
       const data = args[0] as UsbEvent | undefined
@@ -874,13 +824,7 @@ const CarplayComponent: React.FC<CarplayProps> = ({
 
   // Force-hide video when not streaming
   useEffect(() => {
-    if (!isStreaming) {
-      setReceivingVideo(false)
-      if (canvasRef.current) {
-        canvasRef.current.style.width = '0'
-        canvasRef.current.style.height = '0'
-      }
-    }
+    if (!isStreaming) setReceivingVideo(false)
   }, [isStreaming, setReceivingVideo])
 
   /* ------------------------------- UI binding ------------------------------ */
@@ -892,9 +836,6 @@ const CarplayComponent: React.FC<CarplayProps> = ({
 
   const resolvedNegotiatedWidth = negotiatedWidth ?? 0
   const resolvedNegotiatedHeight = negotiatedHeight ?? 0
-
-  const viewportWidth = viewportSize.width
-  const viewportHeight = viewportSize.height
 
   const aaContent =
     resolvedNegotiatedWidth > 0 &&
@@ -912,9 +853,6 @@ const CarplayComponent: React.FC<CarplayProps> = ({
   const cropLeft = Math.max(0, (resolvedNegotiatedWidth - visibleWidth) / 2)
   const cropTop = Math.max(0, (resolvedNegotiatedHeight - visibleHeight) / 2)
 
-  const scaleX = visibleWidth > 0 && viewportWidth > 0 ? viewportWidth / visibleWidth : 0
-  const scaleY = visibleHeight > 0 && viewportHeight > 0 ? viewportHeight / visibleHeight : 0
-
   const touchHandlers = useCarplayMultiTouch(
     videoContainerRef,
     aaContent &&
@@ -931,11 +869,6 @@ const CarplayComponent: React.FC<CarplayProps> = ({
         }
       : undefined
   )
-
-  const canvasCssWidth = scaleX > 0 ? `${resolvedNegotiatedWidth * scaleX}px` : '0px'
-  const canvasCssHeight = scaleY > 0 ? `${resolvedNegotiatedHeight * scaleY}px` : '0px'
-  const canvasCssLeft = scaleX > 0 ? `${-cropLeft * scaleX}px` : '0px'
-  const canvasCssTop = scaleY > 0 ? `${-cropTop * scaleY}px` : '0px'
 
   return (
     <div
@@ -981,26 +914,7 @@ const CarplayComponent: React.FC<CarplayProps> = ({
           position: 'relative',
           overflow: 'hidden'
         }}
-      >
-        <canvas
-          ref={canvasRef}
-          id="video"
-          style={{
-            width: receivingVideo && !rendererError ? canvasCssWidth : '0px',
-            height: receivingVideo && !rendererError ? canvasCssHeight : '0px',
-            position: 'absolute',
-            left: receivingVideo && !rendererError ? canvasCssLeft : '0px',
-            top: receivingVideo && !rendererError ? canvasCssTop : '0px',
-            maxWidth: 'none',
-            maxHeight: 'none',
-            touchAction: 'none',
-            userSelect: 'none',
-            pointerEvents: 'none',
-            display: 'block',
-            background: 'transparent'
-          }}
-        />
-      </div>
+      />
     </div>
   )
 }

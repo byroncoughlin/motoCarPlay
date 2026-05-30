@@ -1,4 +1,5 @@
 import './app/gpu'
+import { bootstrapCompositor } from '@main/app/compositorBootstrap'
 import { installMainProcessErrorHandlers } from '@main/app/errorHandler'
 import { setupAppIdentity } from '@main/app/init'
 import { setupLifecycle } from '@main/app/lifecycle'
@@ -19,6 +20,11 @@ import { USBService } from './services/usb/USBService'
 import { checkAndInstallUdevRule } from './services/usb/udevRule'
 import { createMainWindow, getMainWindow } from './window/createWindow'
 import { setupSecondaryWindows } from './window/secondaryWindows'
+
+// Outer launcher hands off to the nested compositor and exits
+if (bootstrapCompositor()) {
+  app.exit(0)
+}
 
 app.whenReady().then(async () => {
   const projectionService = new ProjectionService()

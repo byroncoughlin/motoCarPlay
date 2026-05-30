@@ -182,16 +182,14 @@ export const Camera: React.FC<CameraProps> = ({
       if (allowFallback) {
         try {
           const s = await tryOpenWithVariants(buildFallbackVariants(), signal)
+          const vt = s.getVideoTracks()[0]
           stopActiveStream()
           currentStreamRef.current = s
           await playVideo(s)
-
-          const vt = s.getVideoTracks()[0]
           if (vt) {
             const st = vt.getSettings?.() as MediaTrackSettings
             console.debug('[Camera] fallback opened', { settings: st })
           }
-
           setStatus({ state: 'ok', exactMatched: false })
           return
         } catch {}

@@ -1721,12 +1721,12 @@ describe('store', () => {
     expect(useLiviStore.getState().callVolume).toBe(0.95)
   })
 
-  test('actions handle missing window gracefully', async () => {
+  test('actions handle missing projection api gracefully', async () => {
     jest.resetModules()
 
-    const originalWindow = global.window
-    // @ts-expect-error test override
-    delete global.window
+    const w = global.window as unknown as { projection?: unknown }
+    const originalProjection = w.projection
+    w.projection = undefined
 
     const { useLiviStore } = require('../store') as typeof import('../store')
 
@@ -1741,7 +1741,7 @@ describe('store', () => {
 
     expect(useLiviStore.getState().settings).toBeNull()
 
-    global.window = originalWindow
+    w.projection = originalProjection
   })
 
   test('setBluetoothPairedList handles undefined raw input', async () => {
