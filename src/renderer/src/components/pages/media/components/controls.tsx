@@ -3,6 +3,7 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow'
 import SkipNextIcon from '@mui/icons-material/SkipNext'
 import SkipPreviousIcon from '@mui/icons-material/SkipPrevious'
 import { useTheme } from '@mui/material/styles'
+import type React from 'react'
 import { RefObject, SetStateAction, useState } from 'react'
 import { circleBtnStyle } from '../styles'
 
@@ -62,6 +63,18 @@ export const Controls = ({
     prev: false
   })
 
+  const hoverProps = (
+    key: 'play' | 'next' | 'prev'
+  ): {
+    onPointerEnter: (e: React.PointerEvent<HTMLButtonElement>) => void
+    onPointerLeave: () => void
+  } => ({
+    onPointerEnter: (e) => {
+      if (e.pointerType === 'mouse') setHover((h) => ({ ...h, [key]: true }))
+    },
+    onPointerLeave: () => setHover((h) => ({ ...h, [key]: false }))
+  })
+
   return (
     <div
       style={{
@@ -84,8 +97,7 @@ export const Controls = ({
           onMouseUp={(e) => (e.currentTarget as HTMLButtonElement).blur()}
           onFocus={() => setFocus((f) => ({ ...f, prev: true }))}
           onBlur={() => setFocus((f) => ({ ...f, prev: false }))}
-          onMouseEnter={() => setHover((h) => ({ ...h, prev: true }))}
-          onMouseLeave={() => setHover((h) => ({ ...h, prev: false }))}
+          {...hoverProps('prev')}
           onClick={onPrev}
           aria-label="Previous"
           style={circleBtnStyle(ctrlSize, {
@@ -104,8 +116,7 @@ export const Controls = ({
           onMouseUp={(e) => (e.currentTarget as HTMLButtonElement).blur()}
           onFocus={() => setFocus((f) => ({ ...f, play: true }))}
           onBlur={() => setFocus((f) => ({ ...f, play: false }))}
-          onMouseEnter={() => setHover((h) => ({ ...h, play: true }))}
-          onMouseLeave={() => setHover((h) => ({ ...h, play: false }))}
+          {...hoverProps('play')}
           onClick={onPlayPause}
           aria-label="Play/Pause"
           aria-pressed={uiPlaying}
@@ -136,8 +147,7 @@ export const Controls = ({
           onMouseUp={(e) => (e.currentTarget as HTMLButtonElement).blur()}
           onFocus={() => setFocus((f) => ({ ...f, next: true }))}
           onBlur={() => setFocus((f) => ({ ...f, next: false }))}
-          onMouseEnter={() => setHover((h) => ({ ...h, next: true }))}
-          onMouseLeave={() => setHover((h) => ({ ...h, next: false }))}
+          {...hoverProps('next')}
           onClick={onNext}
           aria-label="Next"
           style={circleBtnStyle(ctrlSize, {

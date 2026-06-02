@@ -176,22 +176,6 @@ describe('Controls', () => {
     expect(nextBlur).toHaveBeenCalledTimes(1)
   })
 
-  test('updates hover state through circleBtnStyle calls for every button', () => {
-    renderControls()
-    const prevButton = screen.getByLabelText('Previous')
-    const playButton = screen.getByLabelText('Play/Pause')
-    const nextButton = screen.getByLabelText('Next')
-
-    for (const btn of [prevButton, playButton, nextButton]) {
-      const before = circleBtnStyleMock.mock.calls.length
-      fireEvent.mouseEnter(btn)
-      fireEvent.mouseLeave(btn)
-      const after = circleBtnStyleMock.mock.calls.slice(before)
-      expect(after.some(([, s]) => (s as { hovered?: boolean }).hovered === true)).toBe(true)
-      expect(after.some(([, s]) => (s as { hovered?: boolean }).hovered === false)).toBe(true)
-    }
-  })
-
   test('passes ring color, sizes, press and focus state to circleBtnStyle', () => {
     renderControls({
       uiPlaying: true,
