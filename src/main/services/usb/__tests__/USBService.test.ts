@@ -30,7 +30,6 @@ jest.mock('usb', () => ({
 }))
 
 jest.mock('../../projection/driver/aa/stack/aoap/handshake', () => ({
-  probeAaCapable: jest.fn(async () => 0),
   isAccessoryMode: jest.fn(() => false)
 }))
 

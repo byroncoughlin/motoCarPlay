@@ -26,6 +26,7 @@ export type DriverManagerDeps = {
   onAaReleased?: () => void
   getAaConfigSeed: () => AaConfigSeed
   onPhoneReenumerate: (ms: number) => void
+  rendererAoapHandshake?: (vendorId: number, productId: number) => Promise<void>
 }
 
 export class ProjectionDriverManager {
@@ -55,7 +56,8 @@ export class ProjectionDriverManager {
   ensureAa(): AaDriver {
     if (this.aa) return this.aa
     const aa = new AaDriver({
-      onWillReenumerate: (ms) => this.deps.onPhoneReenumerate(ms)
+      onWillReenumerate: (ms) => this.deps.onPhoneReenumerate(ms),
+      rendererAoapHandshake: this.deps.rendererAoapHandshake
     })
     this.aa = aa
 

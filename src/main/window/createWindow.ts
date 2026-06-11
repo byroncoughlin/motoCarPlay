@@ -132,6 +132,9 @@ export function createMainWindow(runtimeState: runtimeStateProps, services: Serv
   ses.setPermissionRequestHandler((_w, p, cb) =>
     cb(['usb', 'hid', 'media', 'display-capture'].includes(p))
   )
+  // navigator.usb.getDevices() only returns granted devices. The renderer runs local app code
+  // only, and the AOAP handshake (rendererHandshake.ts) needs to see the phone there.
+  ses.setDevicePermissionHandler(() => true)
   ses.setUSBProtectedClassesHandler(({ protectedClasses }) =>
     protectedClasses.filter((c) => ['audio', 'video', 'vendor-specific'].includes(c))
   )

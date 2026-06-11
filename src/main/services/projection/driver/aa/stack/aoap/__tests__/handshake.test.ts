@@ -11,7 +11,7 @@ import {
   REQ_SEND_STRING,
   REQ_START
 } from '../constants'
-import { isAccessoryMode, probeAaCapable, runAoapHandshake } from '../handshake'
+import { isAccessoryMode, runAoapHandshake } from '../handshake'
 
 type Device = USBDevice
 
@@ -145,61 +145,6 @@ describe('isAccessoryMode', () => {
   })
 })
 
-describe('probeAaCapable', () => {
-  test('opens, claims, asks for AOAP protocol, returns the version, then closes', async () => {
-    const d = makeDevice({ protocol: 2 })
-    const proto = await probeAaCapable(d as unknown as Device)
-    expect(proto).toBe(2)
-    expect(d.open).toHaveBeenCalled()
-    expect(d.claimInterface).toHaveBeenCalled()
-    expect(d.close).toHaveBeenCalled()
-    expect(d.calls.find((c) => c.request === REQ_GET_PROTOCOL)).toBeDefined()
-  })
-
-  test('returns 0 when the device cannot be opened', async () => {
-    const d = makeDevice({ openThrows: true })
-    expect(await probeAaCapable(d as unknown as Device)).toBe(0)
-    expect(d.close).not.toHaveBeenCalled()
-  })
-
-  test('returns 0 when the control transfer fails', async () => {
-    const d = makeDevice({ ctrlError: new Error('pipe stall') })
-    expect(await probeAaCapable(d as unknown as Device)).toBe(0)
-    expect(d.close).toHaveBeenCalled()
-  })
-
-  test('returns 0 when protocol is < 1', async () => {
-    const d = makeDevice({ protocol: 0 })
-    expect(await probeAaCapable(d as unknown as Device)).toBe(0)
-  })
-
-  test('a busy interface claim still reads the protocol over EP0', async () => {
-    jest.useFakeTimers()
-    const d = makeDevice({ claimError: new Error('kIOReturnExclusiveAccess (0xe00002c5)') })
-    const p = probeAaCapable(d as unknown as Device, { resetOnBusy: true })
-    // claimInterfaceWithRetry sleeps 500ms between its 8 attempts before giving up the claim.
-    await jest.runAllTimersAsync()
-    const proto = await p
-    expect(proto).toBe(2)
-    expect(d.reset).not.toHaveBeenCalled()
-    expect(d.close).toHaveBeenCalled()
-    jest.useRealTimers()
-  })
-
-  test('resetOnBusy: a seized EP0 control transfer resets the device and returns 0', async () => {
-    jest.useFakeTimers()
-    const d = makeDevice({ ctrlError: new Error('kIOReturnExclusiveAccess (0xe00002c5)') })
-    const p = probeAaCapable(d as unknown as Device, { resetOnBusy: true })
-    // settleWithin waits up to 2s for reset(). Flush it.
-    await jest.runAllTimersAsync()
-    const proto = await p
-    expect(proto).toBe(0)
-    expect(d.reset).toHaveBeenCalled()
-    expect(d.close).toHaveBeenCalled()
-    jest.useRealTimers()
-  })
-})
-
 describe('runAoapHandshake', () => {
   test('returns immediately when the device is already in accessory mode', async () => {
     const d = makeDevice({ vid: GOOGLE_VID, pid: 0x2d00 })
@@ -223,6 +168,24 @@ describe('runAoapHandshake', () => {
     await runAoapHandshake(d as unknown as Device)
     expect(d.claimInterface).toHaveBeenCalledWith(0)
     expect(d.releaseInterface).toHaveBeenCalledWith(0)
+  })
+
+  test('claims the first claimable interface when interface 0 is held (macOS)', async () => {
+    const d = makeDevice({ pid: 0x4ee1, protocol: 2 })
+    // Interface 0 is held by a kernel driver, interface 1 is the claimable vendor interface.
+    ;(d.configuration as unknown as { interfaces: { interfaceNumber: number }[] }).interfaces = [
+      { interfaceNumber: 0 },
+      { interfaceNumber: 1 }
+    ]
+    d.claimInterface.mockImplementation(async (n: number) => {
+      if (n === 0) throw new Error('kIOReturnExclusiveAccess (0xe00002c5)')
+    })
+
+    await runAoapHandshake(d as unknown as Device)
+    expect(d.claimInterface).toHaveBeenCalledWith(0)
+    expect(d.claimInterface).toHaveBeenCalledWith(1)
+    expect(d.releaseInterface).toHaveBeenCalledWith(1)
+    expect(d.calls.find((c) => c.request === REQ_START)).toBeDefined()
   })
 
   test('AOAP START sends an empty buffer (never undefined)', async () => {

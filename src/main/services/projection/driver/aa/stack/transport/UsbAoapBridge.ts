@@ -41,7 +41,8 @@ export class UsbAoapBridge extends EventEmitter {
 
   constructor(
     private readonly _device: Device,
-    private readonly _onWillReenumerate?: (durationMs: number) => void
+    private readonly _onWillReenumerate?: (durationMs: number) => void,
+    private readonly _rendererHandshake?: (vendorId: number, productId: number) => Promise<void>
   ) {
     super()
   }
@@ -167,18 +168,32 @@ export class UsbAoapBridge extends EventEmitter {
     if (isAccessoryMode(this._device)) {
       accessoryDev = this._device
       await this._openWithRetry(accessoryDev, 'AOAP accessory device')
+    } else if (this._rendererHandshake) {
+      // macOS: ptpcamerad exclusively holds the phone's MTP interface, so node-usb cannot claim
+      // one to route EP0 through. Chromium's WebUSB sends the device-recipient handshake without
+      // a claim, so the normal-mode device is never opened in this process at all.
+      const reenumerated = waitForAccessoryAttach(AOAP_RE_ENUMERATE_TIMEOUT_MS)
+      void reenumerated.catch(() => {}) // avoid an unhandled rejection if the handshake throws first
+      this._onWillReenumerate?.(AOAP_RE_ENUMERATE_TIMEOUT_MS + 2_000)
+      await this._rendererHandshake(this._device.vendorId, this._device.productId)
+
+      accessoryDev = await reenumerated
+      await this._openWithRetry(accessoryDev, 'AOAP accessory device (post-handshake)')
     } else {
       await this._openWithRetry(this._device, 'AOAP device')
 
       const reenumerated = waitForAccessoryAttach(AOAP_RE_ENUMERATE_TIMEOUT_MS)
       void reenumerated.catch(() => {}) // avoid an unhandled rejection if the handshake throws first
       this._onWillReenumerate?.(AOAP_RE_ENUMERATE_TIMEOUT_MS + 2_000)
-      await runAoapHandshake(this._device)
-
       try {
-        await this._device.close()
-      } catch {
-        /* ignore */
+        await runAoapHandshake(this._device)
+      } finally {
+        // Close even on failure, a leaked handle would block the next attempt.
+        try {
+          await this._device.close()
+        } catch {
+          /* ignore */
+        }
       }
 
       accessoryDev = await reenumerated

@@ -2,7 +2,7 @@ import { registerIpcHandle } from '@main/ipc/register'
 import { Microphone } from '@main/services/audio'
 import { BrowserWindow } from 'electron'
 import { usb } from 'usb'
-import { isAccessoryMode, probeAaCapable } from '../projection/driver/aa/stack/aoap/handshake.js'
+import { isAccessoryMode } from '../projection/driver/aa/stack/aoap/handshake.js'
 import { ProjectionService } from '../projection/services/ProjectionService'
 import { isCarlinkitDongle } from './constants'
 import { findDongle } from './helpers'
@@ -10,7 +10,8 @@ import { phoneVendorIdsFromUdevTemplate } from './udevRule'
 
 type Device = USBDevice
 
-const SKIP_PROBE_DEVICE_CLASSES = new Set<number>([
+// Device classes that are never a wired-AA phone, so they never trigger a bring-up.
+const NON_PHONE_DEVICE_CLASSES = new Set<number>([
   0x03, // HID (keyboard, mouse, gamepad)
   0x07, // Printer
   0x08, // Mass Storage (USB stick)
@@ -89,36 +90,12 @@ export class USBService {
         )
         .join(', ')}`
     )
-    const candidates = allDevices.filter((d) => this.isPhoneCandidate(d))
-    if (candidates.length === 0) return
-    console.log(`[USBService] Probing ${candidates.length} startup USB candidate(s) for AOAP`)
-    for (const dev of candidates) {
-      if (this.stopped || this.lastPhoneState) return
-      const vid = dev.vendorId
-      const pid = dev.productId
-      try {
-        // resetOnBusy: if a previous run left the interface exclusively held, force a clean
-        // re-enumeration so the hotplug path re-probes a fresh handle (self-healing, no replug).
-        const proto = await probeAaCapable(dev, { resetOnBusy: true })
-        if (proto < 1) {
-          console.log(
-            `[USBService] startup probe: vid=0x${vid.toString(16)} pid=0x${pid.toString(16)} returned proto=${proto} — not AOAP-capable (phone locked / no USB confirmation?)`
-          )
-          continue
-        }
-        if (this.stopped || this.lastPhoneState) return
-        console.log(
-          `[USBService] AOAP-capable phone found on startup (vid=0x${vid.toString(16)}, pid=0x${pid.toString(16)}, proto=${proto})`
-        )
-        this.markPhoneAttached(dev)
-        return
-      } catch (err) {
-        console.log(
-          `[USBService] startup probe THREW for vid=0x${vid.toString(16)} pid=0x${pid.toString(16)}`,
-          err
-        )
-      }
-    }
+    const candidate = allDevices.find((d) => this.isPhoneCandidate(d))
+    if (!candidate) return
+    console.log(
+      `[USBService] phone candidate present at startup — kicking off bring-up vid=0x${candidate.vendorId.toString(16)} pid=0x${candidate.productId.toString(16)}`
+    )
+    this.markPhoneAttached(candidate)
   }
 
   // Inactive-transport USB events must not surface to the renderer.
@@ -179,11 +156,9 @@ export class USBService {
           this.markPhoneDetached(device)
         }
         console.log(
-          `[USBService] phone candidate detected — running AOAP probe vid=0x${device.vendorId?.toString(16)} pid=0x${device.productId?.toString(16)}`
+          `[USBService] phone candidate detected — kicking off wired AA bring-up vid=0x${device.vendorId?.toString(16)} pid=0x${device.productId?.toString(16)}`
         )
-        this.tryProbePhone(device).catch((err) => {
-          console.log('[USBService] AOAP probe threw', err)
-        })
+        this.markPhoneAttached(device)
       }
     }
 
@@ -243,7 +218,7 @@ export class USBService {
     if (this.isDongle(device)) return false
     const cls = device.deviceClass
     if (cls === undefined) return false
-    if (SKIP_PROBE_DEVICE_CLASSES.has(cls)) return false
+    if (NON_PHONE_DEVICE_CLASSES.has(cls)) return false
     if (cls !== 0x00 && cls !== 0xff) return false
     // Linux: only probe vendors the udev rules grant access to
     if (process.platform === 'linux') {
@@ -251,21 +226,6 @@ export class USBService {
       if (vendors && device.vendorId !== undefined && !vendors.has(device.vendorId)) return false
     }
     return true
-  }
-
-  private async tryProbePhone(device: Device): Promise<void> {
-    // Skip if state changed while waiting on the event loop.
-    if (this.stopped || this.lastPhoneState) return
-    const proto = await probeAaCapable(device)
-    if (proto < 1) return
-    if (this.stopped || this.lastPhoneState) return
-
-    const vid = device.vendorId
-    const pid = device.productId
-    console.log(
-      `[USBService] AOAP-capable phone detected (vid=0x${vid.toString(16)}, pid=0x${pid.toString(16)}, proto=${proto})`
-    )
-    this.markPhoneAttached(device)
   }
 
   private isSamePhoneDevice(device: Device): boolean {

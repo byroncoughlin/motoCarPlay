@@ -27,6 +27,7 @@ import { GstVideo, type GstVideoCodec, probeGstCodecs } from '../../video/GstVid
 import { AaBtSockClient } from '../driver/aa/AaBtSockClient'
 import { AaBluetoothSupervisor } from '../driver/aa/aaBluetoothSupervisor'
 import { AaDriver } from '../driver/aa/aaDriver'
+import { runRendererAoapHandshake } from '../driver/aa/stack/aoap/rendererHandshake'
 import type { IPhoneDriver } from '../driver/IPhoneDriver'
 import { ProjectionDriverManager } from '../drivers/ProjectionDriverManager'
 import { type ProjectionIpcHost, registerProjectionIpc } from '../ipc'
@@ -103,8 +104,10 @@ function deriveInitialNightMode(mode: string | undefined): boolean | undefined {
   return undefined
 }
 
-// Retry backoff for a failed session bring-up (USB interface busy, phone locked).
-const START_RETRY_MS = 2000
+// Capped exponential backoff for a failed session bring-up (transient USB busy, phone locked).
+// The retry stops on its own once the phone detaches and resets on a successful start.
+const START_RETRY_BASE_MS = 1000
+const START_RETRY_CAP_MS = 15000
 
 export class ProjectionService {
   private readonly drivers: ProjectionDriverManager
@@ -133,6 +136,7 @@ export class ProjectionService {
   private pairTimeout: NodeJS.Timeout | null = null
   private frameInterval: NodeJS.Timeout | null = null
   private startRetryTimer: NodeJS.Timeout | null = null
+  private startRetryAttempt = 0
 
   private started = false
   private stopping = false
@@ -918,7 +922,13 @@ export class ProjectionService {
         av1Supported: this.av1Supported,
         initialNightMode: deriveInitialNightMode(this.config.appearanceMode)
       }),
-      onPhoneReenumerate: (ms) => this.expectPhoneReenumeration(ms)
+      onPhoneReenumerate: (ms) => this.expectPhoneReenumeration(ms),
+      // macOS: ptpcamerad holds the phone's MTP interface, so node-usb cannot claim one to route
+      // EP0 through. The renderer's Chromium WebUSB sends the handshake claim-free instead.
+      rendererAoapHandshake:
+        process.platform === 'darwin'
+          ? (vendorId, productId) => this.runRendererAoapHandshake(vendorId, productId)
+          : undefined
     })
 
     this.arbiter = new TransportArbiter({
@@ -1102,6 +1112,14 @@ export class ProjectionService {
     }
   }
 
+  private async runRendererAoapHandshake(vendorId: number, productId: number): Promise<void> {
+    const wc = this.webContents
+    if (!wc || (typeof wc.isDestroyed === 'function' && wc.isDestroyed())) {
+      throw new Error('AOAP: no renderer attached for the WebUSB handshake')
+    }
+    await runRendererAoapHandshake(wc, vendorId, productId)
+  }
+
   public attachRenderer(webContents: WebContents) {
     this.webContents = webContents
 
@@ -1162,6 +1180,7 @@ export class ProjectionService {
   }
 
   public markPhoneConnected(connected: boolean, device?: Device): void {
+    if (connected) this.startRetryAttempt = 0
     this.arbiter.markPhoneConnected(connected, device)
     this.statusFile.setUsbState(connected, this.arbiter.getSnapshot().dongleDetected)
   }
@@ -1716,6 +1735,14 @@ export class ProjectionService {
           const wantWired = candidate?.mode === 'wired'
           const wiredDevice = wantWired ? this.arbiter.getPhoneDevice() : null
           const aaDriver = active as AaDriver
+
+          if (wantWired && !wiredDevice) {
+            console.warn('[ProjectionService] wired phone has no live handle yet — retrying')
+            this.started = false
+            this.scheduleStartRetry()
+            return
+          }
+
           aaDriver.setWiredDevice(wiredDevice)
 
           if (wiredDevice) {
@@ -1967,13 +1994,17 @@ export class ProjectionService {
   private scheduleStartRetry() {
     if (this.shuttingDown || this.stopping) return
     if (this.startRetryTimer) return
+    const delay = Math.min(START_RETRY_CAP_MS, START_RETRY_BASE_MS * 2 ** this.startRetryAttempt)
+    this.startRetryAttempt++
     this.startRetryTimer = setTimeout(() => {
       this.startRetryTimer = null
       this.autoStartIfNeeded().catch(console.error)
-    }, START_RETRY_MS)
+    }, delay)
+    this.startRetryTimer.unref?.()
   }
 
   private clearStartRetry() {
+    this.startRetryAttempt = 0
     if (this.startRetryTimer) {
       clearTimeout(this.startRetryTimer)
       this.startRetryTimer = null

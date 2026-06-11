@@ -74,6 +74,7 @@ function mapCarTypeToFuelTypes(carType: CarType | undefined): number[] {
 
 export interface AaDriverOptions {
   onWillReenumerate?: (durationMs: number) => void
+  rendererAoapHandshake?: (vendorId: number, productId: number) => Promise<void>
 }
 
 export class AaDriver extends EventEmitter implements IPhoneDriver {
@@ -99,10 +100,14 @@ export class AaDriver extends EventEmitter implements IPhoneDriver {
   private _wiredBridge: UsbAoapBridge | null = null
   private _wiredClientSocket: net.Socket | null = null
   private readonly _onWillReenumerate: ((durationMs: number) => void) | undefined
+  private readonly _rendererAoapHandshake:
+    | ((vendorId: number, productId: number) => Promise<void>)
+    | undefined
 
   constructor(opts: AaDriverOptions = {}) {
     super()
     this._onWillReenumerate = opts.onWillReenumerate
+    this._rendererAoapHandshake = opts.rendererAoapHandshake
   }
 
   setHevcSupported(supported: boolean): void {
@@ -326,7 +331,7 @@ export class AaDriver extends EventEmitter implements IPhoneDriver {
     const device = this._wiredDevice
     if (!device) return false
 
-    const bridge = new UsbAoapBridge(device, this._onWillReenumerate)
+    const bridge = new UsbAoapBridge(device, this._onWillReenumerate, this._rendererAoapHandshake)
     this._wiredBridge = bridge
 
     bridge.on('error', (err: Error) => {

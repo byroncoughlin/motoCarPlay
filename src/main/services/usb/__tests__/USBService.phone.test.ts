@@ -26,10 +26,8 @@ jest.mock('../helpers', () => ({
   findDongle: jest.fn(async () => null)
 }))
 
-const probeAaCapableMock = jest.fn(async () => 0)
 const isAccessoryModeMock = jest.fn(() => false)
 jest.mock('../../projection/driver/aa/stack/aoap/handshake', () => ({
-  probeAaCapable: (...a: unknown[]) => probeAaCapableMock(...a),
   isAccessoryMode: (...a: unknown[]) => isAccessoryModeMock(...a)
 }))
 
@@ -44,8 +42,8 @@ const projection = {
   isExpectingPhoneReenumeration: jest.fn(() => false)
 } as any
 
-// usb@3 USBDevice: flat fields + async methods. deviceClass 0x00 makes it an
-// AOAP probe candidate (not a dongle, not a SKIP_PROBE class).
+// usb@3 USBDevice: flat fields + async methods. deviceClass 0x00 makes it a
+// wired-AA phone candidate (not a dongle, not a non-phone class).
 function mkPhoneCandidate(vid = 0x18d1, pid = 0x4ee1, deviceClass = 0x00) {
   return {
     vendorId: vid,
@@ -74,7 +72,6 @@ function disconnectHandler(): (ev: unknown) => void {
 
 beforeEach(() => {
   jest.clearAllMocks()
-  probeAaCapableMock.mockReset().mockResolvedValue(0)
   isAccessoryModeMock.mockReset().mockReturnValue(false)
   ;(usb.getDevices as jest.Mock).mockReset().mockResolvedValue([])
   projection.markDongleConnected.mockReset()
@@ -86,7 +83,7 @@ beforeEach(() => {
 })
 afterEach(() => jest.restoreAllMocks())
 
-describe('USBService — phone probe + attach paths', () => {
+describe('USBService — phone attach paths', () => {
   test('accessory-mode device on connect marks phone connected', () => {
     isAccessoryModeMock.mockReturnValue(true)
     new USBService(projection)
@@ -94,36 +91,16 @@ describe('USBService — phone probe + attach paths', () => {
     expect(projection.markPhoneConnected).toHaveBeenCalledWith(true, expect.anything())
   })
 
-  test('AOAP-capable phone-candidate triggers a probe and marks attached', async () => {
-    probeAaCapableMock.mockResolvedValue(2)
+  test('phone candidate on connect kicks off the bring-up (no probe)', () => {
     new USBService(projection)
     connectHandler()(evt(mkPhoneCandidate()))
-    await new Promise((r) => setImmediate(r))
     expect(projection.markPhoneConnected).toHaveBeenCalledWith(true, expect.anything())
   })
 
-  test('phone candidate with proto<1 does not mark connected', async () => {
-    probeAaCapableMock.mockResolvedValue(0)
-    new USBService(projection)
-    connectHandler()(evt(mkPhoneCandidate()))
-    await new Promise((r) => setImmediate(r))
-    expect(projection.markPhoneConnected).not.toHaveBeenCalled()
-  })
-
-  test('probe throwing is logged and silenced', async () => {
-    probeAaCapableMock.mockRejectedValue(new Error('libusb stalled'))
-    new USBService(projection)
-    expect(() => connectHandler()(evt(mkPhoneCandidate()))).not.toThrow()
-    await new Promise((r) => setImmediate(r))
-    expect(projection.markPhoneConnected).not.toHaveBeenCalled()
-  })
-
-  test('phone detach fires markPhoneConnected(false)', async () => {
-    probeAaCapableMock.mockResolvedValue(2)
+  test('phone detach fires markPhoneConnected(false)', () => {
     const phone = mkPhoneCandidate()
     new USBService(projection)
     connectHandler()(evt(phone))
-    await new Promise((r) => setImmediate(r))
     // Advance past the PHONE_REENUM_SUPPRESS_MS window so detach isn't suppressed
     jest.useFakeTimers()
     jest.setSystemTime(Date.now() + 20_000)
@@ -133,24 +110,20 @@ describe('USBService — phone probe + attach paths', () => {
     jest.useRealTimers()
   })
 
-  test('phone detach during re-enumeration window is suppressed', async () => {
-    probeAaCapableMock.mockResolvedValue(2)
+  test('phone detach during re-enumeration window is suppressed', () => {
     const phone = mkPhoneCandidate()
     new USBService(projection)
     connectHandler()(evt(phone))
-    await new Promise((r) => setImmediate(r))
     projection.markPhoneConnected.mockClear()
     projection.isExpectingPhoneReenumeration.mockReturnValue(true)
     disconnectHandler()(evt(phone))
     expect(projection.markPhoneConnected).not.toHaveBeenCalled()
   })
 
-  test('OEM-PID re-attach while lastPhone=true resets state', async () => {
-    probeAaCapableMock.mockResolvedValue(2)
+  test('OEM-PID re-attach while lastPhone=true resets state', () => {
     const phone = mkPhoneCandidate()
     new USBService(projection)
     connectHandler()(evt(phone))
-    await new Promise((r) => setImmediate(r))
     projection.markPhoneConnected.mockClear()
     // Second attach with same OEM-PID
     connectHandler()(evt(phone))
@@ -200,41 +173,27 @@ describe('USBService — phone probe + attach paths', () => {
   })
 })
 
-describe('USBService — startup AOAP scan', () => {
-  test('scans device list and probes phone candidates on construction', async () => {
-    probeAaCapableMock.mockResolvedValue(2)
+describe('USBService — startup scan', () => {
+  test('marks the first phone candidate on the bus on construction', async () => {
     const phone = mkPhoneCandidate()
     ;(usb.getDevices as jest.Mock).mockResolvedValue([phone])
     new USBService(projection)
-    // Startup probe runs asynchronously
+    // The startup scan runs asynchronously
     await new Promise((r) => setImmediate(r))
     await new Promise((r) => setImmediate(r))
-    expect(probeAaCapableMock).toHaveBeenCalled()
+    expect(projection.markPhoneConnected).toHaveBeenCalledWith(true, phone)
   })
 
   test('startup scan skips when no candidate is in the list', async () => {
     ;(usb.getDevices as jest.Mock).mockResolvedValue([])
     new USBService(projection)
     await new Promise((r) => setImmediate(r))
-    expect(probeAaCapableMock).not.toHaveBeenCalled()
-  })
-
-  test('startup probe failure is swallowed and moves to next candidate', async () => {
-    const a = mkPhoneCandidate(0x18d1, 0x1111)
-    const b = mkPhoneCandidate(0x18d1, 0x2222)
-    ;(usb.getDevices as jest.Mock).mockResolvedValue([a, b])
-    probeAaCapableMock.mockRejectedValueOnce(new Error('bad'))
-    probeAaCapableMock.mockResolvedValueOnce(2)
-    new USBService(projection)
-    await new Promise((r) => setImmediate(r))
-    await new Promise((r) => setImmediate(r))
-    await new Promise((r) => setImmediate(r))
-    expect(probeAaCapableMock).toHaveBeenCalledTimes(2)
+    expect(projection.markPhoneConnected).not.toHaveBeenCalled()
   })
 })
 
 describe('USBService — isPhoneCandidate filter', () => {
-  test('skips device classes already in the SKIP list (HID/HUB/etc.)', () => {
+  test('skips non-phone device classes (HID/HUB/etc.)', () => {
     new USBService(projection)
     const hub = {
       vendorId: 0x1000,

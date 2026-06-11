@@ -20,6 +20,7 @@ jest.mock('electron', () => {
         session: {
           setPermissionCheckHandler: jest.fn(),
           setPermissionRequestHandler: jest.fn(),
+          setDevicePermissionHandler: jest.fn(),
           setUSBProtectedClassesHandler: jest.fn()
         },
         setWindowOpenHandler: jest.fn(),

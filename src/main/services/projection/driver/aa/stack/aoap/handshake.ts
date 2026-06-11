@@ -103,46 +103,6 @@ async function getProtocol(device: Device): Promise<number> {
   return data.readUInt16LE(0)
 }
 
-export async function probeAaCapable(
-  device: Device,
-  opts?: { resetOnBusy?: boolean }
-): Promise<number> {
-  let opened = false
-  try {
-    try {
-      await device.open()
-      opened = true
-    } catch (err) {
-      console.log(`[AOAP] probe open failed: ${(err as Error).message}`)
-      return 0
-    }
-    try {
-      const proto = await withClaimedInterface(device, () => getProtocol(device))
-      console.log(`[AOAP] probe getProtocol → ${proto}`)
-      return Number.isFinite(proto) && proto >= 1 ? proto : 0
-    } catch (err) {
-      // Interface still held exclusively after retries (a previous run's reset() can leave macOS
-      // holding it). Force a clean re-enumeration so the hotplug path re-probes a fresh handle —
-      // self-healing, no physical replug. Scoped to startup so it can't loop on the fresh device.
-      if (opts?.resetOnBusy && isInterfaceBusyError(err)) {
-        console.log('[AOAP] interface still busy after retries — resetting device to recover')
-        await settleWithin(device.reset(), 2000)
-        return 0
-      }
-      throw err
-    }
-  } catch (err) {
-    console.log(`[AOAP] probe threw: ${(err as Error).message}`)
-    return 0
-  } finally {
-    if (opened) {
-      try {
-        await device.close()
-      } catch {}
-    }
-  }
-}
-
 async function sendString(device: Device, index: number, value: string): Promise<void> {
   const buf = Buffer.from(`${value}\0`, 'utf8')
   await controlOut(device, REQ_SEND_STRING, 0, index, buf)
@@ -152,36 +112,23 @@ async function startAccessory(device: Device): Promise<void> {
   await controlOut(device, REQ_START, 0, 0, Buffer.alloc(0))
 }
 
-function isInterfaceBusyError(err: unknown): boolean {
-  const msg = ((err as Error)?.message ?? '').toLowerCase()
-  // macOS: kIOReturnExclusiveAccess (0xe00002c5). Linux: LIBUSB_ERROR_BUSY / "resource busy".
-  return msg.includes('exclusive') || msg.includes('0xe00002c5') || msg.includes('busy')
-}
-
-// Resolves once `p` settles or after `ms`, whichever comes first (never rejects).
-function settleWithin<T>(p: Promise<T>, ms: number): Promise<void> {
-  return Promise.race([
-    p.then(
-      () => undefined,
-      () => undefined
-    ),
-    new Promise<void>((r) => setTimeout(r, ms))
-  ])
-}
-
-async function claimInterfaceWithRetry(device: Device, ifaceNum: number): Promise<void> {
-  const MAX_ATTEMPTS = 8
-  const DELAY_MS = 500
-  for (let attempt = 1; ; attempt++) {
+// node-usb-rs routes a device-recipient control transfer through ANY claimed interface, and errors
+// "invalid state" if none is claimed. The claim need not be interface 0, which on macOS the kernel
+// driver (MTP/PTP) holds. Claim the first interface that is actually claimable (e.g. the vendor one).
+async function claimAnyInterface(device: Device): Promise<number> {
+  const ifaces = device.configuration?.interfaces ?? []
+  let lastErr: unknown
+  for (const iface of ifaces) {
     try {
-      await device.claimInterface(ifaceNum)
-      return
+      await device.claimInterface(iface.interfaceNumber)
+      return iface.interfaceNumber
     } catch (err) {
-      if (!isInterfaceBusyError(err) || attempt >= MAX_ATTEMPTS) throw err
-      console.log(`[AOAP] interface busy (exclusive access), retry ${attempt}/${MAX_ATTEMPTS - 1}`)
-      await new Promise((r) => setTimeout(r, DELAY_MS))
+      lastErr = err
     }
   }
+  throw new Error(
+    `AOAP: no claimable interface for control transfers: ${(lastErr as Error)?.message ?? 'none present'}`
+  )
 }
 
 async function withClaimedInterface<T>(device: Device, fn: () => Promise<T>): Promise<T> {
@@ -192,26 +139,14 @@ async function withClaimedInterface<T>(device: Device, fn: () => Promise<T>): Pr
       /* ignore */
     }
   }
-  const ifaceNum = device.configuration?.interfaces[0]?.interfaceNumber ?? 0
-  let claimed = false
-  try {
-    await claimInterfaceWithRetry(device, ifaceNum)
-    claimed = true
-  } catch (err) {
-    // macOS keeps a kernel driver (MTP/ADB) on the normal-mode phone, so interface 0 stays busy.
-    // The AOAP handshake is EP0 control transfers and needs no interface claim, run it anyway.
-    if (!isInterfaceBusyError(err)) throw err
-    console.log('[AOAP] interface busy, running handshake on EP0 without a claim')
-  }
+  const ifaceNum = await claimAnyInterface(device)
   try {
     return await fn()
   } finally {
-    if (claimed) {
-      try {
-        await device.releaseInterface(ifaceNum)
-      } catch {
-        /* device may have re-enumerated (after START) */
-      }
+    try {
+      await device.releaseInterface(ifaceNum)
+    } catch {
+      /* device may have re-enumerated (after START) */
     }
   }
 }
