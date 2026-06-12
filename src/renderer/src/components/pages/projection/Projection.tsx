@@ -1261,7 +1261,7 @@ const CarplayComponent: React.FC<CarplayProps> = ({
         color={maskColor}
       />
 
-      {pathname === '/' && <ProjectionSensorOverlay />}
+      <ProjectionSensorOverlay />
     </div>
   )
 }

@@ -315,6 +315,33 @@ describe('Projection page', () => {
     })
   })
 
+  test('keeps graph history alive while the settings route is open', async () => {
+    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(1000)
+    const { rerender } = render(<Projection {...baseProps()} />)
+
+    act(() => {
+      telemetryCb?.({ gpsFix: true, speedKph: 88.5 })
+    })
+
+    mockPathname = '/settings'
+    rerender(<Projection {...baseProps()} />)
+
+    nowSpy.mockReturnValue(3000)
+    act(() => {
+      telemetryCb?.({ gpsFix: true, speedKph: 88.5 })
+    })
+
+    mockPathname = '/'
+    rerender(<Projection {...baseProps()} />)
+
+    fireEvent.click(screen.getByLabelText('GPS speed'))
+
+    expect(screen.getByTestId('projection-metric-graph')).toHaveTextContent('55')
+    expect(screen.getByTestId('projection-metric-graph')).toHaveTextContent('MAX 55')
+
+    nowSpy.mockRestore()
+  })
+
   test('clears all graph history from the moto settings clear event', async () => {
     const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(1000)
 
