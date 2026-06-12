@@ -381,35 +381,42 @@ describe('Projection page', () => {
   })
 
   test('renders waiting pane at the configured projection view area while video is absent', () => {
-    render(
-      <Projection
-        {...baseProps({
-          settings: {
-            ...baseProps().settings,
-            projectionWidth: 800,
-            projectionHeight: 800,
-            projectionViewAreaTop: 118,
-            projectionViewAreaBottom: 118,
-            projectionViewAreaLeft: 118,
-            projectionViewAreaRight: 118
-          }
-        })}
-      />
-    )
+    jest.useFakeTimers()
+    jest.setSystemTime(new Date('2026-06-12T17:07:00'))
 
-    const pane = screen.getByTestId('projection-waiting-pane')
+    try {
+      render(
+        <Projection
+          {...baseProps({
+            settings: {
+              ...baseProps().settings,
+              projectionWidth: 800,
+              projectionHeight: 800,
+              projectionViewAreaTop: 118,
+              projectionViewAreaBottom: 118,
+              projectionViewAreaLeft: 118,
+              projectionViewAreaRight: 118
+            }
+          })}
+        />
+      )
 
-    expect(pane).toHaveStyle({
-      left: '14.75%',
-      top: '14.75%',
-      width: '70.5%',
-      height: '70.5%',
-      backgroundColor: '#05070a'
-    })
-    expect(screen.getByText('Music')).toBeInTheDocument()
-    expect(screen.getByText('Google Maps')).toBeInTheDocument()
-    expect(screen.getByText('11:45')).toBeInTheDocument()
-    expect(screen.getByTestId('projection-waiting-grid').children).toHaveLength(8)
+      const pane = screen.getByTestId('projection-waiting-pane')
+
+      expect(pane).toHaveStyle({
+        left: '14.75%',
+        top: '14.75%',
+        width: '70.5%',
+        height: '70.5%',
+        backgroundColor: '#05070a'
+      })
+      expect(screen.getByText('Music')).toBeInTheDocument()
+      expect(screen.getByText('Google Maps')).toBeInTheDocument()
+      expect(screen.getByText('5:07')).toBeInTheDocument()
+      expect(screen.getByTestId('projection-waiting-grid').children).toHaveLength(8)
+    } finally {
+      jest.useRealTimers()
+    }
   })
 
   test('keeps waiting pane visible over dongle video until a projection session is active', () => {

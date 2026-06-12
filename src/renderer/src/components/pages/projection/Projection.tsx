@@ -29,6 +29,12 @@ const positiveOrDefault = (value: unknown, fallback: number): number =>
 const nonNegative = (value: unknown): number =>
   typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0
 
+const waitingClockLabel = (date: Date): string => {
+  const hours = date.getHours() % 12 || 12
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  return `${hours}:${minutes}`
+}
+
 const hasLinkedPhoneTransport = (value: unknown): boolean => {
   if (!value || typeof value !== 'object') return false
   const state = value as Record<string, unknown>
@@ -128,6 +134,7 @@ function WaitingProjectionPane({ settings, show }: { settings: Config; show: boo
     { label: 'Settings', color: '#94a3b8' }
   ]
   const dockTiles = ['#60a5fa', '#ff2d55', '#94a3b8']
+  const dockTime = waitingClockLabel(new Date())
 
   return (
     <div
@@ -282,7 +289,7 @@ function WaitingProjectionPane({ settings, show }: { settings: Config; show: boo
             flex: '0 0 auto'
           }}
         >
-          11:45
+          {dockTime}
         </div>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center', flex: '1 1 auto' }}>
           {dockTiles.map((color) => (
