@@ -15,6 +15,15 @@ function isRestartRelevantPath(path?: string) {
   return !(path === 'bindings' || path.startsWith('bindings.'))
 }
 
+function applyMotoLinkedSettings(next: Record<string, unknown>, path: string, value: unknown): void {
+  if (value !== true) return
+  if (path === 'backdropEnabled') {
+    next.ambientFillEnabled = false
+  } else if (path === 'ambientFillEnabled') {
+    next.backdropEnabled = false
+  }
+}
+
 export function useSmartSettings<T extends Record<string, unknown>>(
   initial: T,
   settings: T,
@@ -72,6 +81,7 @@ export function useSmartSettings<T extends Record<string, unknown>>(
 
     setState((prev) => {
       const next = { ...prev, [path]: nextValue }
+      applyMotoLinkedSettings(next, path, nextValue)
 
       const newSettings = structuredClone((settings ?? {}) as T)
       Object.entries(next).forEach(([p, v]) => {

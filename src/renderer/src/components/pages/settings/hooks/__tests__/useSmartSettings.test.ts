@@ -108,6 +108,40 @@ describe('useSmartSettings', () => {
     expect(result.current.state.volume).toBe(20)
   })
 
+  test('backdrop and background fill settings stay mutually exclusive', () => {
+    const initial = { backdropEnabled: false, ambientFillEnabled: true } as any
+    const settings = { backdropEnabled: false, ambientFillEnabled: true } as any
+    const { result } = renderHook(() => useSmartSettings(initial, settings))
+
+    act(() => {
+      result.current.handleFieldChange('backdropEnabled', true)
+    })
+
+    expect(result.current.state.backdropEnabled).toBe(true)
+    expect(result.current.state.ambientFillEnabled).toBe(false)
+    expect(saveSettings).toHaveBeenLastCalledWith({
+      backdropEnabled: true,
+      ambientFillEnabled: false
+    })
+  })
+
+  test('background fill disables backdrop when enabled', () => {
+    const initial = { backdropEnabled: true, ambientFillEnabled: false } as any
+    const settings = { backdropEnabled: true, ambientFillEnabled: false } as any
+    const { result } = renderHook(() => useSmartSettings(initial, settings))
+
+    act(() => {
+      result.current.handleFieldChange('ambientFillEnabled', true)
+    })
+
+    expect(result.current.state.backdropEnabled).toBe(false)
+    expect(result.current.state.ambientFillEnabled).toBe(true)
+    expect(saveSettings).toHaveBeenLastCalledWith({
+      backdropEnabled: false,
+      ambientFillEnabled: true
+    })
+  })
+
   test('handleFieldChange with validate override blocks invalid values', () => {
     // line 69: override?.validate returning false → no state update
     const initial = { volume: 50 } as any
