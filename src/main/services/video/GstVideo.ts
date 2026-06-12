@@ -2,6 +2,7 @@ import net from 'node:net'
 import { app, BrowserWindow, type WebContents } from 'electron'
 import path from 'path'
 import { resolveGStreamerRoot } from '../audio/gstreamer'
+export { backdropHex, motoBackdropHex } from './backdropColor'
 import { gstHost } from './gstHost'
 
 export type GstVideoCodec = 'h264' | 'h265' | 'vp9' | 'av1'
@@ -122,11 +123,6 @@ class CompositorControl {
 }
 
 const compositorControl = new CompositorControl()
-
-// Resolve the active backdrop colour for a config, falling back to the theme defaults
-export function backdropHex(darkMode: boolean, dark?: string, light?: string): string {
-  return (darkMode ? dark : light) || (darkMode ? '#000000' : '#d4d4d4')
-}
 
 // Push the theme background colour to the compositor backdrop (Linux/compositor only)
 export function setCompositorBackdrop(hex: string): void {

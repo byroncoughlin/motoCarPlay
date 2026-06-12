@@ -20,7 +20,7 @@ import { app, BrowserWindow } from 'electron'
 import { loadConfig } from './config/loadConfig'
 import { USBService } from './services/usb/USBService'
 import { checkAndInstallUdevRule } from './services/usb/udevRule'
-import { backdropHex, setCompositorBackdrop, setMacBackdrop } from './services/video/GstVideo'
+import { motoBackdropHex, setCompositorBackdrop, setMacBackdrop } from './services/video/GstVideo'
 import { createMainWindow, getMainWindow } from './window/createWindow'
 import { setupSecondaryWindows } from './window/secondaryWindows'
 
@@ -74,7 +74,7 @@ app.whenReady().then(async () => {
   // Bottom plane = theme background colour. Linux: the compositor draws the backdrop. macOS: paint
   // the window content view itself. Apply now and on every config change.
   const applyBackdrop = (cfg: Config): void => {
-    const color = backdropHex(cfg.darkMode, cfg.backgroundColorDark, cfg.backgroundColorLight)
+    const color = motoBackdropHex(cfg)
     setCompositorBackdrop(color)
     for (const w of BrowserWindow.getAllWindows()) setMacBackdrop(w, color)
   }

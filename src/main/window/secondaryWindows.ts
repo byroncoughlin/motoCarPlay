@@ -1,7 +1,7 @@
 import { is } from '@electron-toolkit/utils'
 import { COMPOSITOR_TITLEBAR_H } from '@main/app/compositorLayout'
 import { configEvents, saveSettings } from '@main/ipc/utils'
-import { backdropHex, setCompositorScreen, setMacBackdrop } from '@main/services/video/GstVideo'
+import { motoBackdropHex, setCompositorScreen, setMacBackdrop } from '@main/services/video/GstVideo'
 import { runtimeStateProps } from '@main/types'
 import type { Config, WindowBounds } from '@shared/types'
 import { BrowserWindow, shell } from 'electron'
@@ -177,11 +177,7 @@ function spawn(spec: SecondaryWindowSpec, runtimeState: runtimeStateProps) {
   // content view is realized. Paint the backdrop once the window is ready.
   win.once('ready-to-show', () => {
     if (win.isDestroyed()) return
-    const cfg = runtimeState.config
-    setMacBackdrop(
-      win,
-      backdropHex(cfg.darkMode, cfg.backgroundColorDark, cfg.backgroundColorLight)
-    )
+    setMacBackdrop(win, motoBackdropHex(runtimeState.config))
   })
 
   win.on('closed', () => {
