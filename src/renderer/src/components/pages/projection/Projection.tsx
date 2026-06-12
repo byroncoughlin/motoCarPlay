@@ -29,26 +29,6 @@ const positiveOrDefault = (value: unknown, fallback: number): number =>
 const nonNegative = (value: unknown): number =>
   typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0
 
-const boxInfoRecord = (value: unknown): Record<string, unknown> | null => {
-  if (typeof value === 'string') {
-    const trimmed = value.trim()
-    if (!trimmed) return null
-    try {
-      value = JSON.parse(trimmed)
-    } catch {
-      return null
-    }
-  }
-  return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null
-}
-
-const hasLinkedDonglePhone = (boxInfo: unknown): boolean => {
-  const box = boxInfoRecord(boxInfo)
-  if (!box) return false
-  const btMac = typeof box.btMacAddr === 'string' ? box.btMacAddr.trim() : ''
-  return btMac.length > 0
-}
-
 interface CarplayProps {
   receivingVideo: boolean
   setReceivingVideo: (v: boolean) => void
@@ -251,7 +231,6 @@ const CarplayComponent: React.FC<CarplayProps> = ({
   const negotiatedWidth = useLiviStore((s) => s.negotiatedWidth)
   const negotiatedHeight = useLiviStore((s) => s.negotiatedHeight)
   const wirelessAaEnabled = useLiviStore((s) => Boolean(s.settings?.wirelessAaEnabled))
-  const boxInfo = useLiviStore((s) => s.boxInfo)
 
   const prevPathnameRef = useRef(pathname)
   useEffect(() => {
@@ -702,6 +681,8 @@ const CarplayComponent: React.FC<CarplayProps> = ({
           const cmd = (d as { payload?: { command?: number } }).payload?.command
           if (typeof cmd !== 'number') break
 
+          setProjectionSessionActive(true)
+
           if (cmd === AudioCommand.AudioPhonecallStart) {
             if (autoSwitchOnPhoneCallRef.current) {
               applyAttention({ kind: 'call', active: true, phase: 'active' })
@@ -721,6 +702,7 @@ const CarplayComponent: React.FC<CarplayProps> = ({
         }
 
         case 'audioInfo': {
+          setProjectionSessionActive(true)
           const p = d.payload as
             | {
                 codec?: string
@@ -745,6 +727,14 @@ const CarplayComponent: React.FC<CarplayProps> = ({
         case 'command': {
           const value = (d as { message?: { value?: number } }).message?.value
           if (typeof value !== 'number') break
+
+          if (
+            value === CommandMapping.requestVideoFocus ||
+            value === CommandMapping.requestClusterFocus ||
+            value === CommandMapping.requestHostUI
+          ) {
+            setProjectionSessionActive(true)
+          }
 
           if (value === CommandMapping.requestHostUI) {
             gotoHostUI()
@@ -858,6 +848,11 @@ const CarplayComponent: React.FC<CarplayProps> = ({
           break
         }
 
+        case 'projectionActive': {
+          setProjectionSessionActive(true)
+          break
+        }
+
         case 'unplugged': {
           setProjectionSessionActive(false)
           setStreaming(false)
@@ -940,10 +935,8 @@ const CarplayComponent: React.FC<CarplayProps> = ({
 
   const inProjection = pathname === '/'
   const showProjectionOverlay = inProjection || navVideoOverlayActive
-  const linkedDonglePhone = useMemo(() => hasLinkedDonglePhone(boxInfo), [boxInfo])
-  const activePhoneProjection = projectionSessionActive || linkedDonglePhone
   const showWaitingProjectionPane =
-    !receivingVideo || Boolean(rendererError) || !activePhoneProjection
+    !receivingVideo || Boolean(rendererError) || !projectionSessionActive
 
   const resolvedNegotiatedWidth = negotiatedWidth ?? 0
   const resolvedNegotiatedHeight = negotiatedHeight ?? 0

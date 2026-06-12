@@ -108,6 +108,8 @@ function deriveInitialNightMode(mode: string | undefined): boolean | undefined {
 // The retry stops on its own once the phone detaches and resets on a successful start.
 const START_RETRY_BASE_MS = 1000
 const START_RETRY_CAP_MS = 15000
+const MAIN_VIDEO_ACTIVE_WINDOW_MS = 2500
+const MAIN_VIDEO_ACTIVE_FRAME_THRESHOLD = 10
 
 export class ProjectionService {
   private readonly drivers: ProjectionDriverManager
@@ -171,6 +173,9 @@ export class ProjectionService {
   private donglePairedRaw = ''
   private lastDongleInfoEmitKey = ''
   private lastAudioMetaEmitKey = ''
+  private mainVideoActiveWindowStartMs = 0
+  private mainVideoActiveFrameCount = 0
+  private mainVideoActiveSent = false
   private firmware = new FirmwareUpdateService()
   private readonly aaBtSock = new AaBtSockClient()
   private aaBtSubscription: { close: () => void } | null = null
@@ -333,6 +338,37 @@ export class ProjectionService {
     broadcastToSecondaryRenderers('projection-event', payload)
   }
 
+  private resetMainVideoActivity(): void {
+    this.mainVideoActiveWindowStartMs = 0
+    this.mainVideoActiveFrameCount = 0
+    this.mainVideoActiveSent = false
+  }
+
+  private noteMainVideoFrameActivity(): void {
+    if (this.mainVideoActiveSent) return
+
+    const now = Date.now()
+    if (
+      this.mainVideoActiveWindowStartMs === 0 ||
+      now - this.mainVideoActiveWindowStartMs > MAIN_VIDEO_ACTIVE_WINDOW_MS
+    ) {
+      this.mainVideoActiveWindowStartMs = now
+      this.mainVideoActiveFrameCount = 1
+      return
+    }
+
+    this.mainVideoActiveFrameCount += 1
+    if (this.mainVideoActiveFrameCount < MAIN_VIDEO_ACTIVE_FRAME_THRESHOLD) return
+
+    this.mainVideoActiveSent = true
+    this.emitProjectionEvent({
+      type: 'projectionActive',
+      reason: 'main-video-frame-burst',
+      frames: this.mainVideoActiveFrameCount,
+      windowMs: now - this.mainVideoActiveWindowStartMs
+    })
+  }
+
   private applyCodecCapabilities(payload: unknown): void {
     if (!payload || typeof payload !== 'object') return
     const caps = payload as Record<string, { hw?: unknown; sw?: unknown } | undefined>
@@ -421,6 +457,7 @@ export class ProjectionService {
       this.lastVideoHeight = undefined
       this.lastClusterVideoWidth = undefined
       this.lastClusterVideoHeight = undefined
+      this.resetMainVideoActivity()
 
       const nextPhoneWorkMode =
         msg.phoneType === PhoneType.CarPlay ? PhoneWorkMode.CarPlay : PhoneWorkMode.Android
@@ -460,6 +497,7 @@ export class ProjectionService {
       this.clearTimeouts()
       this.lastPluggedPhoneType = undefined
       this.aaPlaybackInferred = 1
+      this.resetMainVideoActivity()
 
       if (isRecord(this.boxInfo)) {
         this.boxInfo = { ...this.boxInfo, btMacAddr: '' }
@@ -560,6 +598,8 @@ export class ProjectionService {
       }
 
       // main video stream (0x06)
+      this.noteMainVideoFrameActivity()
+
       if (!this.firstFrameLogged) {
         this.firstFrameLogged = true
         const dt = Date.now() - APP_START_TS
@@ -719,6 +759,7 @@ export class ProjectionService {
   }
 
   private readonly onDriverFailure = (): void => {
+    this.resetMainVideoActivity()
     const wc = this.webContents
     if (!wc || wc.isDestroyed?.()) return
     wc.send('projection-event', { type: 'failure' })
@@ -1721,6 +1762,7 @@ export class ProjectionService {
         this.lastPluggedPhoneType = undefined
         this.lastClusterCodec = null
         this.aaPlaybackInferred = 1
+        this.resetMainVideoActivity()
 
         this.resetMediaSnapshot('session-start')
         this.resetNavigationSnapshot('session-start')
@@ -1907,6 +1949,7 @@ export class ProjectionService {
       this.lastVideoHeight = undefined
       this.lastPluggedPhoneType = undefined
       this.aaPlaybackInferred = 2
+      this.resetMainVideoActivity()
     })().finally(() => {
       this.stopping = false
       this.isStopping = false

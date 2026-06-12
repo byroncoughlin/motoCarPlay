@@ -13,7 +13,8 @@ import {
   PhoneType,
   Plugged,
   SoftwareVersion,
-  Unplugged
+  Unplugged,
+  VideoData
 } from '../../messages'
 
 jest.mock('../../messages', () => {
@@ -2187,6 +2188,63 @@ describe('ProjectionService', () => {
     expect(svc.start).toHaveBeenCalledTimes(1)
 
     jest.useRealTimers()
+  })
+
+  test('main video frame burst emits projectionActive once', () => {
+    const svc = new ProjectionService() as any
+    const send = jest.fn()
+    svc.webContents = { send }
+
+    const nowSpy = jest.spyOn(Date, 'now')
+
+    for (let i = 0; i < 9; i++) {
+      nowSpy.mockReturnValue(1000 + i * 100)
+      svc.driver.emit(
+        'message',
+        Object.assign(new VideoData() as any, {
+          header: { type: 0 },
+          width: 0,
+          height: 0
+        })
+      )
+    }
+
+    expect(
+      send.mock.calls.some(([, payload]) => payload?.type === 'projectionActive')
+    ).toBe(false)
+
+    nowSpy.mockReturnValue(1900)
+    svc.driver.emit(
+      'message',
+      Object.assign(new VideoData() as any, {
+        header: { type: 0 },
+        width: 0,
+        height: 0
+      })
+    )
+
+    expect(send).toHaveBeenCalledWith(
+      'projection-event',
+      expect.objectContaining({
+        type: 'projectionActive',
+        reason: 'main-video-frame-burst',
+        frames: 10
+      })
+    )
+
+    nowSpy.mockReturnValue(2000)
+    svc.driver.emit(
+      'message',
+      Object.assign(new VideoData() as any, {
+        header: { type: 0 },
+        width: 0,
+        height: 0
+      })
+    )
+
+    const activeCalls = send.mock.calls.filter(([, payload]) => payload?.type === 'projectionActive')
+    expect(activeCalls).toHaveLength(1)
+    nowSpy.mockRestore()
   })
 
   test('driver Unplugged message emits unplugged, resets navigation and stops service', async () => {

@@ -254,11 +254,21 @@ describe('Projection page', () => {
     expect(screen.getByTestId('projection-waiting-pane')).toBeInTheDocument()
   })
 
-  test('hides waiting pane while a linked dongle phone is visible', () => {
+  test('keeps waiting pane visible when dongle info only has a remembered phone mac', () => {
     const { rerender } = render(<Projection {...baseProps()} receivingVideo />)
 
     liviState.boxInfo = { btMacAddr: 'AA:BB:CC:DD:EE:FF' }
     rerender(<Projection {...baseProps()} receivingVideo />)
+
+    expect(screen.getByTestId('projection-waiting-pane')).toBeInTheDocument()
+  })
+
+  test('hides waiting pane when projection activity is confirmed', () => {
+    render(<Projection {...baseProps()} receivingVideo />)
+
+    act(() => {
+      onEventCb?.(null, { type: 'projectionActive' })
+    })
 
     expect(screen.queryByTestId('projection-waiting-pane')).not.toBeInTheDocument()
   })
