@@ -447,6 +447,17 @@ describe('Projection page', () => {
     expect(screen.getByTestId('projection-waiting-pane')).toBeInTheDocument()
   })
 
+  test('keeps waiting pane visible for unsupported dongle startup phone type', () => {
+    render(<Projection {...baseProps()} receivingVideo />)
+
+    act(() => {
+      onEventCb?.(null, { type: 'plugged', phoneType: 0 })
+      onEventCb?.(null, { type: 'projectionActive' })
+    })
+
+    expect(screen.getByTestId('projection-waiting-pane')).toBeInTheDocument()
+  })
+
   test('hides waiting pane when CarPlay phone and projection activity are confirmed', () => {
     render(<Projection {...baseProps()} receivingVideo />)
 

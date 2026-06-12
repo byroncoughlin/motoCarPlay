@@ -42,6 +42,9 @@ const hasLinkedPhoneTransport = (value: unknown): boolean => {
   )
 }
 
+const isProjectionPhoneType = (value: unknown): boolean =>
+  value === PhoneType.CarPlay || value === PhoneType.AndroidAuto
+
 interface CarplayProps {
   receivingVideo: boolean
   setReceivingVideo: (v: boolean) => void
@@ -993,7 +996,7 @@ const CarplayComponent: React.FC<CarplayProps> = ({
           const phoneType = (d as { phoneType?: number }).phoneType
           const useAa =
             phoneType !== undefined ? phoneType === PhoneType.AndroidAuto : wirelessAaEnabled
-          if (phoneType !== undefined) setDonglePhoneLinked(true)
+          if (isProjectionPhoneType(phoneType)) setDonglePhoneLinked(true)
           if (useAa) {
             setProjectionSessionActive(true)
             setAaActive(true)
