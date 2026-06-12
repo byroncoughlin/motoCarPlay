@@ -115,20 +115,16 @@ function WaitingProjectionPane({ settings, show }: { settings: Config; show: boo
   const height = Math.max(1, displayHeight - top - bottom)
   const pct = (value: number, total: number): string => `${(value / total) * 100}%`
   const appTiles = [
-    '#22c55e',
-    '#2563eb',
-    '#ef4444',
-    '#f97316',
-    '#06b6d4',
-    '#a855f7',
-    '#eab308',
-    '#10b981',
-    '#64748b',
-    '#ec4899',
-    '#84cc16',
-    '#f43f5e'
+    { label: 'Music', color: '#ff2d55' },
+    { label: 'Overcast', color: '#ff9500' },
+    { label: 'Now Playing', color: '#f8fafc' },
+    { label: 'OnTheWay', color: '#2563eb' },
+    { label: 'R75/6', color: '#0f172a' },
+    { label: 'Google Maps', color: '#22c55e' },
+    { label: 'Maps', color: '#60a5fa' },
+    { label: 'Settings', color: '#94a3b8' }
   ]
-  const dockTiles = ['#22c55e', '#2563eb', '#f43f5e', '#f59e0b']
+  const dockTiles = ['#60a5fa', '#ff2d55', '#94a3b8']
 
   return (
     <div
@@ -171,26 +167,78 @@ function WaitingProjectionPane({ settings, show }: { settings: Config; show: boo
           left: '7.5%',
           right: '7.5%',
           top: '7%',
-          bottom: '25%',
+          bottom: '30%',
           display: 'grid',
           gridTemplateColumns: 'repeat(4, 1fr)',
-          gridTemplateRows: 'repeat(3, minmax(0, 1fr))',
-          alignItems: 'center',
+          gridTemplateRows: 'repeat(2, minmax(0, 1fr))',
+          alignItems: 'start',
           justifyItems: 'center',
-          gap: '5.5%'
+          columnGap: '5.5%',
+          rowGap: '10%'
         }}
       >
-        {appTiles.map((color, index) => (
+        {appTiles.map(({ label, color }) => (
           <div
-            key={`${color}-${index}`}
+            key={label}
             style={{
               width: '100%',
-              maxWidth: 96,
-              aspectRatio: '1 / 1',
-              borderRadius: '24%',
-              background: `linear-gradient(145deg, ${color}, rgba(255,255,255,0.18))`,
-              boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.32), 0 8px 18px rgba(0,0,0,0.24)',
-              opacity: 0.96
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 8,
+              minWidth: 0
+            }}
+          >
+            <div
+              style={{
+                width: '100%',
+                maxWidth: 96,
+                aspectRatio: '1 / 1',
+                borderRadius: '24%',
+                background: `linear-gradient(145deg, ${color}, rgba(255,255,255,0.18))`,
+                boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.32), 0 8px 18px rgba(0,0,0,0.24)',
+                opacity: 0.96
+              }}
+            />
+            <div
+              style={{
+                width: '125%',
+                color: '#f3f4f6',
+                fontSize: 14,
+                fontWeight: 500,
+                lineHeight: 1.1,
+                textAlign: 'center',
+                textShadow: '0 1px 3px rgba(0,0,0,0.85)',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis'
+              }}
+            >
+              {label}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div
+        data-testid="projection-waiting-pages"
+        style={{
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          bottom: '18%',
+          display: 'flex',
+          justifyContent: 'center',
+          gap: 8
+        }}
+      >
+        {[0, 1, 2, 3].map((index) => (
+          <div
+            key={index}
+            style={{
+              width: 11,
+              height: 11,
+              borderRadius: '50%',
+              backgroundColor: index === 2 ? 'rgba(255,255,255,0.82)' : 'rgba(255,255,255,0.34)'
             }}
           />
         ))}
@@ -201,30 +249,77 @@ function WaitingProjectionPane({ settings, show }: { settings: Config; show: boo
           position: 'absolute',
           left: '8.5%',
           right: '8.5%',
-          bottom: '6.5%',
-          height: '15.5%',
+          bottom: '5.5%',
+          height: '13%',
           borderRadius: 28,
           backgroundColor: 'rgba(255,255,255,0.16)',
-          display: 'grid',
-          gridTemplateColumns: 'repeat(4, 1fr)',
+          display: 'flex',
           alignItems: 'center',
-          gap: '7%',
-          padding: '0 6%',
+          justifyContent: 'space-between',
+          gap: 12,
+          padding: '0 5%',
           boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.22), 0 10px 22px rgba(0,0,0,0.24)'
         }}
       >
-        {dockTiles.map((color) => (
-          <div
-            key={color}
+        <div
+          style={{
+            width: 22,
+            height: 22,
+            borderRadius: 6,
+            border: '3px solid rgba(255,255,255,0.92)',
+            flex: '0 0 auto'
+          }}
+        />
+        <div
+          style={{
+            color: '#f8fafc',
+            fontSize: 21,
+            fontWeight: 800,
+            lineHeight: 1,
+            flex: '0 0 auto'
+          }}
+        >
+          11:45
+        </div>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center', flex: '1 1 auto' }}>
+          {dockTiles.map((color) => (
+            <div
+              key={color}
+              style={{
+                width: 48,
+                aspectRatio: '1 / 1',
+                borderRadius: '26%',
+                background: `linear-gradient(145deg, ${color}, rgba(255,255,255,0.18))`,
+                boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.35)',
+                opacity: 0.98
+              }}
+            />
+          ))}
+        </div>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            color: '#f8fafc',
+            fontSize: 19,
+            fontWeight: 800,
+            lineHeight: 1,
+            flex: '0 0 auto'
+          }}
+        >
+          <span>5G</span>
+          <span
             style={{
-              aspectRatio: '1 / 1',
-              borderRadius: '26%',
-              background: `linear-gradient(145deg, ${color}, rgba(255,255,255,0.18))`,
-              boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.35)',
-              opacity: 0.98
+              width: 30,
+              height: 16,
+              border: '3px solid rgba(255,255,255,0.9)',
+              borderRadius: 5,
+              position: 'relative',
+              display: 'inline-block'
             }}
           />
-        ))}
+        </div>
       </div>
     </div>
   )

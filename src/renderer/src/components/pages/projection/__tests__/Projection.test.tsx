@@ -406,7 +406,10 @@ describe('Projection page', () => {
       height: '70.5%',
       backgroundColor: '#05070a'
     })
-    expect(pane.children.length).toBeGreaterThan(0)
+    expect(screen.getByText('Music')).toBeInTheDocument()
+    expect(screen.getByText('Google Maps')).toBeInTheDocument()
+    expect(screen.getByText('11:45')).toBeInTheDocument()
+    expect(screen.getByTestId('projection-waiting-grid').children).toHaveLength(8)
   })
 
   test('keeps waiting pane visible over dongle video until a projection session is active', () => {
