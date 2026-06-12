@@ -4,7 +4,7 @@ import { Box, useTheme } from '@mui/material'
 import type { Config } from '@shared/types'
 import { PhoneType } from '@shared/types/Config'
 import { AudioCommand, CommandMapping } from '@shared/types/ProjectionEnums'
-import { aaContentArea, isClusterDisplayed } from '@shared/utils'
+import { aaContentArea, isClusterDisplayed, motoFillHex } from '@shared/utils'
 import { createProjectionWorker } from '@worker/createProjectionWorker'
 import type { KeyCommand, ProjectionWorker, UsbEvent, WorkerToUI } from '@worker/types'
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -17,11 +17,7 @@ import { ViewAreaMask } from './ViewAreaMask'
 
 const RETRY_DELAY_MS = 3000
 const HOST_UI_ROUTE = '/settings'
-const DEFAULT_MOTO_FILL_COLOR = '#142321'
 const DEFAULT_PROJECTION_SIZE = 800
-
-const normalizeMotoFillColor = (value?: string): string =>
-  /^#[0-9a-fA-F]{6}$/.test(value ?? '') ? value! : DEFAULT_MOTO_FILL_COLOR
 
 const positiveOrDefault = (value: unknown, fallback: number): number =>
   typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : fallback
@@ -1186,12 +1182,7 @@ const CarplayComponent: React.FC<CarplayProps> = ({
 
   const visibleWidth = aaContent?.contentWidth ?? resolvedNegotiatedWidth
   const visibleHeight = aaContent?.contentHeight ?? resolvedNegotiatedHeight
-  const maskColor =
-    settings.backdropEnabled === true
-      ? 'transparent'
-      : settings.ambientFillEnabled === true
-        ? normalizeMotoFillColor(settings.ambientFillColor)
-        : undefined
+  const maskColor = motoFillHex(settings)
 
   const touchHandlers = useProjectionMultiTouch(
     videoContainerRef,

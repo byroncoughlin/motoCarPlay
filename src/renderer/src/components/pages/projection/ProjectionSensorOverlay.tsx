@@ -1,4 +1,5 @@
 import type { Config, TelemetryPayload } from '@shared/types'
+import { motoFillHex } from '@shared/utils'
 import { useLiviStore } from '@store/store'
 import * as React from 'react'
 
@@ -93,7 +94,6 @@ const SQUARE_SIZE = 565
 const GRAPH_WINDOW_MS = 5 * 60 * 1000
 const GRAPH_MAX_AGE_MS = 8 * 60 * 60 * 1000
 const GRAPH_SAMPLE_MS = 1000
-const DEFAULT_FILL_COLOR = '#142321'
 
 const CHT_ZONES: MetricZone[] = [
   { max: 80, color: '#4fc3f7' },
@@ -247,12 +247,6 @@ function fmtSecs(s: number): string {
   const t = Math.round(s)
   if (t < 60) return `${t}s`
   return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`
-}
-
-function normalizeHexColor(value: unknown): string {
-  return typeof value === 'string' && /^#[0-9a-fA-F]{6}$/.test(value)
-    ? value
-    : DEFAULT_FILL_COLOR
 }
 
 function useSvgId(prefix: string): string {
@@ -1906,9 +1900,7 @@ export function ProjectionSensorOverlay() {
   const settings = useLiviStore((s) => s.settings)
   const motoSettings = settings as MotoSettings | null
   const { telemetry, activeGraph, dataRef, actions } = useMotoTelemetry(motoSettings)
-  const fillColor = normalizeHexColor(motoSettings?.ambientFillColor)
-  const useFill = motoSettings?.ambientFillEnabled === true && motoSettings?.backdropEnabled !== true
-  const arcBackground = useFill ? fillColor : 'transparent'
+  const arcBackground = motoSettings ? (motoFillHex(motoSettings) ?? 'transparent') : 'transparent'
 
   return (
     <div
