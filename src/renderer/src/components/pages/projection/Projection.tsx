@@ -127,7 +127,7 @@ function WaitingProjectionPane({ settings, show }: { settings: Config; show: boo
         borderRadius: 34,
         overflow: 'hidden',
         pointerEvents: 'none',
-        zIndex: 0
+        zIndex: 2
       }}
     >
       <div
@@ -262,6 +262,7 @@ const CarplayComponent: React.FC<CarplayProps> = ({
   const usbOpTokenRef = useRef(0)
   const hasStartedRef = useRef(false)
   const [rendererError] = useState<string | null>(null)
+  const [projectionSessionActive, setProjectionSessionActive] = useState(false)
   const lastNonCarplayPathRef = useRef<string | null>(null)
   const lastNonClusterPathRef = useRef<string | null>(null)
   const autoSwitchedRef = useRef(false)
@@ -824,6 +825,7 @@ const CarplayComponent: React.FC<CarplayProps> = ({
         }
 
         case 'plugged': {
+          setProjectionSessionActive(true)
           const phoneType = (d as { phoneType?: number }).phoneType
           const useAa =
             phoneType !== undefined ? phoneType === PhoneType.AndroidAuto : wirelessAaEnabled
@@ -833,6 +835,7 @@ const CarplayComponent: React.FC<CarplayProps> = ({
         }
 
         case 'unplugged': {
+          setProjectionSessionActive(false)
           setStreaming(false)
           setAaActive(false)
           setDongleConnected(false)
@@ -843,6 +846,7 @@ const CarplayComponent: React.FC<CarplayProps> = ({
         }
 
         case 'failure': {
+          setProjectionSessionActive(false)
           setStreaming(false)
           setAaActive(false)
           setDongleConnected(false)
@@ -912,6 +916,8 @@ const CarplayComponent: React.FC<CarplayProps> = ({
 
   const inProjection = pathname === '/'
   const showProjectionOverlay = inProjection || navVideoOverlayActive
+  const showWaitingProjectionPane =
+    !receivingVideo || Boolean(rendererError) || !projectionSessionActive
 
   const resolvedNegotiatedWidth = negotiatedWidth ?? 0
   const resolvedNegotiatedHeight = negotiatedHeight ?? 0
@@ -969,10 +975,7 @@ const CarplayComponent: React.FC<CarplayProps> = ({
       }}
     >
       {pathname === '/' && (
-        <WaitingProjectionPane
-          settings={settings}
-          show={!receivingVideo || Boolean(rendererError)}
-        />
+        <WaitingProjectionPane settings={settings} show={showWaitingProjectionPane} />
       )}
 
       {pathname === '/' && (

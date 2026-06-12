@@ -238,8 +238,18 @@ describe('Projection page', () => {
     expect(pane.children.length).toBeGreaterThan(0)
   })
 
-  test('hides waiting pane while live projection video is visible', () => {
+  test('keeps waiting pane visible over dongle video until a projection session is active', () => {
     render(<Projection {...baseProps()} receivingVideo />)
+
+    expect(screen.getByTestId('projection-waiting-pane')).toHaveStyle({ zIndex: '2' })
+  })
+
+  test('hides waiting pane while live projection session is visible', () => {
+    render(<Projection {...baseProps()} receivingVideo />)
+
+    act(() => {
+      onEventCb?.(null, { type: 'plugged' })
+    })
 
     expect(screen.queryByTestId('projection-waiting-pane')).not.toBeInTheDocument()
   })
