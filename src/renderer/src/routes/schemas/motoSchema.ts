@@ -227,12 +227,12 @@ export const motoSettingsSchema: SettingsNode<Config> = {
         },
         {
           type: 'checkbox',
-          label: 'Background Fill',
+          label: 'Ambient Fill',
           path: 'ambientFillEnabled'
         },
         {
           type: 'color',
-          label: 'Background Color',
+          label: 'Fill Color',
           path: 'ambientFillColor',
           displayValue: true
         },

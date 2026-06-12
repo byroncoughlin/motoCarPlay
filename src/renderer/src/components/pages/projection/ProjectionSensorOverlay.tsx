@@ -483,12 +483,12 @@ function useMotoTelemetry(settings: MotoSettings | null): {
     const last = lastSampleRef.current[key] ?? 0
     if (now - last < GRAPH_SAMPLE_MS) return
     const cutoff = now - GRAPH_MAX_AGE_MS
-    const prev = dataRef.current[key].filter((p) => p.ts > cutoff)
-    dataRef.current = {
-      ...dataRef.current,
-      [key]: [...prev, { ts: now, val }]
-    }
-    lastSampleRef.current = { ...lastSampleRef.current, [key]: now }
+    const series = dataRef.current[key]
+    let stale = 0
+    while (stale < series.length && series[stale].ts <= cutoff) stale += 1
+    if (stale > 0) series.splice(0, stale)
+    series.push({ ts: now, val })
+    lastSampleRef.current[key] = now
   }, [])
 
   const logFromState = React.useCallback(
@@ -605,7 +605,8 @@ function useMotoTelemetry(settings: MotoSettings | null): {
       closeMetric: () => setActiveGraph(null),
       clearMetric: (key) => {
         dataRef.current = { ...dataRef.current, [key]: [] }
-        lastSampleRef.current = { ...lastSampleRef.current, [key]: 0 }
+        lastSampleRef.current[key] = 0
+        setHistoryRevision((v) => v + 1)
       },
       resetImuPeak: () =>
         setTelemetry((prev) => ({ ...prev, imuPeak: { leanL: 0, leanR: 0, g: 0 } })),

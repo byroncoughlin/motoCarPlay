@@ -169,7 +169,7 @@ export const SettingsFieldControl = <T,>({
                 <button
                   key={swatch}
                   type="button"
-                  aria-label={`Background color ${swatch}`}
+                  aria-label={`Fill color ${swatch}`}
                   aria-pressed={isSelected}
                   onClick={() => onChange(swatch as T)}
                   style={{

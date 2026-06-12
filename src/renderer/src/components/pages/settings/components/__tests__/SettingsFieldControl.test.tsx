@@ -159,19 +159,19 @@ describe('SettingsFieldControl', () => {
     const onChange = jest.fn()
     render(
       <SettingsFieldControl
-        node={{ type: 'color', label: 'Background Color', path: 'ambientFillColor' } as any}
+        node={{ type: 'color', label: 'Fill Color', path: 'ambientFillColor' } as any}
         value={null}
         onChange={onChange}
       />
     )
 
     expect(screen.queryByTestId('textfield-color')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Background color #142321' })).toHaveAttribute(
+    expect(screen.getByRole('button', { name: 'Fill color #142321' })).toHaveAttribute(
       'aria-pressed',
       'true'
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'Background color #083f38' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Fill color #083f38' }))
     expect(onChange).toHaveBeenCalledWith('#083f38')
   })
 })
