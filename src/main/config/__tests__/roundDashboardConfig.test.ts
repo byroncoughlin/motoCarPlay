@@ -33,4 +33,37 @@ describe('enforceRoundDashboardConfig', () => {
       language: 'en'
     })
   })
+
+  test('auto-enables corner mask for legacy fill configs only when not explicitly saved', () => {
+    expect(
+      enforceRoundDashboardConfig(
+        {
+          ambientFillEnabled: true,
+          roundedCornerMaskEnabled: false
+        },
+        {
+          ambientFillEnabled: true
+        }
+      )
+    ).toEqual({
+      ambientFillEnabled: true,
+      roundedCornerMaskEnabled: true
+    })
+
+    expect(
+      enforceRoundDashboardConfig(
+        {
+          ambientFillEnabled: true,
+          roundedCornerMaskEnabled: false
+        },
+        {
+          ambientFillEnabled: true,
+          roundedCornerMaskEnabled: false
+        }
+      )
+    ).toEqual({
+      ambientFillEnabled: true,
+      roundedCornerMaskEnabled: false
+    })
+  })
 })

@@ -3,7 +3,18 @@ import { MicType } from '@shared/types/Config'
 
 type PartialConfig = Partial<Config>
 
-export function enforceRoundDashboardConfig<T extends PartialConfig>(config: T): T {
+function hasExplicitCornerMask(rawConfig?: unknown): boolean {
+  if (typeof rawConfig !== 'object' || rawConfig === null || Array.isArray(rawConfig)) {
+    return false
+  }
+
+  return typeof (rawConfig as Record<string, unknown>).roundedCornerMaskEnabled === 'boolean'
+}
+
+export function enforceRoundDashboardConfig<T extends PartialConfig>(
+  config: T,
+  rawConfig?: unknown
+): T {
   const next = { ...config } as PartialConfig
 
   if ('darkMode' in next) next.darkMode = true
@@ -22,6 +33,13 @@ export function enforceRoundDashboardConfig<T extends PartialConfig>(config: T):
 
   if (next.camera && typeof next.camera === 'object' && !Array.isArray(next.camera)) {
     next.camera = { ...next.camera, main: false, dash: false, aux: false }
+  }
+
+  if (
+    !hasExplicitCornerMask(rawConfig) &&
+    (next.backdropEnabled === true || next.ambientFillEnabled === true)
+  ) {
+    next.roundedCornerMaskEnabled = true
   }
 
   return next as T

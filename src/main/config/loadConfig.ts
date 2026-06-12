@@ -16,7 +16,7 @@ export function loadConfig(): Config {
     }
   }
 
-  const merged = enforceRoundDashboardConfig(validate(fileConfig, DEFAULT_CONFIG))
+  const merged = enforceRoundDashboardConfig(validate(fileConfig, DEFAULT_CONFIG), fileConfig)
 
   const needWrite =
     !existsSync(CONFIG_PATH) || JSON.stringify(fileConfig) !== JSON.stringify(merged)
