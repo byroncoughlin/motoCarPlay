@@ -1,5 +1,5 @@
-import { AudioCommand, CommandMapping } from '@shared/types/ProjectionEnums'
 import { PhoneType } from '@shared/types/Config'
+import { AudioCommand, CommandMapping } from '@shared/types/ProjectionEnums'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { Projection } from '../Projection'
 
@@ -474,6 +474,43 @@ describe('Projection page', () => {
     })
 
     expect(screen.queryByTestId('projection-waiting-pane')).not.toBeInTheDocument()
+  })
+
+  test('projectionInactive clears stale video state so waiting pane can replace a quiet stream', () => {
+    const setReceivingVideo = jest.fn()
+    const setNavVideoOverlayActive = jest.fn()
+
+    render(
+      <Projection
+        {...baseProps({
+          receivingVideo: true,
+          setReceivingVideo,
+          navVideoOverlayActive: true,
+          setNavVideoOverlayActive
+        })}
+      />
+    )
+
+    act(() => {
+      onEventCb?.(null, { type: 'projectionInactive', reason: 'main-video-timeout' })
+    })
+
+    expect(statusState.setStreaming).toHaveBeenCalledWith(false)
+    expect(setReceivingVideo).toHaveBeenCalledWith(false)
+    expect(setNavVideoOverlayActive).toHaveBeenCalledWith(false)
+  })
+
+  test('streaming event restores video visibility even when resolution is unchanged', () => {
+    const setReceivingVideo = jest.fn()
+
+    render(<Projection {...baseProps({ setReceivingVideo })} />)
+
+    act(() => {
+      onEventCb?.(null, { type: 'streaming', active: true, reason: 'main-video-frame' })
+    })
+
+    expect(statusState.setStreaming).toHaveBeenCalledWith(true)
+    expect(setReceivingVideo).toHaveBeenCalledWith(true)
   })
 
   test('usb unplugged stops projection and clears streaming state', async () => {

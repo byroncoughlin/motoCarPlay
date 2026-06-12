@@ -168,6 +168,8 @@ describe('ProjectionService', () => {
   beforeEach(() => {
     jest.clearAllMocks()
     jest.restoreAllMocks()
+    fs.rmSync('/tmp/appdata', { recursive: true, force: true })
+    fs.mkdirSync('/tmp/appdata', { recursive: true })
   })
 
   function getHandle<T = (...args: any[]) => any>(channel: string): T {
@@ -2191,6 +2193,7 @@ describe('ProjectionService', () => {
   })
 
   test('main video frame burst emits projectionActive once', () => {
+    jest.useFakeTimers()
     const svc = new ProjectionService() as any
     const send = jest.fn()
     svc.webContents = { send }
@@ -2209,9 +2212,7 @@ describe('ProjectionService', () => {
       )
     }
 
-    expect(
-      send.mock.calls.some(([, payload]) => payload?.type === 'projectionActive')
-    ).toBe(false)
+    expect(send.mock.calls.some(([, payload]) => payload?.type === 'projectionActive')).toBe(false)
 
     nowSpy.mockReturnValue(1900)
     svc.driver.emit(
@@ -2242,9 +2243,59 @@ describe('ProjectionService', () => {
       })
     )
 
-    const activeCalls = send.mock.calls.filter(([, payload]) => payload?.type === 'projectionActive')
+    const activeCalls = send.mock.calls.filter(
+      ([, payload]) => payload?.type === 'projectionActive'
+    )
     expect(activeCalls).toHaveLength(1)
     nowSpy.mockRestore()
+    jest.useRealTimers()
+  })
+
+  test('main video inactivity emits projectionInactive after frames stop', () => {
+    jest.useFakeTimers()
+    const svc = new ProjectionService() as any
+    const send = jest.fn()
+    svc.webContents = { send }
+    const setStreaming = jest.spyOn(svc.statusFile, 'setStreaming')
+    const nowSpy = jest.spyOn(Date, 'now')
+
+    nowSpy.mockReturnValue(1000)
+    svc.driver.emit(
+      'message',
+      Object.assign(new VideoData() as any, {
+        header: { type: 0 },
+        width: 0,
+        height: 0
+      })
+    )
+
+    expect(send).toHaveBeenCalledWith('projection-event', {
+      type: 'streaming',
+      active: true,
+      reason: 'main-video-frame'
+    })
+    expect(setStreaming).toHaveBeenCalledWith(true)
+
+    nowSpy.mockReturnValue(5999)
+    jest.advanceTimersByTime(4000)
+    expect(send.mock.calls.some(([, payload]) => payload?.type === 'projectionInactive')).toBe(
+      false
+    )
+
+    nowSpy.mockReturnValue(6000)
+    jest.advanceTimersByTime(1000)
+
+    expect(send).toHaveBeenCalledWith(
+      'projection-event',
+      expect.objectContaining({
+        type: 'projectionInactive',
+        reason: 'main-video-timeout'
+      })
+    )
+    expect(setStreaming).toHaveBeenLastCalledWith(false)
+
+    nowSpy.mockRestore()
+    jest.useRealTimers()
   })
 
   test('driver Unplugged message emits unplugged, resets navigation and stops service', async () => {

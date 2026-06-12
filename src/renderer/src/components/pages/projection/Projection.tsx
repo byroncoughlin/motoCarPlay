@@ -831,6 +831,23 @@ const CarplayComponent: React.FC<CarplayProps> = ({
           break
         }
 
+        case 'streaming': {
+          if (d.active === true) {
+            setReceivingVideo(true)
+            setStreaming(true)
+          }
+          break
+        }
+
+        case 'projectionInactive': {
+          setProjectionSessionActive(false)
+          setStreaming(false)
+          setReceivingVideo(false)
+          pendingVideoFocusRef.current = false
+          setNavVideoOverlayActive(false)
+          break
+        }
+
         case 'dongleInfo': {
           const p = d.payload as { dongleFwVersion?: string; boxInfo?: unknown } | undefined
           if (!p) break

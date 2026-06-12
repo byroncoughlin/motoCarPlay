@@ -110,6 +110,8 @@ const START_RETRY_BASE_MS = 1000
 const START_RETRY_CAP_MS = 15000
 const MAIN_VIDEO_ACTIVE_WINDOW_MS = 2500
 const MAIN_VIDEO_ACTIVE_FRAME_THRESHOLD = 10
+const MAIN_VIDEO_INACTIVE_CHECK_MS = 1000
+const MAIN_VIDEO_INACTIVE_MS = 5000
 
 export class ProjectionService {
   private readonly drivers: ProjectionDriverManager
@@ -176,6 +178,9 @@ export class ProjectionService {
   private mainVideoActiveWindowStartMs = 0
   private mainVideoActiveFrameCount = 0
   private mainVideoActiveSent = false
+  private mainVideoLastFrameAt = 0
+  private mainVideoStreamLive = false
+  private mainVideoInactivityTimer: NodeJS.Timeout | null = null
   private firmware = new FirmwareUpdateService()
   private readonly aaBtSock = new AaBtSockClient()
   private aaBtSubscription: { close: () => void } | null = null
@@ -344,6 +349,48 @@ export class ProjectionService {
     this.mainVideoActiveSent = false
   }
 
+  private clearMainVideoStreamState(): void {
+    if (this.mainVideoInactivityTimer) {
+      clearInterval(this.mainVideoInactivityTimer)
+      this.mainVideoInactivityTimer = null
+    }
+    this.mainVideoLastFrameAt = 0
+    this.mainVideoStreamLive = false
+  }
+
+  private markMainVideoStreamLive(): void {
+    this.mainVideoLastFrameAt = Date.now()
+
+    if (!this.mainVideoStreamLive) {
+      this.mainVideoStreamLive = true
+      this.statusFile.setStreaming(true)
+      this.emitProjectionEvent({ type: 'streaming', active: true, reason: 'main-video-frame' })
+    }
+
+    if (this.mainVideoInactivityTimer) return
+
+    this.mainVideoInactivityTimer = setInterval(() => {
+      if (!this.mainVideoStreamLive || this.mainVideoLastFrameAt === 0) return
+
+      const quietMs = Date.now() - this.mainVideoLastFrameAt
+      if (quietMs < MAIN_VIDEO_INACTIVE_MS) return
+
+      this.resetMainVideoActivity()
+      this.mainVideoStreamLive = false
+      this.statusFile.setStreaming(false)
+      this.emitProjectionEvent({
+        type: 'projectionInactive',
+        reason: 'main-video-timeout',
+        quietMs
+      })
+
+      if (this.mainVideoInactivityTimer) {
+        clearInterval(this.mainVideoInactivityTimer)
+        this.mainVideoInactivityTimer = null
+      }
+    }, MAIN_VIDEO_INACTIVE_CHECK_MS)
+  }
+
   private noteMainVideoFrameActivity(): void {
     if (this.mainVideoActiveSent) return
 
@@ -498,6 +545,7 @@ export class ProjectionService {
       this.lastPluggedPhoneType = undefined
       this.aaPlaybackInferred = 1
       this.resetMainVideoActivity()
+      this.clearMainVideoStreamState()
 
       if (isRecord(this.boxInfo)) {
         this.boxInfo = { ...this.boxInfo, btMacAddr: '' }
@@ -599,12 +647,12 @@ export class ProjectionService {
 
       // main video stream (0x06)
       this.noteMainVideoFrameActivity()
+      this.markMainVideoStreamLive()
 
       if (!this.firstFrameLogged) {
         this.firstFrameLogged = true
         const dt = Date.now() - APP_START_TS
         console.log(`[Perf] AppStart→FirstFrame: ${dt} ms`)
-        this.statusFile.setStreaming(true)
       }
 
       const w = msg.width
@@ -760,6 +808,8 @@ export class ProjectionService {
 
   private readonly onDriverFailure = (): void => {
     this.resetMainVideoActivity()
+    this.clearMainVideoStreamState()
+    this.statusFile.setStreaming(false)
     const wc = this.webContents
     if (!wc || wc.isDestroyed?.()) return
     wc.send('projection-event', { type: 'failure' })
@@ -1763,6 +1813,8 @@ export class ProjectionService {
         this.lastClusterCodec = null
         this.aaPlaybackInferred = 1
         this.resetMainVideoActivity()
+        this.clearMainVideoStreamState()
+        this.firstFrameLogged = false
 
         this.resetMediaSnapshot('session-start')
         this.resetNavigationSnapshot('session-start')
@@ -1950,6 +2002,8 @@ export class ProjectionService {
       this.lastPluggedPhoneType = undefined
       this.aaPlaybackInferred = 2
       this.resetMainVideoActivity()
+      this.clearMainVideoStreamState()
+      this.firstFrameLogged = false
     })().finally(() => {
       this.stopping = false
       this.isStopping = false
@@ -2056,6 +2110,7 @@ export class ProjectionService {
 
   private clearTimeouts() {
     this.clearStartRetry()
+    this.clearMainVideoStreamState()
     if (this.pairTimeout) {
       clearTimeout(this.pairTimeout)
       this.pairTimeout = null
