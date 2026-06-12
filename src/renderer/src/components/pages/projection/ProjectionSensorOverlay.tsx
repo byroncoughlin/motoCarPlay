@@ -1334,93 +1334,6 @@ function RideDynamicsPanel({
   )
 }
 
-function CylinderHeadsPanel({ telemetry, actions }: { telemetry: MotoTelemetry; actions: MotoActions }) {
-  const leftGlowId = useSvgId('cht-cyl-l')
-  const rightGlowId = useSvgId('cht-cyl-r')
-
-  if (telemetry.chtLeftC === null && telemetry.chtRightC === null) {
-    return (
-      <div style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ color: '#888', fontSize: 14, fontWeight: 800, letterSpacing: 2, fontFamily: 'monospace' }}>
-          NO CYLINDER-HEAD DATA
-        </div>
-      </div>
-    )
-  }
-
-  const zone = (t: number | null): { label: string; color: string } => {
-    if (t === null) return { label: '-', color: '#777' }
-    if (t < 80) return { label: 'COLD', color: '#4fc3f7' }
-    if (t < 160) return { label: 'NORMAL', color: '#66bb6a' }
-    if (t < 220) return { label: 'WARM', color: '#ffca28' }
-    return { label: 'HOT', color: '#ef5350' }
-  }
-  const delta =
-    telemetry.chtLeftC !== null && telemetry.chtRightC !== null
-      ? Math.abs(Math.round(telemetry.chtLeftC - telemetry.chtRightC))
-      : null
-  const deltaColor = delta === null ? '#777' : delta < 20 ? '#9ccc65' : delta < 40 ? '#ffca28' : '#ef5350'
-  const side = (label: 'L' | 'R', temp: number | null, peak: number, glowId: string) => {
-    const has = temp !== null
-    const z = zone(temp)
-    const glow = has ? Math.max(0, Math.min(1, ((temp as number) - 40) / 200)) : 0
-    return (
-      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
-        <div style={{ color: '#dcdcdc', fontSize: 14, fontWeight: 900, letterSpacing: 3, fontFamily: 'monospace' }}>
-          {label} HEAD
-        </div>
-        <svg viewBox="0 0 130 96" width="100%" height="96" preserveAspectRatio="xMidYMid meet" style={{ transform: label === 'L' ? 'scaleX(-1)' : undefined }}>
-          <defs>
-            <filter id={glowId} x="-40%" y="-40%" width="180%" height="180%">
-              <feGaussianBlur stdDeviation="5" />
-            </filter>
-          </defs>
-          {has && glow > 0.02 && (
-            <g filter={`url(#${glowId})`} opacity={0.25 + glow * 0.6}>
-              <rect x={28} y={26} width={86} height={44} rx={10} fill={z.color} />
-            </g>
-          )}
-          <rect x={2} y={34} width={26} height={28} rx={4} fill="#2a2a2a" stroke="#444" strokeWidth={1} />
-          {[0, 1, 2, 3, 4].map((i) => (
-            <rect key={i} x={30 + i * 14} y={24} width={9} height={48} rx={2} fill={has ? z.color : '#333'} opacity={has ? 0.55 + glow * 0.35 : 0.5} />
-          ))}
-          <rect x={100} y={20} width={20} height={56} rx={6} fill={has ? z.color : '#3a3a3a'} opacity={has ? 0.85 : 0.6} />
-          <circle cx={123} cy={48} r={3.4} fill="#888" />
-        </svg>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 3 }}>
-          <span style={{ color: has ? z.color : '#fff', fontSize: 40, fontWeight: 900, fontFamily: 'monospace', lineHeight: 1 }}>
-            {has ? Math.round(temp) : '--'}
-          </span>
-          <span style={{ color: '#bbb', fontSize: 16, fontWeight: 700, fontFamily: 'monospace' }}>{'\u00b0C'}</span>
-        </div>
-        <div style={{ color: has ? z.color : '#777', fontSize: 14, fontWeight: 800, letterSpacing: 2, fontFamily: 'monospace' }}>
-          {z.label}
-        </div>
-        <div style={{ color: '#aaa', fontSize: 12, fontWeight: 700, fontFamily: 'monospace' }}>
-          {peak > 0 ? `MAX ${Math.round(peak)}\u00b0` : ''}
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', gap: 4, padding: '8px 12px 4px', fontFamily: 'sans-serif' }}>
-      {side('L', telemetry.chtLeftC, telemetry.chtPeak.left, leftGlowId)}
-      <div style={{ flex: '0 0 124px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, paddingTop: 20 }}>
-        <span style={{ color: '#888', fontSize: 11, fontWeight: 800, letterSpacing: 2, fontFamily: 'monospace' }}>{'\u25c4 BOXER \u25ba'}</span>
-        <span style={{ color: '#888', fontSize: 12, fontWeight: 800, letterSpacing: 2, fontFamily: 'monospace', marginTop: 4 }}>{'\u0394T'}</span>
-        <span style={{ color: deltaColor, fontSize: 30, fontWeight: 900, fontFamily: 'monospace', lineHeight: 1 }}>
-          {delta !== null ? `${delta}\u00b0` : '\u2014'}
-        </span>
-        <div style={{ marginTop: 8 }}>
-          <ResetMaxButton onReset={actions.resetChtPeak} width={116} />
-        </div>
-      </div>
-      {side('R', telemetry.chtRightC, telemetry.chtPeak.right, rightGlowId)}
-    </div>
-  )
-}
-
 function ResetMaxButton({ onReset, width = 120 }: { onReset: () => void; width?: number }) {
   const [confirm, setConfirm] = React.useState(false)
   const base: React.CSSProperties = {
@@ -1497,9 +1410,7 @@ function MetricGraph({
     ? 'gps'
     : IMU_KEYS.includes(metricKey)
       ? 'imu'
-      : CHT_KEYS.includes(metricKey)
-        ? 'cht'
-        : null
+      : null
   const keys: MetricKey[] = metricKey === 'ambientTemp' ? ['ambientTemp', 'piTemp'] : [metricKey]
   const compact = topPanel !== null || keys.length > 1
   const [nowMs, setNowMs] = React.useState(() => Date.now())
@@ -1580,7 +1491,6 @@ function MetricGraph({
 
       {topPanel === 'gps' && <GpsSkyPanel telemetry={telemetry} />}
       {topPanel === 'imu' && <RideDynamicsPanel telemetry={telemetry} settings={settings} actions={actions} />}
-      {topPanel === 'cht' && <CylinderHeadsPanel telemetry={telemetry} actions={actions} />}
 
       {(topPanel ? [metricKey] : keys).map((key, index) => (
         <GraphPane

@@ -419,9 +419,15 @@ describe('Projection page', () => {
     expect(graph).toHaveTextContent('SIGNAL (dB-Hz)')
   })
 
-  test('renders cylinder-head graph details like the round dashboard', async () => {
+  test('renders cylinder-head graphs as full single charts like the reference dashboard', async () => {
+    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(1000)
+
     render(<Projection {...baseProps()} />)
 
+    act(() => {
+      telemetryCb?.({ chtLeftC: 151.2, chtRightC: 162.7 })
+    })
+    nowSpy.mockReturnValue(3000)
     act(() => {
       telemetryCb?.({ chtLeftC: 151.2, chtRightC: 162.7 })
     })
@@ -429,14 +435,17 @@ describe('Projection page', () => {
     fireEvent.click(screen.getByLabelText('L cylinder head temperature'))
 
     const graph = screen.getByTestId('projection-metric-graph')
-    expect(graph).toHaveTextContent('L HEAD')
-    expect(graph).toHaveTextContent('R HEAD')
-    expect(graph).toHaveTextContent('\u25c4 BOXER \u25ba')
-    expect(graph).toHaveTextContent('\u0394T')
-    expect(graph).toHaveTextContent('12\u00b0')
-    expect(graph).toHaveTextContent('NORMAL')
-    expect(graph).toHaveTextContent('WARM')
-    expect(graph.querySelectorAll('filter').length).toBeGreaterThanOrEqual(2)
+    expect(graph).toHaveTextContent('CHT LEFT')
+    expect(graph).toHaveTextContent('\u25cf LIVE')
+    expect(graph).toHaveTextContent('151')
+    expect(graph).toHaveTextContent('MAX 151')
+    expect(graph).toHaveTextContent('MIN 151')
+    expect(graph).toHaveTextContent('2 pts \u00b7 drag \u2190 \u2192')
+    expect(graph).not.toHaveTextContent('L HEAD')
+    expect(graph).not.toHaveTextContent('R HEAD')
+    expect(graph).not.toHaveTextContent('\u25c4 BOXER \u25ba')
+
+    nowSpy.mockRestore()
   })
 
   test('renders ambient split graph live labels like the round dashboard', async () => {
