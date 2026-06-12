@@ -194,20 +194,11 @@ describe('App', () => {
     expect(screen.getByTestId('projection')).toHaveAttribute('data-nav-overlay-active', 'false')
   })
 
-  test('updates cameras again for matching usb event types only', () => {
+  test('does not start camera detection in the moto shell', () => {
     render(<App />)
 
-    const usbHandler = listenForEvents.mock.calls[0][0]
-
-    updateCamerasMock.mockClear()
-
-    usbHandler(undefined, { type: 'attach' })
-    expect(updateCamerasMock).toHaveBeenCalledTimes(1)
-
-    updateCamerasMock.mockClear()
-
-    usbHandler(undefined, { type: 'something-else' })
     expect(updateCamerasMock).not.toHaveBeenCalled()
+    expect(listenForEvents).not.toHaveBeenCalled()
   })
 
   test('removes global input listeners on unmount', () => {
@@ -402,7 +393,7 @@ describe('App', () => {
     expect(broadcastMediaKey).toHaveBeenCalledWith('voiceAssistantRelease')
   })
 
-  test('reverse + camera ready auto-switches to /camera', () => {
+  test('does not auto-switch to camera on reverse in the moto shell', () => {
     liviState.settings = {
       ...liviState.settings,
       autoSwitchOnReverse: true,
@@ -413,7 +404,7 @@ describe('App', () => {
     statusState.cameraFound = true
     mockPathname = '/media'
     render(<App />)
-    expect(navigateMock).toHaveBeenCalledWith('/camera')
+    expect(navigateMock).not.toHaveBeenCalledWith('/camera')
   })
 
   test('does not auto-switch when autoSwitchOnReverse is off', () => {
@@ -444,7 +435,7 @@ describe('App', () => {
     expect(navigateMock).not.toHaveBeenCalledWith('/camera')
   })
 
-  test('reverse off after an auto-switch navigates back to the prior route', () => {
+  test('reverse off does not perform camera route restoration in the moto shell', () => {
     liviState.settings = {
       ...liviState.settings,
       autoSwitchOnReverse: true,
@@ -455,13 +446,12 @@ describe('App', () => {
     statusState.cameraFound = true
     mockPathname = '/media'
     const { rerender } = render(<App />)
-    expect(navigateMock).toHaveBeenCalledWith('/camera')
+    expect(navigateMock).not.toHaveBeenCalledWith('/camera')
 
-    // Pretend the router has actually moved us to /camera, then reverse drops
     mockPathname = '/camera'
     statusState.reverse = false
     navigateMock.mockClear()
     rerender(<App />)
-    expect(navigateMock).toHaveBeenCalledWith('/media')
+    expect(navigateMock).not.toHaveBeenCalledWith('/media')
   })
 })

@@ -1,13 +1,10 @@
 // Icons
-import CameraOutlinedIcon from '@mui/icons-material/CameraOutlined'
 import CropPortraitOutlinedIcon from '@mui/icons-material/CropPortraitOutlined'
-import PlayCircleOutlinedIcon from '@mui/icons-material/PlayCircleOutlined'
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined'
-import SpeedOutlinedIcon from '@mui/icons-material/SpeedOutlined'
 import { useTheme } from '@mui/material/styles'
 import { useEffect, useState } from 'react'
 import { ROUTES, UI } from '../../constants'
-import { useLiviStore, useStatusStore } from '../../store/store'
+import { useStatusStore } from '../../store/store'
 import { getWindowRole } from '../../utils/windowRole'
 import { TransportSwitchIcon } from './TransportSwitchIcon'
 import { TabConfig } from './types'
@@ -19,61 +16,15 @@ export const useTabsConfig: (receivingVideo: boolean) => TabConfig[] = (receivin
   const isStreaming = useStatusStore((s) => s.isStreaming)
   const isAaActive = useStatusStore((s) => s.isAaActive)
   const isDongleConnected = useStatusStore((s) => s.isDongleConnected || s.isAaActive)
-  const cameraFound = useStatusStore((s) => s.cameraFound)
-  const cameraConfigured = useLiviStore((s) => Boolean(s.settings?.cameraId))
-  const cameraReady = cameraFound || cameraConfigured
   const transport = useTransportState()
   const isXSIcons = typeof window !== 'undefined' && window.innerHeight <= UI.XS_ICON_MAX_HEIGHT
   const iconFontSize = isXSIcons ? 24 : 32
-  const detectedCount =
-    Number(transport.dongleDetected) +
-    Number(transport.wiredPhoneDetected) +
-    Number(transport.wirelessPhoneDetected)
-  const rawShowSwitch = role === 'main' && (detectedCount >= 2 || transport.switchPending)
+  const rawShowSwitch = role === 'main' && transport.switchPending
   const showSwitch = useDelayedHide(rawShowSwitch, 300)
-  const cameraOnRole = useLiviStore((s) =>
-    role === 'main' ? (s.settings?.camera?.main ?? true) : (s.settings?.camera?.[role] ?? false)
-  )
-  const mediaOnRole = useLiviStore((s) =>
-    role === 'main' ? (s.settings?.media?.main ?? true) : (s.settings?.media?.[role] ?? false)
-  )
-  const telemetryOnRole = useLiviStore((s) => {
-    const d = s.settings?.dashboards
-    if (!d) return false
-    return Object.values(d).some((slot) => slot?.[role] === true)
-  })
 
   // Secondary windows only show tabs that are routed to that role
   if (role !== 'main') {
-    return [
-      ...(telemetryOnRole
-        ? [
-            {
-              label: 'Telemetry',
-              path: ROUTES.TELEMETRY,
-              icon: <SpeedOutlinedIcon sx={{ fontSize: iconFontSize }} />
-            }
-          ]
-        : []),
-      ...(mediaOnRole
-        ? [
-            {
-              label: 'Media',
-              path: ROUTES.MEDIA,
-              icon: <PlayCircleOutlinedIcon sx={{ fontSize: iconFontSize }} />
-            }
-          ]
-        : []),
-      ...(cameraOnRole && cameraReady
-        ? [
-            {
-              label: 'Camera',
-              path: ROUTES.CAMERA,
-              icon: <CameraOutlinedIcon sx={{ fontSize: iconFontSize }} />
-            }
-          ]
-        : [])
-    ]
+    return []
   }
 
   return [
@@ -104,33 +55,6 @@ export const useTabsConfig: (receivingVideo: boolean) => TabConfig[] = (receivin
         )
       })()
     },
-    ...(telemetryOnRole
-      ? [
-          {
-            label: 'Telemetry',
-            path: ROUTES.TELEMETRY,
-            icon: <SpeedOutlinedIcon sx={{ fontSize: iconFontSize }} />
-          }
-        ]
-      : []),
-    ...(mediaOnRole
-      ? [
-          {
-            label: 'Media',
-            path: ROUTES.MEDIA,
-            icon: <PlayCircleOutlinedIcon sx={{ fontSize: iconFontSize }} />
-          }
-        ]
-      : []),
-    ...(cameraOnRole && cameraReady
-      ? [
-          {
-            label: 'Camera',
-            path: ROUTES.CAMERA,
-            icon: <CameraOutlinedIcon sx={{ fontSize: iconFontSize }} />
-          }
-        ]
-      : []),
     ...(showSwitch
       ? [
           {

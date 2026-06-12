@@ -12,9 +12,9 @@ import { getCachedOptions, resolveOptions } from '../selectOptionsCache'
 const Item = styled(Paper)(({ theme }) => {
   const activeColor = theme.palette.primary.main
 
-  const rowPad = 'clamp(10px, 1.9svh, 16px)'
-  const rowFont = 'clamp(0.9rem, 2.2svh, 1rem)'
-  const rowGap = 'clamp(0.75rem, 2.6svh, 3rem)'
+  const rowPad = 'clamp(6px, 1.35svh, 12px)'
+  const rowFont = 'clamp(0.82rem, 1.75svh, 0.95rem)'
+  const rowGap = 'clamp(0.45rem, 1.7svh, 1.5rem)'
 
   const activeRowStyles = {
     borderBottom: `2px solid ${activeColor}`,
@@ -31,6 +31,7 @@ const Item = styled(Paper)(({ theme }) => {
     paddingRight: rowPad,
     borderBottom: `2px solid ${theme.palette.divider}`,
     fontSize: rowFont,
+    minHeight: 'clamp(38px, 6svh, 52px)',
 
     '& svg': {
       position: 'relative',
@@ -66,6 +67,7 @@ const Item = styled(Paper)(({ theme }) => {
       padding: rowPad,
       textDecoration: 'none',
       fontSize: rowFont,
+      lineHeight: 1.15,
       outline: 'none',
       color: theme.palette.text.secondary,
       margin: 0
@@ -78,6 +80,7 @@ const Item = styled(Paper)(({ theme }) => {
       padding: rowPad,
       textDecoration: 'none',
       fontSize: rowFont,
+      lineHeight: 1.15,
       outline: 'none',
       color: theme.palette.text.secondary,
 
@@ -190,13 +193,13 @@ export const StackItem = ({
     >
       {children}
       {showValue && value != null && (
-        <div style={{ whiteSpace: 'nowrap', fontSize: 'clamp(0.85rem, 2.0svh, 0.95rem)' }}>
+        <div style={{ whiteSpace: 'nowrap', fontSize: 'clamp(0.78rem, 1.7svh, 0.9rem)' }}>
           {displayValue}
         </div>
       )}
       {withForwardIcon && (
         <ArrowForwardIosOutlinedIcon
-          sx={{ color: 'inherit', fontSize: 'clamp(18px, 3.2svh, 28px)' }}
+          sx={{ color: 'inherit', fontSize: 'clamp(16px, 2.6svh, 22px)' }}
         />
       )}
     </Item>

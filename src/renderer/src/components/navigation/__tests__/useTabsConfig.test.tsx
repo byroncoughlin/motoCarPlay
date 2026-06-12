@@ -59,23 +59,17 @@ describe('useTabsConfig', () => {
 
   test('returns base tabs by default', () => {
     const { result } = renderHook(() => useTabsConfig(false))
-    expect(result.current.map((t) => t.path)).toEqual(['/', '/media', '/camera', '/settings'])
+    expect(result.current.map((t) => t.path)).toEqual(['/', '/settings'])
   })
 
-  test('adds the telemetry tab when a dashboard is routed to main', () => {
+  test('keeps the moto tabs trimmed when a dashboard is routed to main', () => {
     mockState.telemetryOnMain = true
     const { result } = renderHook(() => useTabsConfig(false))
-    expect(result.current.map((t) => t.path)).toEqual([
-      '/',
-      '/telemetry',
-      '/media',
-      '/camera',
-      '/settings'
-    ])
+    expect(result.current.map((t) => t.path)).toEqual(['/', '/settings'])
   })
 
-  test('hides camera tab when camera is not found', () => {
-    mockState.cameraFound = false
+  test('does not expose the camera tab even when a camera is found', () => {
+    mockState.cameraFound = true
     const { result } = renderHook(() => useTabsConfig(false))
     const camera = result.current.find((t) => t.path === '/camera')
     expect(camera).toBeUndefined()
@@ -105,7 +99,7 @@ describe('useTabsConfig', () => {
 
     const { result } = renderHook(() => useTabsConfig(false))
 
-    expect(result.current.map((t) => t.path)).toEqual(['/', '/media', '/camera', '/settings'])
+    expect(result.current.map((t) => t.path)).toEqual(['/', '/settings'])
   })
 
   test('uses highlighted CarPlay icon styling when streaming is active regardless of receivingVideo', () => {

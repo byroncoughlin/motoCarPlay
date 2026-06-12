@@ -76,7 +76,7 @@ export const DEFAULT_CONFIG: Config = {
   autoSwitchOnStream: false,
   autoSwitchOnPhoneCall: false,
   autoSwitchOnGuidance: false,
-  autoSwitchOnReverse: true,
+  autoSwitchOnReverse: false,
   dongleToolsIp: '',
   visualAudioDelayMs: 120,
   audioVolume: 1,

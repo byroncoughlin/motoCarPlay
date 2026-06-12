@@ -11,8 +11,6 @@ import { useActiveControl, useFocus, useKeyDown } from './hooks'
 import { appRoutes } from './routes/appRoutes'
 import { useLiviStore, useStatusStore } from './store/store'
 import { broadcastMediaKey } from './utils/broadcastMediaKey'
-import { updateCameras } from './utils/cameraDetection'
-import { getWindowRole } from './utils/windowRole'
 
 const START_PAGE_ROUTE: Record<string, string> = {
   home: ROUTES.HOME,
@@ -35,8 +33,6 @@ function AppInner() {
   const didApplyStartPageRef = useRef(false)
 
   const settings = useLiviStore((s) => s.settings)
-  const saveSettings = useLiviStore((s) => s.saveSettings)
-  const setCameraFound = useStatusStore((s) => s.setCameraFound)
   const clusterDashActive = useStatusStore((s) => s.clusterDashActive)
 
   const navRef = useRef<HTMLDivElement | null>(null)
@@ -241,58 +237,6 @@ function AppInner() {
       dispatchRelease()
     }
   }, [settings])
-
-  useEffect(() => {
-    if (!settings) return
-    updateCameras(setCameraFound, saveSettings, settings)
-    const usbHandler = (_evt: unknown, ...args: unknown[]) => {
-      const data = (args[0] ?? {}) as { type?: string }
-      if (data.type && ['attach', 'plugged', 'detach', 'unplugged'].includes(data.type)) {
-        updateCameras(setCameraFound, saveSettings, settings)
-      }
-    }
-    const unsubscribe = window.projection.usb.listenForEvents(usbHandler)
-    return unsubscribe
-  }, [settings, saveSettings, setCameraFound])
-
-  const reverse = useStatusStore((s) => s.reverse)
-  const cameraFound = useStatusStore((s) => s.cameraFound)
-  const reverseAutoSwitchActiveRef = useRef(false)
-  const reverseBackPathRef = useRef<string | null>(null)
-  const cameraOnRole = (() => {
-    const role = getWindowRole()
-    return role === 'main' ? (settings?.camera?.main ?? true) : (settings?.camera?.[role] ?? false)
-  })()
-  useEffect(() => {
-    if (!settings?.autoSwitchOnReverse) return
-    if (!cameraOnRole) return
-    const cameraReady = cameraFound && Boolean(settings.cameraId)
-
-    if (reverse && cameraReady) {
-      if (location.pathname !== ROUTES.CAMERA) {
-        reverseBackPathRef.current = location.pathname
-        reverseAutoSwitchActiveRef.current = true
-        navigate(ROUTES.CAMERA)
-      }
-      return
-    }
-
-    // reverse off: restore the previous route
-    if (reverseAutoSwitchActiveRef.current && location.pathname === ROUTES.CAMERA) {
-      const back = reverseBackPathRef.current ?? ROUTES.HOME
-      reverseAutoSwitchActiveRef.current = false
-      reverseBackPathRef.current = null
-      navigate(back)
-    }
-  }, [
-    reverse,
-    cameraFound,
-    cameraOnRole,
-    settings?.autoSwitchOnReverse,
-    settings?.cameraId,
-    location.pathname,
-    navigate
-  ])
 
   return (
     <AppLayout navRef={navRef} mainRef={mainRef} receivingVideo={receivingVideo}>

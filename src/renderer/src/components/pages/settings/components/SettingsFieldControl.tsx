@@ -85,7 +85,7 @@ export const SettingsFieldControl = <T,>({
 
       return (
         <NumberSpinner
-          size="medium"
+          size="small"
           value={typeof value === 'number' && Number.isFinite(value) ? value : 0}
           min={min}
           max={max}
@@ -279,7 +279,7 @@ function DynamicSelect({ node, value, onChange, savedLabel, onLabelChange }: Dyn
       displayEmpty
       renderValue={() => (selectedOption ? labelFor(selectedOption) : '')}
       sx={{
-        minWidth: 200,
+        minWidth: 'min(170px, 44vw)',
         '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
           borderColor: 'primary.main',
           borderWidth: '1px'
