@@ -120,13 +120,15 @@ describe('settings schemas', () => {
       'backdropEnabled',
       'ambientFillEnabled',
       'ambientFillColor',
+      '',
       ''
     ])
     expect(motoDisplay.children.map((child: any) => child.label)).toEqual([
       'Backdrop',
       'Background Fill',
       'Background Color',
-      'Tilt Calibration'
+      'Tilt Calibration',
+      'Graph History'
     ])
     expect(motoDisplay.children[2]).toMatchObject({
       type: 'color',

@@ -302,6 +302,33 @@ describe('Projection page', () => {
     })
   })
 
+  test('clears all graph history from the moto settings clear event', async () => {
+    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(1000)
+
+    render(<Projection {...baseProps()} />)
+
+    act(() => {
+      telemetryCb?.({ gpsFix: true, speedKph: 88.5 })
+    })
+
+    nowSpy.mockReturnValue(3000)
+    act(() => {
+      telemetryCb?.({ gpsFix: true, speedKph: 88.5 })
+    })
+
+    fireEvent.click(screen.getByLabelText('GPS speed'))
+    expect(screen.getByTestId('projection-metric-graph')).toHaveTextContent('55')
+    expect(screen.getByTestId('projection-metric-graph')).toHaveTextContent('MAX 55')
+
+    act(() => {
+      window.dispatchEvent(new CustomEvent('moto:clear-graph-history'))
+    })
+
+    expect(screen.getByTestId('projection-metric-graph')).toHaveTextContent('NO DATA IN WINDOW')
+
+    nowSpy.mockRestore()
+  })
+
   test('renders GPS graph status details like the round dashboard', async () => {
     render(<Projection {...baseProps()} />)
 

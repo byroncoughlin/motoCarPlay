@@ -3,6 +3,7 @@ import { motoFillHex } from '@shared/utils'
 import { useLiviStore } from '@store/store'
 import * as React from 'react'
 import { useLocation } from 'react-router'
+import { MOTO_CLEAR_GRAPH_HISTORY_EVENT } from './motoGraphEvents'
 
 type MetricKey =
   | 'speed'
@@ -462,6 +463,7 @@ function useMotoTelemetry(settings: MotoSettings | null): {
 } {
   const [telemetry, setTelemetry] = React.useState<MotoTelemetry>(() => initialTelemetry())
   const [activeGraph, setActiveGraph] = React.useState<MetricKey | null>(null)
+  const [, setHistoryRevision] = React.useState(0)
   const dataRef = React.useRef<Record<MetricKey, DataPoint[]>>(emptyLog())
   const lastSampleRef = React.useRef<Partial<Record<MetricKey, number>>>({})
   const settingsRef = React.useRef(settings)
@@ -520,6 +522,16 @@ function useMotoTelemetry(settings: MotoSettings | null): {
     },
     [addPoint]
   )
+
+  React.useEffect(() => {
+    const clearAll = () => {
+      dataRef.current = emptyLog()
+      lastSampleRef.current = {}
+      setHistoryRevision((v) => v + 1)
+    }
+    window.addEventListener(MOTO_CLEAR_GRAPH_HISTORY_EVENT, clearAll)
+    return () => window.removeEventListener(MOTO_CLEAR_GRAPH_HISTORY_EVENT, clearAll)
+  }, [])
 
   React.useEffect(() => {
     let disposed = false

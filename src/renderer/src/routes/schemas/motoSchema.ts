@@ -1,4 +1,5 @@
 import type { Config } from '@shared/types'
+import { ClearGraphHistoryControl } from '../../components/pages/settings/components/ClearGraphHistoryControl'
 import { TiltCalibrationControl } from '../../components/pages/settings/components/TiltCalibrationControl'
 import {
   AREA_STEP,
@@ -148,6 +149,12 @@ export const motoSettingsSchema: SettingsNode<Config> = {
           label: 'Tilt Calibration',
           path: '',
           component: TiltCalibrationControl
+        },
+        {
+          type: 'custom',
+          label: 'Graph History',
+          path: '',
+          component: ClearGraphHistoryControl
         }
       ]
     },
