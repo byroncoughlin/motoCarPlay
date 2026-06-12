@@ -67,6 +67,7 @@ describe('settings schemas', () => {
     expect((settingsSchema.children as any[]).map((child) => child.route)).toEqual([
       'connection',
       'audio',
+      'bindings',
       'motoDisplay',
       'projection',
       'system'
@@ -105,6 +106,45 @@ describe('settings schemas', () => {
     expect(sliders.map((child: any) => child.label)).toEqual(['Music', 'Navigation'])
     expect(sliders[0].valueTransform.toView(0.42)).toBe(42)
     expect(sliders[0].valueTransform.fromView(65, 1)).toBe(0.65)
+  })
+
+  test('moto settings expose the original round dashboard key bindings', () => {
+    if (settingsSchema.type !== 'route') {
+      throw new Error('settingsSchema must be a route node')
+    }
+
+    const bindings = (settingsSchema.children as any[]).find(
+      (child) => child.route === 'bindings'
+    )
+
+    expect(bindings.children.map((child: any) => child.bindingKey)).toEqual([
+      'up',
+      'down',
+      'left',
+      'right',
+      'selectUp',
+      'selectDown',
+      'back',
+      'home',
+      'play',
+      'pause',
+      'next',
+      'prev'
+    ])
+    expect(bindings.children.map((child: any) => child.defaultValue)).toEqual([
+      'ArrowUp',
+      'ArrowDown',
+      'ArrowLeft',
+      'ArrowRight',
+      'KeyB',
+      'Space',
+      'Backspace',
+      'KeyH',
+      'KeyP',
+      'KeyO',
+      'KeyM',
+      'KeyN'
+    ])
   })
 
   test('moto display settings expose the cheap backdrop/fill controls and tilt calibration', () => {

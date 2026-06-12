@@ -124,6 +124,98 @@ export const motoSettingsSchema: SettingsNode<Config> = {
     },
     {
       type: 'route',
+      route: 'bindings',
+      label: 'Bindings',
+      path: '',
+      children: [
+        {
+          type: 'keybinding',
+          label: 'Up',
+          path: 'bindings.up',
+          bindingKey: 'up',
+          defaultValue: 'ArrowUp'
+        },
+        {
+          type: 'keybinding',
+          label: 'Down',
+          path: 'bindings.down',
+          bindingKey: 'down',
+          defaultValue: 'ArrowDown'
+        },
+        {
+          type: 'keybinding',
+          label: 'Left',
+          path: 'bindings.left',
+          bindingKey: 'left',
+          defaultValue: 'ArrowLeft'
+        },
+        {
+          type: 'keybinding',
+          label: 'Right',
+          path: 'bindings.right',
+          bindingKey: 'right',
+          defaultValue: 'ArrowRight'
+        },
+        {
+          type: 'keybinding',
+          label: 'Select Up',
+          path: 'bindings.selectUp',
+          bindingKey: 'selectUp',
+          defaultValue: 'KeyB'
+        },
+        {
+          type: 'keybinding',
+          label: 'Select Down',
+          path: 'bindings.selectDown',
+          bindingKey: 'selectDown',
+          defaultValue: 'Space'
+        },
+        {
+          type: 'keybinding',
+          label: 'Back',
+          path: 'bindings.back',
+          bindingKey: 'back',
+          defaultValue: 'Backspace'
+        },
+        {
+          type: 'keybinding',
+          label: 'Home',
+          path: 'bindings.home',
+          bindingKey: 'home',
+          defaultValue: 'KeyH'
+        },
+        {
+          type: 'keybinding',
+          label: 'Play',
+          path: 'bindings.play',
+          bindingKey: 'play',
+          defaultValue: 'KeyP'
+        },
+        {
+          type: 'keybinding',
+          label: 'Pause',
+          path: 'bindings.pause',
+          bindingKey: 'pause',
+          defaultValue: 'KeyO'
+        },
+        {
+          type: 'keybinding',
+          label: 'Next',
+          path: 'bindings.next',
+          bindingKey: 'next',
+          defaultValue: 'KeyM'
+        },
+        {
+          type: 'keybinding',
+          label: 'Prev',
+          path: 'bindings.prev',
+          bindingKey: 'prev',
+          defaultValue: 'KeyN'
+        }
+      ]
+    },
+    {
+      type: 'route',
       route: 'motoDisplay',
       label: 'Moto Display',
       path: '',
