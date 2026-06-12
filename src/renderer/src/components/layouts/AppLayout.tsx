@@ -3,7 +3,7 @@ import WifiOffIcon from '@mui/icons-material/WifiOff'
 import Box from '@mui/material/Box'
 import { useTheme } from '@mui/material/styles'
 import Typography from '@mui/material/Typography'
-import { useLiviStore, useStatusStore } from '@store/store'
+import { useLiviStore } from '@store/store'
 import { FC, PropsWithChildren, useCallback } from 'react'
 import { useLocation } from 'react-router'
 import { ROUTES, UI } from '../../constants'
@@ -23,7 +23,6 @@ export const AppLayout: FC<PropsWithChildren<AppLayoutProps>> = ({
 }) => {
   const { pathname } = useLocation()
   const settings = useLiviStore((s) => s.settings)
-  const isStreaming = useStatusStore((s) => s.isStreaming)
   const time = useBlinkingTime()
   const network = useNetworkStatus()
   const theme = useTheme()
@@ -39,8 +38,9 @@ export const AppLayout: FC<PropsWithChildren<AppLayoutProps>> = ({
   const tabs = useTabsConfig(receivingVideo)
   const singleTab = tabs.length <= 1
 
-  const hideNavHome = isStreaming && pathname === ROUTES.HOME
+  const hideNavHome = pathname === ROUTES.HOME
   const hideNav = hideNavHome || (inAutoHideNavPage && clusterNavHidden)
+  const renderNav = !singleTab && !hideNavHome
   const isMainWindow = getWindowRole() === 'main'
   const inHostUiPage = pathname !== ROUTES.HOME && pathname !== ROUTES.CLUSTER
   const useRoundHostShell = isMainWindow && inHostUiPage
@@ -55,7 +55,7 @@ export const AppLayout: FC<PropsWithChildren<AppLayoutProps>> = ({
 
   const body = (
     <>
-      {!singleTab && (
+      {renderNav && (
         <div
           ref={navRef}
           id="nav-root"

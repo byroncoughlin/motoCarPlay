@@ -3,7 +3,6 @@ import { createRef } from 'react'
 import { AppLayout } from '../AppLayout'
 
 let mockPathname = '/'
-let mockStreaming = false
 let mockHand = 0
 
 jest.mock('react-router', () => ({
@@ -22,7 +21,7 @@ jest.mock('../../navigation/useTabsConfig', () => ({
 
 jest.mock('@store/store', () => ({
   useLiviStore: (selector: (s: any) => unknown) => selector({ settings: { hand: mockHand } }),
-  useStatusStore: (selector: (s: any) => unknown) => selector({ isStreaming: mockStreaming })
+  useStatusStore: (selector: (s: any) => unknown) => selector({ isStreaming: false })
 }))
 
 jest.mock('../../../hooks/useBlinkingTime', () => ({
@@ -47,7 +46,6 @@ describe('AppLayout', () => {
   beforeEach(() => {
     jest.useFakeTimers()
     mockPathname = '/'
-    mockStreaming = false
     mockHand = 0
     Object.defineProperty(window, 'innerHeight', { configurable: true, value: 800 })
     ;(window as any).app = { notifyUserActivity: jest.fn() }
@@ -57,8 +55,7 @@ describe('AppLayout', () => {
     jest.useRealTimers()
   })
 
-  test('hides nav on home when streaming', () => {
-    mockStreaming = true
+  test('removes nav on home so projection owns the full round surface', () => {
     const navRef = createRef<HTMLDivElement>()
     const mainRef = createRef<HTMLDivElement>()
     const { container } = render(
@@ -67,9 +64,11 @@ describe('AppLayout', () => {
       </AppLayout>
     )
     expect(container.querySelector('#content-root')?.getAttribute('data-nav-hidden')).toBe('1')
+    expect(container.querySelector('#nav-root')).not.toBeInTheDocument()
   })
 
-  test('keeps visible nav above the projection touch layer', () => {
+  test('keeps visible nav above the cluster touch layer', () => {
+    mockPathname = '/cluster'
     const navRef = createRef<HTMLDivElement>()
     const mainRef = createRef<HTMLDivElement>()
     const { container } = render(
@@ -213,7 +212,7 @@ describe('AppLayout', () => {
 
     expect(container.querySelector('#content-root')?.getAttribute('data-nav-hidden')).toBe('0')
 
-    mockPathname = '/'
+    mockPathname = '/settings'
     rerender(
       <AppLayout navRef={navRef} mainRef={mainRef} receivingVideo={false}>
         <div>Content</div>
