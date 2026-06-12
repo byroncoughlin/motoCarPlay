@@ -33,6 +33,12 @@ import { settingsRoutes, settingsSchema } from '../schema'
 import { systemSchema } from '../systemSchema'
 import { videoSchema } from '../videoSchema'
 
+function collectPaths(node: any): string[] {
+  const own = typeof node?.path === 'string' && node.path !== '' ? [node.path] : []
+  const childPaths = Array.isArray(node?.children) ? node.children.flatMap(collectPaths) : []
+  return [...own, ...childPaths]
+}
+
 describe('settings schemas', () => {
   test('root schemas have route type and children', () => {
     for (const s of [generalSchema, audioSchema, videoSchema, appearanceSchema, systemSchema]) {
@@ -99,5 +105,52 @@ describe('settings schemas', () => {
     expect(sliders.map((child: any) => child.label)).toEqual(['Music', 'Navigation'])
     expect(sliders[0].valueTransform.toView(0.42)).toBe(42)
     expect(sliders[0].valueTransform.fromView(65, 1)).toBe(0.65)
+  })
+
+  test('moto display settings expose the cheap backdrop/fill controls and tilt calibration', () => {
+    if (settingsSchema.type !== 'route') {
+      throw new Error('settingsSchema must be a route node')
+    }
+
+    const motoDisplay = (settingsSchema.children as any[]).find(
+      (child) => child.route === 'motoDisplay'
+    )
+
+    expect(motoDisplay.children.map((child: any) => child.path)).toEqual([
+      'backdropEnabled',
+      'ambientFillEnabled',
+      'ambientFillColor',
+      ''
+    ])
+    expect(motoDisplay.children.map((child: any) => child.label)).toEqual([
+      'Backdrop',
+      'Background Fill',
+      'Background Color',
+      'Tilt Calibration'
+    ])
+    expect(motoDisplay.children[2]).toMatchObject({
+      type: 'color',
+      displayValue: true
+    })
+  })
+
+  test('active moto settings omit unused generic controls from the round dashboard', () => {
+    const paths = collectPaths(settingsSchema)
+
+    expect(paths).not.toEqual(
+      expect.arrayContaining([
+        'camera.main',
+        'camera.dash',
+        'camera.aux',
+        'cameraId',
+        'cameraMirror',
+        'darkMode',
+        'disableAudioOutput',
+        'audioInputDevice',
+        'audioInputDeviceLabel',
+        'micType',
+        'kiosk.main'
+      ])
+    )
   })
 })
