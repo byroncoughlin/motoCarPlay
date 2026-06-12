@@ -41,6 +41,9 @@ export const AppLayout: FC<PropsWithChildren<AppLayoutProps>> = ({
 
   const hideNavHome = isStreaming && pathname === ROUTES.HOME
   const hideNav = hideNavHome || (inAutoHideNavPage && clusterNavHidden)
+  const isMainWindow = getWindowRole() === 'main'
+  const inHostUiPage = pathname !== ROUTES.HOME && pathname !== ROUTES.CLUSTER
+  const useRoundHostShell = isMainWindow && inHostUiPage
 
   // Steering wheel position
   const isRhd = Number(settings?.hand ?? 0) === 1
@@ -50,19 +53,8 @@ export const AppLayout: FC<PropsWithChildren<AppLayoutProps>> = ({
     window.app?.notifyUserActivity?.()
   }, [])
 
-  return (
-    <div
-      id="main"
-      className="App"
-      onPointerDownCapture={onUserActivity}
-      style={{
-        height: '100dvh',
-        touchAction: 'none',
-        display: 'flex',
-        flexDirection: layoutDirection
-      }}
-    >
-      {/* NAV COLUMN */}
+  const body = (
+    <>
       {!singleTab && (
         <div
           ref={navRef}
@@ -129,6 +121,39 @@ export const AppLayout: FC<PropsWithChildren<AppLayoutProps>> = ({
       >
         {children}
       </div>
+    </>
+  )
+
+  return (
+    <div
+      id="main"
+      className="App"
+      onPointerDownCapture={onUserActivity}
+      style={{
+        height: '100dvh',
+        touchAction: 'none',
+        display: useRoundHostShell ? 'grid' : 'flex',
+        placeItems: useRoundHostShell ? 'center' : undefined,
+        flexDirection: useRoundHostShell ? undefined : layoutDirection
+      }}
+    >
+      {useRoundHostShell ? (
+        <div
+          id="round-host-shell"
+          style={{
+            width: 'min(591px, calc(100vw - 16px))',
+            height: 'min(536px, calc(100dvh - 16px))',
+            display: 'flex',
+            flexDirection: layoutDirection,
+            position: 'relative',
+            overflow: 'hidden'
+          }}
+        >
+          {body}
+        </div>
+      ) : (
+        body
+      )}
     </div>
   )
 }

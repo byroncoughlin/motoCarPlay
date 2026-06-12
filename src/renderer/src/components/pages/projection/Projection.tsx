@@ -15,7 +15,7 @@ import { useProjectionMultiTouch } from './hooks/useProjectionTouch'
 import { ViewAreaMask } from './ViewAreaMask'
 
 const RETRY_DELAY_MS = 3000
-const HOST_UI_ROUTE = '/media'
+const HOST_UI_ROUTE = '/settings'
 
 interface CarplayProps {
   receivingVideo: boolean

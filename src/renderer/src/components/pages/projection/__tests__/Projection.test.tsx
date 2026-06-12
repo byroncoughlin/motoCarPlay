@@ -284,7 +284,7 @@ describe('Projection page', () => {
     })
   })
 
-  test('requestHostUI navigates to media host UI', async () => {
+  test('requestHostUI navigates to settings host UI', async () => {
     render(<Projection {...baseProps()} />)
 
     act(() => {
@@ -295,7 +295,7 @@ describe('Projection page', () => {
     })
 
     await waitFor(() => {
-      expect(navigateMock).toHaveBeenCalledWith('/media', { replace: true })
+      expect(navigateMock).toHaveBeenCalledWith('/settings', { replace: true })
     })
   })
 
@@ -1382,7 +1382,7 @@ describe('Projection page', () => {
     expect(liviState.setPcmData).toHaveBeenCalled()
   })
 
-  test('projection worker command requestHostUI navigates to media host UI', async () => {
+  test('projection worker command requestHostUI is a no-op when already in settings', async () => {
     mockPathname = '/settings'
 
     render(<Projection {...baseProps()} />)
@@ -1396,7 +1396,7 @@ describe('Projection page', () => {
       })
     })
 
-    await waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/media', { replace: true }))
+    expect(navigateMock).not.toHaveBeenCalledWith('/settings', expect.anything())
   })
 
   test('IPC command with unrecognized value hits final break', () => {

@@ -81,6 +81,44 @@ describe('AppLayout', () => {
     expect(container.querySelector<HTMLElement>('#nav-root')?.style.zIndex).toBe('1200')
   })
 
+  test('centers host UI pages in a round-safe shell with nav included', () => {
+    mockPathname = '/media'
+    const navRef = createRef<HTMLDivElement>()
+    const mainRef = createRef<HTMLDivElement>()
+    const { container } = render(
+      <AppLayout navRef={navRef} mainRef={mainRef} receivingVideo={false}>
+        <div>Content</div>
+      </AppLayout>
+    )
+
+    const root = container.querySelector<HTMLElement>('#main')
+    const shell = container.querySelector<HTMLElement>('#round-host-shell')
+    expect(root?.style.display).toBe('grid')
+    expect(shell).toBeInTheDocument()
+    expect(shell).toHaveStyle({
+      width: 'min(591px, calc(100vw - 16px))',
+      height: 'min(536px, calc(100dvh - 16px))',
+      display: 'flex',
+      overflow: 'hidden'
+    })
+    expect(shell?.contains(container.querySelector('#nav-root'))).toBe(true)
+    expect(shell?.contains(container.querySelector('#content-root'))).toBe(true)
+  })
+
+  test('does not wrap projection in the round host shell', () => {
+    mockPathname = '/'
+    const navRef = createRef<HTMLDivElement>()
+    const mainRef = createRef<HTMLDivElement>()
+    const { container } = render(
+      <AppLayout navRef={navRef} mainRef={mainRef} receivingVideo={false}>
+        <div>Content</div>
+      </AppLayout>
+    )
+
+    expect(container.querySelector('#round-host-shell')).not.toBeInTheDocument()
+    expect(container.querySelector<HTMLElement>('#main')?.style.display).toBe('flex')
+  })
+
   test('auto-hides nav after inactivity on maps', () => {
     mockPathname = '/cluster'
     const navRef = createRef<HTMLDivElement>()

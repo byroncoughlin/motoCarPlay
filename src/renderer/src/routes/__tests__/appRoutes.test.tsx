@@ -24,6 +24,16 @@ describe('appRoutes', () => {
     expect(paths).toEqual(['/home', '/telemetry', '/cluster', '/media', '/camera', '/settings/*'])
   })
 
+  test('redirects the old media route to settings in the main app', () => {
+    const root = appRoutes[0]
+    const mediaRoute = (root.children ?? []).find((r: any) => r.path === '/media')
+
+    expect(mediaRoute?.element.props).toMatchObject({
+      to: '/settings',
+      replace: true
+    })
+  })
+
   test('falls back to empty settings children when settingsRoutes is missing', () => {
     jest.resetModules()
 
