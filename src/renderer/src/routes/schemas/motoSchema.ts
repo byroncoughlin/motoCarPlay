@@ -1,4 +1,5 @@
 import type { Config } from '@shared/types'
+import { TiltCalibrationControl } from '../../components/pages/settings/components/TiltCalibrationControl'
 import {
   AREA_STEP,
   MAX_DPI,
@@ -77,24 +78,10 @@ export const motoSettingsSchema: SettingsNode<Config> = {
           displayValue: true
         },
         {
-          type: 'number',
-          label: 'Lean Offset',
-          path: 'leanOffset',
-          min: -45,
-          max: 45,
-          step: 1,
-          displayValue: true,
-          displayValueUnit: '\u00b0'
-        },
-        {
-          type: 'number',
-          label: 'Pitch Offset',
-          path: 'pitchOffset',
-          min: -45,
-          max: 45,
-          step: 1,
-          displayValue: true,
-          displayValueUnit: '\u00b0'
+          type: 'custom',
+          label: 'Tilt Calibration',
+          path: '',
+          component: TiltCalibrationControl
         }
       ]
     },
