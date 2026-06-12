@@ -12,6 +12,7 @@ describe('bootstrapCompositor', () => {
   const originalPlatform = process.platform
   const originalEnv = process.env
   const originalResourcesPath = process.resourcesPath
+  const originalArgv = process.argv
 
   const setPlatform = (value: string) => {
     Object.defineProperty(process, 'platform', { value, configurable: true })
@@ -26,6 +27,7 @@ describe('bootstrapCompositor', () => {
     delete process.env.LIVI_NO_COMPOSITOR
     process.env.APPIMAGE = '/home/user/LIVI.AppImage'
     ;(process as { resourcesPath: string }).resourcesPath = '/opt/livi/resources'
+    process.argv = [originalArgv[0]]
     setPlatform('linux')
   })
 
@@ -33,6 +35,7 @@ describe('bootstrapCompositor', () => {
     Object.defineProperty(process, 'platform', { value: originalPlatform })
     process.env = originalEnv
     ;(process as { resourcesPath?: string }).resourcesPath = originalResourcesPath
+    process.argv = originalArgv
   })
 
   test('returns false and does not spawn on non-linux', () => {
@@ -81,5 +84,20 @@ describe('bootstrapCompositor', () => {
     expect(opts.env.LIVI_OUTPUT_APP_ID).toBe('dev.f-io.livi')
     expect(opts.env.LIVI_SCREENS).toBe('main,dash,aux')
     expect(opts.env.APPIMAGE).toBeUndefined()
+  })
+
+  test('forwards launcher flags to the inner compositor process', () => {
+    process.argv = [
+      originalArgv[0],
+      '--remote-debugging-port=9222',
+      '--remote-allow-origins=*'
+    ]
+
+    expect(bootstrapCompositor()).toBe(true)
+
+    const [, argv] = mockedSpawn.mock.calls[0]
+    expect(argv[1]).toContain("'--remote-debugging-port=9222'")
+    expect(argv[1]).toContain("'--remote-allow-origins=*'")
+    expect(argv[1]).toContain('--ozone-platform=wayland')
   })
 })

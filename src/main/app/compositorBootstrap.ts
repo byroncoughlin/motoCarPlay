@@ -4,6 +4,10 @@ import { join } from 'node:path'
 import { COMPOSITOR_TITLEBAR_H } from '@main/app/compositorLayout'
 import { loadConfig } from '@main/config/loadConfig'
 
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`
+}
+
 // Linux windowed (GNOME/labwc): host the UI plus the GStreamer video plane in
 // the nested wlroots compositor so they composite into one window, zero-copy :)
 export function bootstrapCompositor(): boolean {
@@ -21,8 +25,12 @@ export function bootstrapCompositor(): boolean {
   if (!existsSync(launcher)) return false
 
   const hostLd = process.env.LD_LIBRARY_PATH ?? ''
+  const forwardedArgs = process.argv.slice(1).map(shellQuote).join(' ')
+  const ozoneArg = shellQuote('--ozone-platform=wayland')
+  const innerArgs = forwardedArgs ? `${forwardedArgs} ${ozoneArg}` : ozoneArg
   const inner =
-    `LIVI_COMPOSITOR=1 LD_LIBRARY_PATH='${hostLd}' ` + `'${relaunch}' --ozone-platform=wayland`
+    `LIVI_COMPOSITOR=1 LD_LIBRARY_PATH=${shellQuote(hostLd)} ` +
+    `${shellQuote(relaunch)} ${innerArgs}`
 
   // Control socket: the host drives screen outputs + video placement/crop/visibility over this
   const runtimeDir = process.env.XDG_RUNTIME_DIR || '/tmp'
