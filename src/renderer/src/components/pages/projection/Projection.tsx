@@ -1211,7 +1211,7 @@ const CarplayComponent: React.FC<CarplayProps> = ({
         visibility: showProjectionOverlay ? 'visible' : 'hidden',
         opacity: showProjectionOverlay ? 1 : 0,
         transition: 'opacity 120ms ease',
-        pointerEvents: inProjection && isStreaming ? 'auto' : 'none',
+        pointerEvents: inProjection ? 'auto' : 'none',
         zIndex: showProjectionOverlay ? 999 : -1
       }}
     >

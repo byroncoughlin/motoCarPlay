@@ -284,6 +284,19 @@ describe('Projection page', () => {
     expect(screen.queryByTestId('projection-metric-graph')).not.toBeInTheDocument()
   })
 
+  test('keeps round dashboard controls active while waiting for phone video', () => {
+    statusState.isStreaming = false
+
+    render(<Projection {...baseProps({ receivingVideo: false })} />)
+
+    expect(document.getElementById('projection-root')).toHaveStyle({ pointerEvents: 'auto' })
+    expect(screen.getByTestId('projection-waiting-pane')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByLabelText('GPS speed'))
+
+    expect(screen.getByTestId('projection-metric-graph')).toBeInTheDocument()
+  })
+
   test('clears an open metric graph when leaving the dashboard route', async () => {
     const { rerender } = render(<Projection {...baseProps()} />)
 
