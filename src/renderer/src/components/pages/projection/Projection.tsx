@@ -102,15 +102,20 @@ function WaitingProjectionPane({ settings, show }: { settings: Config; show: boo
   const height = Math.max(1, displayHeight - top - bottom)
   const pct = (value: number, total: number): string => `${(value / total) * 100}%`
   const appTiles = [
-    '#3b82f6',
     '#22c55e',
+    '#2563eb',
+    '#ef4444',
     '#f97316',
-    '#ec4899',
     '#06b6d4',
     '#a855f7',
     '#eab308',
-    '#ef4444'
+    '#10b981',
+    '#64748b',
+    '#ec4899',
+    '#84cc16',
+    '#f43f5e'
   ]
+  const dockTiles = ['#22c55e', '#2563eb', '#f43f5e', '#f59e0b']
 
   return (
     <div
@@ -135,18 +140,29 @@ function WaitingProjectionPane({ settings, show }: { settings: Config; show: boo
           position: 'absolute',
           inset: 0,
           background:
-            'linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.01) 36%, rgba(0,0,0,0.2))'
+            'linear-gradient(160deg, rgba(21,40,78,0.85) 0%, rgba(9,13,22,0.94) 48%, rgba(1,5,10,1) 100%)'
         }}
       />
       <div
         style={{
           position: 'absolute',
-          left: '8%',
-          right: '8%',
-          top: '9%',
+          inset: 0,
+          background:
+            'radial-gradient(circle at 78% 12%, rgba(56,189,248,0.16), transparent 28%), radial-gradient(circle at 14% 78%, rgba(34,197,94,0.1), transparent 26%)'
+        }}
+      />
+      <div
+        data-testid="projection-waiting-grid"
+        style={{
+          position: 'absolute',
+          left: '7.5%',
+          right: '7.5%',
+          top: '7%',
+          bottom: '25%',
           display: 'grid',
           gridTemplateColumns: 'repeat(4, 1fr)',
-          gap: '8%'
+          gridAutoRows: '1fr',
+          gap: '6.5%'
         }}
       >
         {appTiles.map((color, index) => (
@@ -155,36 +171,40 @@ function WaitingProjectionPane({ settings, show }: { settings: Config; show: boo
             style={{
               aspectRatio: '1 / 1',
               borderRadius: '24%',
-              backgroundColor: color,
-              opacity: 0.88
+              background: `linear-gradient(145deg, ${color}, rgba(255,255,255,0.18))`,
+              boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.32), 0 8px 18px rgba(0,0,0,0.24)',
+              opacity: 0.96
             }}
           />
         ))}
       </div>
       <div
+        data-testid="projection-waiting-dock"
         style={{
           position: 'absolute',
-          left: '9%',
-          right: '9%',
-          bottom: '7%',
-          height: '15%',
-          borderRadius: 24,
-          backgroundColor: 'rgba(255,255,255,0.13)',
+          left: '8.5%',
+          right: '8.5%',
+          bottom: '6.5%',
+          height: '15.5%',
+          borderRadius: 28,
+          backgroundColor: 'rgba(255,255,255,0.16)',
           display: 'grid',
           gridTemplateColumns: 'repeat(4, 1fr)',
           alignItems: 'center',
           gap: '7%',
-          padding: '0 6%'
+          padding: '0 6%',
+          boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.22), 0 10px 22px rgba(0,0,0,0.24)'
         }}
       >
-        {['#22c55e', '#3b82f6', '#f43f5e', '#eab308'].map((color) => (
+        {dockTiles.map((color) => (
           <div
             key={color}
             style={{
               aspectRatio: '1 / 1',
               borderRadius: '26%',
-              backgroundColor: color,
-              opacity: 0.92
+              background: `linear-gradient(145deg, ${color}, rgba(255,255,255,0.18))`,
+              boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.35)',
+              opacity: 0.98
             }}
           />
         ))}
@@ -999,7 +1019,7 @@ const CarplayComponent: React.FC<CarplayProps> = ({
 
       {pathname === '/' && (
         <StatusOverlay
-          show={!isDongleConnected || !isStreaming}
+          show={!showWaitingProjectionPane && (!isDongleConnected || !isStreaming)}
           mode={mode}
           offsetX={overlayX}
           offsetY={overlayY}
