@@ -161,14 +161,18 @@ function WaitingProjectionPane({ settings, show }: { settings: Config; show: boo
           bottom: '25%',
           display: 'grid',
           gridTemplateColumns: 'repeat(4, 1fr)',
-          gridAutoRows: '1fr',
-          gap: '6.5%'
+          gridTemplateRows: 'repeat(3, minmax(0, 1fr))',
+          alignItems: 'center',
+          justifyItems: 'center',
+          gap: '5.5%'
         }}
       >
         {appTiles.map((color, index) => (
           <div
             key={`${color}-${index}`}
             style={{
+              width: '100%',
+              maxWidth: 96,
               aspectRatio: '1 / 1',
               borderRadius: '24%',
               background: `linear-gradient(145deg, ${color}, rgba(255,255,255,0.18))`,
