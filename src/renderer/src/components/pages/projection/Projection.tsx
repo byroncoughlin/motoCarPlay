@@ -29,6 +29,26 @@ const positiveOrDefault = (value: unknown, fallback: number): number =>
 const nonNegative = (value: unknown): number =>
   typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0
 
+const boxInfoRecord = (value: unknown): Record<string, unknown> | null => {
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) return null
+    try {
+      value = JSON.parse(trimmed)
+    } catch {
+      return null
+    }
+  }
+  return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null
+}
+
+const hasLinkedDonglePhone = (boxInfo: unknown): boolean => {
+  const box = boxInfoRecord(boxInfo)
+  if (!box) return false
+  const btMac = typeof box.btMacAddr === 'string' ? box.btMacAddr.trim() : ''
+  return btMac.length > 0
+}
+
 interface CarplayProps {
   receivingVideo: boolean
   setReceivingVideo: (v: boolean) => void
@@ -231,6 +251,7 @@ const CarplayComponent: React.FC<CarplayProps> = ({
   const negotiatedWidth = useLiviStore((s) => s.negotiatedWidth)
   const negotiatedHeight = useLiviStore((s) => s.negotiatedHeight)
   const wirelessAaEnabled = useLiviStore((s) => Boolean(s.settings?.wirelessAaEnabled))
+  const boxInfo = useLiviStore((s) => s.boxInfo)
 
   const prevPathnameRef = useRef(pathname)
   useEffect(() => {
@@ -825,12 +846,15 @@ const CarplayComponent: React.FC<CarplayProps> = ({
         }
 
         case 'plugged': {
-          setProjectionSessionActive(true)
           const phoneType = (d as { phoneType?: number }).phoneType
           const useAa =
             phoneType !== undefined ? phoneType === PhoneType.AndroidAuto : wirelessAaEnabled
-          if (useAa) setAaActive(true)
-          else setDongleConnected(true)
+          if (useAa) {
+            setProjectionSessionActive(true)
+            setAaActive(true)
+          } else {
+            setDongleConnected(true)
+          }
           break
         }
 
@@ -916,8 +940,10 @@ const CarplayComponent: React.FC<CarplayProps> = ({
 
   const inProjection = pathname === '/'
   const showProjectionOverlay = inProjection || navVideoOverlayActive
+  const linkedDonglePhone = useMemo(() => hasLinkedDonglePhone(boxInfo), [boxInfo])
+  const activePhoneProjection = projectionSessionActive || linkedDonglePhone
   const showWaitingProjectionPane =
-    !receivingVideo || Boolean(rendererError) || !projectionSessionActive
+    !receivingVideo || Boolean(rendererError) || !activePhoneProjection
 
   const resolvedNegotiatedWidth = negotiatedWidth ?? 0
   const resolvedNegotiatedHeight = negotiatedHeight ?? 0
