@@ -18,9 +18,16 @@ import { ViewAreaMask } from './ViewAreaMask'
 const RETRY_DELAY_MS = 3000
 const HOST_UI_ROUTE = '/settings'
 const DEFAULT_MOTO_FILL_COLOR = '#142321'
+const DEFAULT_PROJECTION_SIZE = 800
 
 const normalizeMotoFillColor = (value?: string): string =>
   /^#[0-9a-fA-F]{6}$/.test(value ?? '') ? value! : DEFAULT_MOTO_FILL_COLOR
+
+const positiveOrDefault = (value: unknown, fallback: number): number =>
+  typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : fallback
+
+const nonNegative = (value: unknown): number =>
+  typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0
 
 interface CarplayProps {
   receivingVideo: boolean
@@ -79,6 +86,39 @@ function StatusOverlay({
         />
       </Box>
     </Box>
+  )
+}
+
+function WaitingProjectionPane({ settings, show }: { settings: Config; show: boolean }) {
+  if (!show) return null
+
+  const displayWidth = positiveOrDefault(settings.projectionWidth, DEFAULT_PROJECTION_SIZE)
+  const displayHeight = positiveOrDefault(settings.projectionHeight, DEFAULT_PROJECTION_SIZE)
+  const left = Math.min(nonNegative(settings.projectionViewAreaLeft), displayWidth)
+  const right = Math.min(nonNegative(settings.projectionViewAreaRight), displayWidth - left)
+  const top = Math.min(nonNegative(settings.projectionViewAreaTop), displayHeight)
+  const bottom = Math.min(nonNegative(settings.projectionViewAreaBottom), displayHeight - top)
+  const width = Math.max(1, displayWidth - left - right)
+  const height = Math.max(1, displayHeight - top - bottom)
+  const pct = (value: number, total: number): string => `${(value / total) * 100}%`
+
+  return (
+    <div
+      data-testid="projection-waiting-pane"
+      aria-hidden="true"
+      style={{
+        position: 'absolute',
+        left: pct(left, displayWidth),
+        top: pct(top, displayHeight),
+        width: pct(width, displayWidth),
+        height: pct(height, displayHeight),
+        backgroundColor: '#000',
+        border: '1px solid rgba(255,255,255,0.08)',
+        borderRadius: 32,
+        pointerEvents: 'none',
+        zIndex: 0
+      }}
+    />
   )
 }
 
@@ -857,6 +897,13 @@ const CarplayComponent: React.FC<CarplayProps> = ({
         zIndex: showProjectionOverlay ? 999 : -1
       }}
     >
+      {pathname === '/' && (
+        <WaitingProjectionPane
+          settings={settings}
+          show={!receivingVideo || Boolean(rendererError)}
+        />
+      )}
+
       {pathname === '/' && (
         <StatusOverlay
           show={!isDongleConnected || !isStreaming}

@@ -209,6 +209,37 @@ describe('Projection page', () => {
     expect(screen.getByText('ACQUIRING')).toBeInTheDocument()
   })
 
+  test('renders waiting pane at the configured projection view area while video is absent', () => {
+    render(
+      <Projection
+        {...baseProps({
+          settings: {
+            ...baseProps().settings,
+            projectionWidth: 800,
+            projectionHeight: 800,
+            projectionViewAreaTop: 118,
+            projectionViewAreaBottom: 118,
+            projectionViewAreaLeft: 118,
+            projectionViewAreaRight: 118
+          }
+        })}
+      />
+    )
+
+    expect(screen.getByTestId('projection-waiting-pane')).toHaveStyle({
+      left: '14.75%',
+      top: '14.75%',
+      width: '70.5%',
+      height: '70.5%'
+    })
+  })
+
+  test('hides waiting pane while live projection video is visible', () => {
+    render(<Projection {...baseProps()} receivingVideo />)
+
+    expect(screen.queryByTestId('projection-waiting-pane')).not.toBeInTheDocument()
+  })
+
   test('usb unplugged stops projection and clears streaming state', async () => {
     const setReceivingVideo = jest.fn()
 
