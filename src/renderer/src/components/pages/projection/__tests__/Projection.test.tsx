@@ -1,6 +1,6 @@
 import { PhoneType } from '@shared/types/Config'
 import { AudioCommand, CommandMapping } from '@shared/types/ProjectionEnums'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { Projection } from '../Projection'
 
 const navigateMock = jest.fn()
@@ -463,6 +463,32 @@ describe('Projection page', () => {
     expect(graph).toHaveTextContent('AMBIENT')
     expect(graph).toHaveTextContent('PI CPU')
     expect(graph).toHaveTextContent('\u25cf LIVE')
+  })
+
+  test('resets only the selected pane in the ambient split graph', async () => {
+    render(<Projection {...baseProps()} />)
+
+    act(() => {
+      telemetryCb?.({ ambientC: 22.2, piCpuC: 50.4 })
+    })
+
+    fireEvent.click(screen.getByText('72\u00b0'))
+
+    const graph = screen.getByTestId('projection-metric-graph')
+    expect(graph).toHaveTextContent('AMBIENT')
+    expect(graph).toHaveTextContent('PI CPU')
+    expect(graph).toHaveTextContent('72')
+    expect(graph).toHaveTextContent('50')
+
+    const graphScope = within(graph)
+    fireEvent.click(graphScope.getAllByText('RESET')[0])
+    fireEvent.click(graphScope.getByText('CONFIRM'))
+
+    expect(graph).toHaveTextContent('AMBIENT')
+    expect(graph).toHaveTextContent('PI CPU')
+    expect(graph).toHaveTextContent('NO DATA IN WINDOW')
+    expect(graph).not.toHaveTextContent('72')
+    expect(graph).toHaveTextContent('50')
   })
 
   test('long-pressing graph close opens quit confirmation', async () => {
