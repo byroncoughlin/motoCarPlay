@@ -1,5 +1,6 @@
 import type { DongleDriver } from '@projection/driver/dongle/dongleDriver'
 import { SendBoolean } from '@projection/messages/sendable'
+import type { Config } from '@shared/types'
 import { TelemetryStore } from '../../TelemetryStore'
 import { attachDongleAdapter } from '../dongleAdapter'
 
@@ -10,12 +11,15 @@ function fakeDriver() {
   }
 }
 
-function setup() {
+function setup(gpsForwarding?: boolean) {
   const store = new TelemetryStore()
   const driver = fakeDriver()
   const handle = attachDongleAdapter({
     store,
-    getDongleDriver: () => driver as unknown as DongleDriver
+    getDongleDriver: () => driver as unknown as DongleDriver,
+    ...(gpsForwarding === undefined
+      ? {}
+      : { getConfig: () => ({ gps: gpsForwarding }) as Config })
   })
   return { store, driver, handle }
 }
@@ -91,6 +95,12 @@ describe('dongleAdapter — GPS / NMEA', () => {
   test('gps without lat/lng is ignored', () => {
     const { store, driver } = setup()
     store.merge({ gps: { lat: 52 } })
+    expect(driver.sendGnssData).not.toHaveBeenCalled()
+  })
+
+  test('gps forwarding is suppressed when config.gps is false', () => {
+    const { store, driver } = setup(false)
+    store.merge({ gps: { lat: 52.5, lng: 13.4 } })
     expect(driver.sendGnssData).not.toHaveBeenCalled()
   })
 })

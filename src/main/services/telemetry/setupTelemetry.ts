@@ -62,8 +62,10 @@ export function setupTelemetry({
     initialGps: initialConfig?.lastKnownGps
   })
 
+  let currentConfig: Config | undefined = initialConfig
   let lastAppearanceMode: string | undefined = initialConfig?.appearanceMode
   const onConfigChanged = (merged: Config): void => {
+    currentConfig = merged
     if (merged.appearanceMode !== lastAppearanceMode) {
       lastAppearanceMode = merged.appearanceMode
       applyAppearanceMode(store, merged.appearanceMode)
@@ -94,7 +96,8 @@ export function setupTelemetry({
     })
     const dongle = attachDongleAdapter({
       store,
-      getDongleDriver: () => projectionService.getDongleDriver()
+      getDongleDriver: () => projectionService.getDongleDriver(),
+      getConfig: () => currentConfig
     })
     offAa = aa.off
     offDongle = dongle.off

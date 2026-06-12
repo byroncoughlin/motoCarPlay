@@ -14,11 +14,13 @@
 
 import type { DongleDriver } from '@projection/driver/dongle/dongleDriver'
 import { FileAddress, SendBoolean } from '@projection/messages/sendable'
+import type { Config } from '@shared/types'
 import { isWired, type TelemetryPayload } from '@shared/types/Telemetry'
 import type { TelemetryStore } from '../TelemetryStore'
 
 export type DongleAdapterDeps = {
   getDongleDriver: () => DongleDriver | null
+  getConfig?: () => Config | undefined
   store: TelemetryStore
 }
 
@@ -29,7 +31,8 @@ export type DongleAdapterHandle = {
 
 export function attachDongleAdapter({
   store,
-  getDongleDriver
+  getDongleDriver,
+  getConfig
 }: DongleAdapterDeps): DongleAdapterHandle {
   let lastNightMode: boolean | undefined
 
@@ -50,7 +53,8 @@ export function attachDongleAdapter({
     }
 
     // ── GPS / GNSS — emit on every gps patch (producer rate-limits) ──
-    if ('gps' in patch && isWired('dongle', 'gps')) {
+    const gpsForwardingEnabled = getConfig ? getConfig()?.gps === true : true
+    if ('gps' in patch && gpsForwardingEnabled && isWired('dongle', 'gps')) {
       const gps = snap.gps
       if (gps && typeof gps.lat === 'number' && typeof gps.lng === 'number') {
         const nmea = encodeNmea(gps.lat, gps.lng, gps.alt, gps.heading, gps.speedMs, gps.fixTs)
