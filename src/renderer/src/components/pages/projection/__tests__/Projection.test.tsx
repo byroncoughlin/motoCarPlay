@@ -235,6 +235,7 @@ describe('Projection page', () => {
 
     expect(screen.getByLabelText('GPS speed')).toHaveTextContent('--')
     expect(screen.getByText('ACQUIRING')).toBeInTheDocument()
+    expect(screen.getByTestId('projection-gps-status-dot')).toHaveClass('moto-gps-acquiring-dot')
 
     nowSpy.mockRestore()
   })

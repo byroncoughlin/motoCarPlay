@@ -666,6 +666,8 @@ function TopArc({
           }}
         >
           <span
+            data-testid="projection-gps-status-dot"
+            className={telemetry.gpsFix === false ? 'moto-gps-acquiring-dot' : undefined}
             style={{
               width: 7,
               height: 7,

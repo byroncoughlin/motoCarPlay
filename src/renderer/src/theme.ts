@@ -78,6 +78,14 @@ function buildTheme(mode: THEME.LIGHT | THEME.DARK, bg?: string) {
             '--ui-highlight': highlight,
             '--ui-breathe-dur': '1350ms'
           },
+          '@keyframes motoGpsAcquiringPulse': {
+            '0%, 100%': { opacity: 0.45 },
+            '50%': { opacity: 1 }
+          },
+          '.moto-gps-acquiring-dot': {
+            animation: 'motoGpsAcquiringPulse var(--ui-breathe-dur, 1350ms) ease-in-out infinite',
+            willChange: 'opacity'
+          },
           '.fft-surface': {
             backgroundColor: isLight ? themeColors.fftSurfaceLight : themeColors.fftSurfaceDark,
             ...(isLight
