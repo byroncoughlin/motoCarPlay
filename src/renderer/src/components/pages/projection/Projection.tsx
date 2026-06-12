@@ -146,7 +146,7 @@ function WaitingProjectionPane({ settings, show }: { settings: Config; show: boo
         top: pct(top, displayHeight),
         width: pct(width, displayWidth),
         height: pct(height, displayHeight),
-        backgroundColor: '#05070a',
+        backgroundColor: '#07111f',
         border: '1px solid rgba(255,255,255,0.16)',
         borderRadius: 34,
         overflow: 'hidden',
@@ -158,16 +158,15 @@ function WaitingProjectionPane({ settings, show }: { settings: Config; show: boo
         style={{
           position: 'absolute',
           inset: 0,
-          background:
-            'linear-gradient(160deg, rgba(21,40,78,0.85) 0%, rgba(9,13,22,0.94) 48%, rgba(1,5,10,1) 100%)'
+          backgroundColor: '#07111f'
         }}
       />
       <div
         style={{
           position: 'absolute',
-          inset: 0,
-          background:
-            'radial-gradient(circle at 78% 12%, rgba(56,189,248,0.16), transparent 28%), radial-gradient(circle at 14% 78%, rgba(34,197,94,0.1), transparent 26%)'
+          inset: '0 0 auto',
+          height: '44%',
+          backgroundColor: 'rgba(20,42,75,0.28)'
         }}
       />
       <div
@@ -205,8 +204,8 @@ function WaitingProjectionPane({ settings, show }: { settings: Config; show: boo
                 maxWidth: 96,
                 aspectRatio: '1 / 1',
                 borderRadius: '24%',
-                background: `linear-gradient(145deg, ${color}, rgba(255,255,255,0.18))`,
-                boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.32), 0 8px 18px rgba(0,0,0,0.24)',
+                backgroundColor: color,
+                border: '1px solid rgba(255,255,255,0.24)',
                 opacity: 0.96
               }}
             />
@@ -263,12 +262,12 @@ function WaitingProjectionPane({ settings, show }: { settings: Config; show: boo
           height: '13%',
           borderRadius: 28,
           backgroundColor: 'rgba(255,255,255,0.16)',
+          border: '1px solid rgba(255,255,255,0.18)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           gap: 12,
-          padding: '0 5%',
-          boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.22), 0 10px 22px rgba(0,0,0,0.24)'
+          padding: '0 5%'
         }}
       >
         <div
@@ -299,8 +298,8 @@ function WaitingProjectionPane({ settings, show }: { settings: Config; show: boo
                 width: 48,
                 aspectRatio: '1 / 1',
                 borderRadius: '26%',
-                background: `linear-gradient(145deg, ${color}, rgba(255,255,255,0.18))`,
-                boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.35)',
+                backgroundColor: color,
+                border: '1px solid rgba(255,255,255,0.24)',
                 opacity: 0.98
               }}
             />

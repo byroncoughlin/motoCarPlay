@@ -408,7 +408,7 @@ describe('Projection page', () => {
         top: '14.75%',
         width: '70.5%',
         height: '70.5%',
-        backgroundColor: '#05070a'
+        backgroundColor: '#07111f'
       })
       expect(screen.getByText('Music')).toBeInTheDocument()
       expect(screen.getByText('Google Maps')).toBeInTheDocument()
