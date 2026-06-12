@@ -1352,14 +1352,53 @@ function MetricGraph({
   const keys: MetricKey[] = metricKey === 'ambientTemp' ? ['ambientTemp', 'piTemp'] : [metricKey]
   const compact = topPanel !== null || keys.length > 1
   const [nowMs, setNowMs] = React.useState(() => Date.now())
+  const [confirmQuit, setConfirmQuit] = React.useState(false)
+  const closeHoldRef = React.useRef<{ timer: number | null; fired: boolean }>({
+    timer: null,
+    fired: false
+  })
 
   React.useEffect(() => {
     const id = window.setInterval(() => setNowMs(Date.now()), 1000)
     return () => window.clearInterval(id)
   }, [])
 
+  React.useEffect(
+    () => () => {
+      if (closeHoldRef.current.timer != null) {
+        window.clearTimeout(closeHoldRef.current.timer)
+      }
+    },
+    []
+  )
+
+  const closeHoldStart = () => {
+    closeHoldRef.current.fired = false
+    closeHoldRef.current.timer = window.setTimeout(() => {
+      closeHoldRef.current.fired = true
+      setConfirmQuit(true)
+    }, 800)
+  }
+
+  const closeHoldEnd = () => {
+    if (closeHoldRef.current.timer != null) {
+      window.clearTimeout(closeHoldRef.current.timer)
+      closeHoldRef.current.timer = null
+    }
+    if (!closeHoldRef.current.fired) actions.closeMetric()
+    closeHoldRef.current.fired = false
+  }
+
+  const closeHoldCancel = () => {
+    if (closeHoldRef.current.timer != null) {
+      window.clearTimeout(closeHoldRef.current.timer)
+      closeHoldRef.current.timer = null
+    }
+  }
+
   return (
     <div
+      data-testid="projection-metric-graph"
       style={{
         position: 'absolute',
         top: ARC_PCT,
@@ -1370,12 +1409,22 @@ function MetricGraph({
         zIndex: 20,
         display: 'flex',
         flexDirection: 'column',
+        borderRadius: 34,
+        overflow: 'hidden',
         userSelect: 'none',
         pointerEvents: 'auto'
       }}
     >
-      <button type="button" onClick={actions.closeMetric} style={{ ...closeBtn, position: 'absolute', top: 10, right: 12, zIndex: 20 }}>
-        x
+      <button
+        type="button"
+        aria-label="Close graph"
+        onPointerDown={closeHoldStart}
+        onPointerUp={closeHoldEnd}
+        onPointerLeave={closeHoldCancel}
+        style={{ ...closeBtn, position: 'absolute', top: 10, right: 12, zIndex: 20 }}
+        title="tap to close - hold to quit app"
+      >
+        {'\u2715'}
       </button>
 
       {topPanel === 'gps' && <GpsSkyPanel telemetry={telemetry} />}
@@ -1393,6 +1442,51 @@ function MetricGraph({
           actions={actions}
         />
       ))}
+
+      {confirmQuit && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            zIndex: 500,
+            background: 'rgba(0,0,0,0.94)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8
+          }}
+        >
+          <div
+            style={{
+              color: 'white',
+              fontSize: 26,
+              fontWeight: 800,
+              fontFamily: 'sans-serif',
+              letterSpacing: 0.5
+            }}
+          >
+            Quit LIVI?
+          </div>
+          <div style={{ color: '#888', fontSize: 12, fontFamily: 'monospace', marginBottom: 18 }}>
+            this closes the dashboard app
+          </div>
+          <div style={{ display: 'flex', gap: 16 }}>
+            <button type="button" onClick={() => setConfirmQuit(false)} style={actionBtn('#2a2a2a', '#ccc')}>
+              CANCEL
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                void window.projection.quit()
+              }}
+              style={actionBtn('#5c1010', '#ff6b6b')}
+            >
+              QUIT
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

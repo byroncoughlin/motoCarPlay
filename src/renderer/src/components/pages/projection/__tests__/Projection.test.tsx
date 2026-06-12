@@ -1,5 +1,5 @@
 import { AudioCommand, CommandMapping } from '@shared/types/ProjectionEnums'
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { Projection } from '../Projection'
 
 const navigateMock = jest.fn()
@@ -144,6 +144,7 @@ describe('Projection page', () => {
       value: jest.fn(() => ({}))
     })
     ;(window as any).projection = {
+      quit: jest.fn().mockResolvedValue(undefined),
       ipc: {
         start: jest.fn().mockResolvedValue(undefined),
         stop: jest.fn().mockResolvedValue(undefined),
@@ -207,6 +208,61 @@ describe('Projection page', () => {
 
     expect(screen.getByLabelText('GPS speed')).toHaveTextContent('--')
     expect(screen.getByText('ACQUIRING')).toBeInTheDocument()
+  })
+
+  test('opens graph in a rounded center pane and closes on short close press', async () => {
+    render(<Projection {...baseProps()} />)
+
+    act(() => {
+      telemetryCb?.({ gpsFix: true, speedKph: 88.5 })
+    })
+
+    fireEvent.click(screen.getByLabelText('GPS speed'))
+
+    const graph = screen.getByTestId('projection-metric-graph')
+    expect(graph).toHaveStyle({
+      top: '14.625%',
+      left: '14.625%',
+      width: '70.625%',
+      height: '70.625%',
+      borderRadius: '34px',
+      overflow: 'hidden'
+    })
+
+    const close = screen.getByLabelText('Close graph')
+    expect(close).toHaveTextContent('\u2715')
+
+    fireEvent.pointerDown(close)
+    fireEvent.pointerUp(close)
+
+    expect(screen.queryByTestId('projection-metric-graph')).not.toBeInTheDocument()
+  })
+
+  test('long-pressing graph close opens quit confirmation', async () => {
+    jest.useFakeTimers()
+
+    render(<Projection {...baseProps()} />)
+
+    act(() => {
+      telemetryCb?.({ gpsFix: true, speedKph: 88.5 })
+    })
+
+    fireEvent.click(screen.getByLabelText('GPS speed'))
+    const close = screen.getByLabelText('Close graph')
+
+    fireEvent.pointerDown(close)
+    act(() => {
+      jest.advanceTimersByTime(800)
+    })
+    fireEvent.pointerUp(close)
+
+    expect(screen.getByText('Quit LIVI?')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('QUIT'))
+
+    expect((window as any).projection.quit).toHaveBeenCalledTimes(1)
+
+    jest.useRealTimers()
   })
 
   test('renders waiting pane at the configured projection view area while video is absent', () => {
