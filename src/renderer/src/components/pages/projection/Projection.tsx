@@ -48,6 +48,19 @@ const hasLinkedPhoneTransport = (value: unknown): boolean => {
   )
 }
 
+const reportsNoLinkedPhoneTransport = (value: unknown): boolean => {
+  if (!value || typeof value !== 'object') return false
+  const state = value as Record<string, unknown>
+  const hasPhonePresenceReport = [
+    state.wiredPhoneDetected,
+    state.wirelessPhoneDetected,
+    state.wiredPhoneActive,
+    state.wirelessPhoneActive
+  ].some((v) => typeof v === 'boolean')
+
+  return hasPhonePresenceReport && !hasLinkedPhoneTransport(value)
+}
+
 const isProjectionPhoneType = (value: unknown): boolean =>
   value === PhoneType.CarPlay || value === PhoneType.AndroidAuto
 
@@ -404,8 +417,10 @@ const CarplayComponent: React.FC<CarplayProps> = ({
   const hasStartedRef = useRef(false)
   const [rendererError] = useState<string | null>(null)
   const [projectionSessionActive, setProjectionSessionActive] = useState(false)
-  const [donglePhoneLinked, setDonglePhoneLinked] = useState(false)
-  const [transportPhoneLinked, setTransportPhoneLinked] = useState(false)
+  const [donglePhoneLinked, setDonglePhoneLinkedState] = useState(false)
+  const [transportPhoneLinked, setTransportPhoneLinkedState] = useState(false)
+  const donglePhoneLinkedRef = useRef(false)
+  const transportPhoneLinkedRef = useRef(false)
   const lastNonCarplayPathRef = useRef<string | null>(null)
   const lastNonClusterPathRef = useRef<string | null>(null)
   const autoSwitchedRef = useRef(false)
@@ -414,6 +429,31 @@ const CarplayComponent: React.FC<CarplayProps> = ({
   const autoSwitchOnStreamRef = useRef(Boolean(settings.autoSwitchOnStream))
   const autoSwitchOnGuidanceRef = useRef(Boolean(settings.autoSwitchOnGuidance))
   const autoSwitchOnPhoneCallRef = useRef(Boolean(settings.autoSwitchOnPhoneCall))
+
+  const setDonglePhoneLinked = useCallback((linked: boolean) => {
+    if (donglePhoneLinkedRef.current === linked) return
+    donglePhoneLinkedRef.current = linked
+    setDonglePhoneLinkedState(linked)
+  }, [])
+
+  const setTransportPhoneLinked = useCallback((linked: boolean) => {
+    if (transportPhoneLinkedRef.current === linked) return
+    transportPhoneLinkedRef.current = linked
+    setTransportPhoneLinkedState(linked)
+  }, [])
+
+  const applyTransportPhoneState = useCallback((state: unknown) => {
+    const linked = hasLinkedPhoneTransport(state)
+    setTransportPhoneLinked(linked)
+    if (reportsNoLinkedPhoneTransport(state)) setDonglePhoneLinked(false)
+  }, [setDonglePhoneLinked, setTransportPhoneLinked])
+
+  const refreshTransportPhoneState = useCallback(() => {
+    void window.projection.ipc
+      .getTransportState?.()
+      .then(applyTransportPhoneState)
+      .catch(() => {})
+  }, [applyTransportPhoneState])
 
   useEffect(() => {
     autoSwitchOnStreamRef.current = Boolean(settings.autoSwitchOnStream)
@@ -554,14 +594,14 @@ const CarplayComponent: React.FC<CarplayProps> = ({
     window.projection.ipc
       .getTransportState?.()
       .then((state) => {
-        if (!disposed && hasLinkedPhoneTransport(state)) setTransportPhoneLinked(true)
+        if (!disposed) applyTransportPhoneState(state)
       })
       .catch(() => {})
 
     return () => {
       disposed = true
     }
-  }, [])
+  }, [applyTransportPhoneState])
 
   const applyAttention = useCallback(
     (p: AttentionPayload) => {
@@ -741,7 +781,8 @@ const CarplayComponent: React.FC<CarplayProps> = ({
     clearRetryTimeout,
     navigate,
     resetInfo,
-    setDeviceInfo
+    setDeviceInfo,
+    setDonglePhoneLinked
   ])
 
   // Settings/events from main
@@ -786,7 +827,7 @@ const CarplayComponent: React.FC<CarplayProps> = ({
 
       switch (t) {
         case 'transportState': {
-          setTransportPhoneLinked(hasLinkedPhoneTransport(d.payload))
+          applyTransportPhoneState(d.payload)
           break
         }
 
@@ -1031,6 +1072,7 @@ const CarplayComponent: React.FC<CarplayProps> = ({
 
         case 'projectionActive': {
           setProjectionSessionActive(true)
+          refreshTransportPhoneState()
           break
         }
 
@@ -1075,6 +1117,8 @@ const CarplayComponent: React.FC<CarplayProps> = ({
     setAudioInfo,
     setBluetoothPairedList,
     bumpAudioDevicesRevision,
+    applyTransportPhoneState,
+    refreshTransportPhoneState,
     settings.dashboards
   ])
 

@@ -95,6 +95,20 @@ class MockMessageChannel {
   }
 }
 
+const transportState = (overrides: Record<string, unknown> = {}) => ({
+  active: 'dongle',
+  targetTransport: 'dongle',
+  targetMode: 'wired',
+  switchPending: false,
+  dongleDetected: true,
+  wiredPhoneDetected: false,
+  wirelessPhoneDetected: false,
+  wiredPhoneActive: false,
+  wirelessPhoneActive: false,
+  preference: 'dongle',
+  ...overrides
+})
+
 describe('Projection page', () => {
   let onEventCb: AnyFn | undefined
   let usbCb: AnyFn | undefined
@@ -151,18 +165,7 @@ describe('Projection page', () => {
         stop: jest.fn().mockResolvedValue(undefined),
         sendFrame: jest.fn().mockResolvedValue(undefined),
         setVisible: jest.fn().mockResolvedValue(undefined),
-        getTransportState: jest.fn().mockResolvedValue({
-          active: 'dongle',
-          targetTransport: 'dongle',
-          targetMode: 'wired',
-          switchPending: false,
-          dongleDetected: true,
-          wiredPhoneDetected: false,
-          wirelessPhoneDetected: false,
-          wiredPhoneActive: false,
-          wirelessPhoneActive: false,
-          preference: 'dongle'
-        }),
+        getTransportState: jest.fn().mockResolvedValue(transportState()),
         onAudioChunk: jest.fn(),
         offAudioChunk: jest.fn(),
         onEvent: jest.fn((cb: AnyFn) => (onEventCb = cb)),
@@ -466,6 +469,27 @@ describe('Projection page', () => {
   })
 
   test('hides waiting pane when CarPlay phone and projection activity are confirmed', () => {
+    ;(window as any).projection.ipc.getTransportState.mockReturnValue(new Promise(() => {}))
+
+    render(<Projection {...baseProps()} receivingVideo />)
+
+    act(() => {
+      onEventCb?.(null, {
+        type: 'transportState',
+        payload: transportState({
+          active: 'cp',
+          wirelessPhoneDetected: true,
+          wirelessPhoneActive: true
+        })
+      })
+      onEventCb?.(null, { type: 'plugged', phoneType: PhoneType.CarPlay })
+      onEventCb?.(null, { type: 'projectionActive' })
+    })
+
+    expect(screen.queryByTestId('projection-waiting-pane')).not.toBeInTheDocument()
+  })
+
+  test('projectionActive refresh clears stale dongle phone hint when transport reports no phone', async () => {
     render(<Projection {...baseProps()} receivingVideo />)
 
     act(() => {
@@ -473,7 +497,9 @@ describe('Projection page', () => {
       onEventCb?.(null, { type: 'projectionActive' })
     })
 
-    expect(screen.queryByTestId('projection-waiting-pane')).not.toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByTestId('projection-waiting-pane')).toBeInTheDocument()
+    })
   })
 
   test('projectionInactive clears stale video state so waiting pane can replace a quiet stream', () => {
