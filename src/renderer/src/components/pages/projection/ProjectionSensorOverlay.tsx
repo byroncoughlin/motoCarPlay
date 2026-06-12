@@ -2,6 +2,7 @@ import type { Config, TelemetryPayload } from '@shared/types'
 import { motoFillHex } from '@shared/utils'
 import { useLiviStore } from '@store/store'
 import * as React from 'react'
+import { useLocation } from 'react-router'
 
 type MetricKey =
   | 'speed'
@@ -1898,9 +1899,14 @@ const closeBtn: React.CSSProperties = {
 
 export function ProjectionSensorOverlay() {
   const settings = useLiviStore((s) => s.settings)
+  const { pathname } = useLocation()
   const motoSettings = settings as MotoSettings | null
   const { telemetry, activeGraph, dataRef, actions } = useMotoTelemetry(motoSettings)
   const arcBackground = motoSettings ? (motoFillHex(motoSettings) ?? 'transparent') : 'transparent'
+
+  React.useEffect(() => {
+    if (pathname !== '/') actions.closeMetric()
+  }, [actions, pathname])
 
   return (
     <div

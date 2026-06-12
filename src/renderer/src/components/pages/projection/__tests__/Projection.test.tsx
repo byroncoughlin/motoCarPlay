@@ -284,6 +284,24 @@ describe('Projection page', () => {
     expect(screen.queryByTestId('projection-metric-graph')).not.toBeInTheDocument()
   })
 
+  test('clears an open metric graph when leaving the dashboard route', async () => {
+    const { rerender } = render(<Projection {...baseProps()} />)
+
+    act(() => {
+      telemetryCb?.({ gpsFix: true, speedKph: 88.5 })
+    })
+
+    fireEvent.click(screen.getByLabelText('GPS speed'))
+    expect(screen.getByTestId('projection-metric-graph')).toBeInTheDocument()
+
+    mockPathname = '/settings'
+    rerender(<Projection {...baseProps()} />)
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('projection-metric-graph')).not.toBeInTheDocument()
+    })
+  })
+
   test('renders GPS graph status details like the round dashboard', async () => {
     render(<Projection {...baseProps()} />)
 
