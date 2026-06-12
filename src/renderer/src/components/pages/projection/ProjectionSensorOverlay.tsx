@@ -378,6 +378,87 @@ function gColor(g: number): string {
   return '#ef5350'
 }
 
+type StableValueState = {
+  shown: number | null
+  pending: { value: number; since: number } | null
+}
+
+type SpeedState = {
+  shown: number | null
+  moving: boolean
+  aboveSince: number | null
+}
+
+function stableValue(raw: number | null, state: StableValueState, step: number, holdMs: number, now: number): number | null {
+  if (raw == null) {
+    state.shown = null
+    state.pending = null
+    return null
+  }
+
+  if (state.shown == null) {
+    state.shown = raw
+    state.pending = null
+    return state.shown
+  }
+
+  if (Math.abs(raw - state.shown) <= step) {
+    state.shown = raw
+    state.pending = null
+    return state.shown
+  }
+
+  if (!state.pending || Math.abs(raw - state.pending.value) > step) {
+    state.pending = { value: raw, since: now }
+  }
+
+  if (now - state.pending.since >= holdMs) {
+    state.shown = raw
+    state.pending = null
+  }
+
+  return state.shown
+}
+
+function stableSpeed(rawMph: number | null, state: SpeedState, now: number): number | null {
+  const rise = 4
+  const fall = 2
+  const holdMs = 1800
+
+  if (rawMph == null) {
+    state.shown = null
+    state.moving = false
+    state.aboveSince = null
+    return null
+  }
+
+  if (!state.moving) {
+    if (rawMph >= rise) {
+      state.aboveSince ??= now
+      if (now - state.aboveSince >= holdMs) {
+        state.moving = true
+        state.aboveSince = null
+        state.shown = Math.round(rawMph)
+        return state.shown
+      }
+    } else {
+      state.aboveSince = null
+    }
+    state.shown = 0
+    return state.shown
+  }
+
+  if (rawMph < fall) {
+    state.moving = false
+    state.aboveSince = null
+    state.shown = 0
+    return state.shown
+  }
+
+  state.shown = Math.round(rawMph)
+  return state.shown
+}
+
 function useMotoTelemetry(settings: MotoSettings | null): {
   telemetry: MotoTelemetry
   activeGraph: MetricKey | null
@@ -389,6 +470,12 @@ function useMotoTelemetry(settings: MotoSettings | null): {
   const dataRef = React.useRef<Record<MetricKey, DataPoint[]>>(emptyLog())
   const lastSampleRef = React.useRef<Partial<Record<MetricKey, number>>>({})
   const settingsRef = React.useRef(settings)
+  const stableRef = React.useRef({
+    speed: { shown: null, moving: false, aboveSince: null } as SpeedState,
+    ambient: { shown: null, pending: null } as StableValueState,
+    chtLeft: { shown: null, pending: null } as StableValueState,
+    chtRight: { shown: null, pending: null } as StableValueState
+  })
 
   React.useEffect(() => {
     settingsRef.current = settings
@@ -449,6 +536,20 @@ function useMotoTelemetry(settings: MotoSettings | null): {
 
       setTelemetry((prev) => {
         const next: MotoTelemetry = { ...prev, ...patch }
+        const stable = stableRef.current
+
+        if (patch.speedMph !== undefined || patch.gpsFix !== undefined) {
+          next.speedMph = stableSpeed(next.gpsFix === true ? next.speedMph : null, stable.speed, now)
+        }
+        if (patch.ambientF !== undefined) {
+          next.ambientF = stableValue(patch.ambientF, stable.ambient, 3, 3000, now)
+        }
+        if (patch.chtLeftC !== undefined) {
+          next.chtLeftC = stableValue(patch.chtLeftC, stable.chtLeft, 3, 3000, now)
+        }
+        if (patch.chtRightC !== undefined) {
+          next.chtRightC = stableValue(patch.chtRightC, stable.chtRight, 3, 3000, now)
+        }
 
         if (next.leanDeg != null) {
           const leanOffset = settingsRef.current?.leanOffset ?? 0

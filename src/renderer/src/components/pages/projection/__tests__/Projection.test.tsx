@@ -182,6 +182,8 @@ describe('Projection page', () => {
   })
 
   test('renders cylinder head telemetry on the projection screen', async () => {
+    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(1000)
+
     render(<Projection {...baseProps()} />)
 
     act(() => {
@@ -190,11 +192,36 @@ describe('Projection page', () => {
 
     expect(screen.getByLabelText('L cylinder head temperature')).toHaveTextContent('151')
     expect(screen.getByLabelText('R cylinder head temperature')).toHaveTextContent('163')
+
+    nowSpy.mockReturnValue(2000)
+    act(() => {
+      telemetryCb?.({ chtLeftC: 220.2, chtRightC: 162.7 })
+    })
+
+    expect(screen.getByLabelText('L cylinder head temperature')).toHaveTextContent('151')
+
+    nowSpy.mockReturnValue(5200)
+    act(() => {
+      telemetryCb?.({ chtLeftC: 220.2, chtRightC: 162.7 })
+    })
+
+    expect(screen.getByLabelText('L cylinder head temperature')).toHaveTextContent('220')
+
+    nowSpy.mockRestore()
   })
 
   test('renders GPS speed on the projection screen', async () => {
+    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(1000)
+
     render(<Projection {...baseProps()} />)
 
+    act(() => {
+      telemetryCb?.({ gpsFix: true, speedKph: 88.5 })
+    })
+
+    expect(screen.getByLabelText('GPS speed')).toHaveTextContent('0')
+
+    nowSpy.mockReturnValue(3000)
     act(() => {
       telemetryCb?.({ gpsFix: true, speedKph: 88.5 })
     })
@@ -208,6 +235,8 @@ describe('Projection page', () => {
 
     expect(screen.getByLabelText('GPS speed')).toHaveTextContent('--')
     expect(screen.getByText('ACQUIRING')).toBeInTheDocument()
+
+    nowSpy.mockRestore()
   })
 
   test('opens graph in a rounded center pane and closes on short close press', async () => {
