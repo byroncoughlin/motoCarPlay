@@ -24,8 +24,20 @@ const clampInt = (n: number, min: number, max: number, step = 1) => {
   return Math.min(max, Math.max(min, snapped))
 }
 
+const DEFAULT_AMBIENT_FILL_COLOR = '#142321'
+const AMBIENT_FILL_SWATCHES = [
+  '#142321',
+  '#083f38',
+  '#1f2f44',
+  '#2f2438',
+  '#382716',
+  '#202020'
+]
+
 const defaultColorForPath = (path?: string): string => {
   switch (path) {
+    case 'ambientFillColor':
+      return DEFAULT_AMBIENT_FILL_COLOR
     case 'primaryColorDark':
       return themeColors.primaryColorDark
     case 'primaryColorLight':
@@ -144,6 +156,42 @@ export const SettingsFieldControl = <T,>({
     case 'color': {
       const hasCustom = value != null && String(value).trim() !== ''
       const color = hasCustom ? String(value) : defaultColorForPath(node.path)
+
+      if (node.path === 'ambientFillColor') {
+        const selectedColor = color.toLowerCase()
+
+        return (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            {AMBIENT_FILL_SWATCHES.map((swatch) => {
+              const isSelected = selectedColor === swatch
+
+              return (
+                <button
+                  key={swatch}
+                  type="button"
+                  aria-label={`Background color ${swatch}`}
+                  aria-pressed={isSelected}
+                  onClick={() => onChange(swatch as T)}
+                  style={{
+                    width: 30,
+                    height: 30,
+                    padding: 0,
+                    borderRadius: 8,
+                    border: `2px solid ${
+                      isSelected ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.22)'
+                    }`,
+                    backgroundColor: swatch,
+                    boxShadow: isSelected
+                      ? '0 0 0 2px rgba(0,0,0,0.8), 0 0 0 3px rgba(255,255,255,0.36)'
+                      : 'none',
+                    cursor: 'pointer'
+                  }}
+                />
+              )
+            })}
+          </div>
+        )
+      }
 
       return (
         <div style={{ height: '100%', display: 'flex', alignItems: 'center', gap: 8 }}>

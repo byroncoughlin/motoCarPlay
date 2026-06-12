@@ -154,4 +154,24 @@ describe('SettingsFieldControl', () => {
     fireEvent.click(screen.getByTestId('icon-button'))
     expect(onChange).toHaveBeenCalledWith(null)
   })
+
+  test('ambient fill color node uses fixed swatches instead of opening a color picker', () => {
+    const onChange = jest.fn()
+    render(
+      <SettingsFieldControl
+        node={{ type: 'color', label: 'Background Color', path: 'ambientFillColor' } as any}
+        value={null}
+        onChange={onChange}
+      />
+    )
+
+    expect(screen.queryByTestId('textfield-color')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Background color #142321' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Background color #083f38' }))
+    expect(onChange).toHaveBeenCalledWith('#083f38')
+  })
 })
