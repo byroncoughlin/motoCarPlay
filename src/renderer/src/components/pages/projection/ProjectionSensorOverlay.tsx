@@ -518,7 +518,7 @@ function TopArc({
   const gpsLabel =
     telemetry.gpsFix == null
       ? 'NO GPS'
-      : `ACQUIRING${telemetry.gpsSatellites > 0 ? ` ${telemetry.gpsSatellites} SAT` : ''}`
+      : `ACQUIRING${telemetry.gpsSatellites > 0 ? ` \u00b7 ${telemetry.gpsSatellites} SAT` : ''}`
   const gpsDotColor = telemetry.gpsFix == null ? '#777' : '#ffb300'
 
   const bandBase: React.CSSProperties = {
@@ -782,7 +782,7 @@ function BottomArc({
   const absLean = Math.abs(Math.round(leanVal))
   const side = leanVal > 0.5 ? 'R' : leanVal < -0.5 ? 'L' : ''
   const absPitch = Math.abs(Math.round(pitchVal))
-  const pitchDir = pitchVal > 0.5 ? '^' : pitchVal < -0.5 ? 'v' : ''
+  const pitchDir = pitchVal > 0.5 ? '\u25b2' : pitchVal < -0.5 ? '\u25bc' : ''
   const altFt = telemetry.altitudeFt != null ? telemetry.altitudeFt.toLocaleString() : '--'
   const totalG =
     telemetry.gForceX != null && telemetry.gForceY != null
@@ -841,7 +841,7 @@ function BottomArc({
         <line x1={cx + 72} y1={refY} x2={cx + 72} y2={refY + 9} stroke={ref} strokeWidth={3.5} strokeLinecap="round" />
         <rect x={cx - 30} y={refY - 13} width={60} height={26} fill="rgba(0,0,0,0.88)" rx={8} />
         <text x={cx} y={refY + 7} textAnchor="middle" fill={telemetry.pitchDeg != null ? ref : 'white'} fontSize={20} fontWeight="bold" fontFamily="monospace">
-          {telemetry.pitchDeg != null ? (absPitch === 0 ? '-' : `${pitchDir}${absPitch}\u00b0`) : '--'}
+          {telemetry.pitchDeg != null ? (absPitch === 0 ? '\u2014' : `${pitchDir}${absPitch}\u00b0`) : '--'}
         </text>
         <rect x={0} y={66} width={w} height={h - 66} fill="rgba(0,0,0,0.25)" />
 
@@ -1074,7 +1074,7 @@ function RideDynamicsPanel({
   const absLean = Math.abs(Math.round(lean))
   const side = lean > 0.5 ? 'R' : lean < -0.5 ? 'L' : ''
   const absPitch = Math.abs(Math.round(pitch))
-  const pitchDir = pitch > 0.5 ? '^' : pitch < -0.5 ? 'v' : ''
+  const pitchDir = pitch > 0.5 ? '\u25b2' : pitch < -0.5 ? '\u25bc' : ''
   const attitudeClip = useSvgId('ride-attitude')
 
   const stat = (label: string, value: string, color = '#fff') => (
@@ -1088,6 +1088,10 @@ function RideDynamicsPanel({
     const a = (deg * Math.PI) / 180
     return { x: 84 + r * Math.sin(a), y: 90 - r * Math.cos(a) }
   }
+  const gScale = 58 / 1.2
+  const gDx = Math.max(-58, Math.min(58, gx * gScale))
+  const gDy = Math.max(-58, Math.min(58, gy * gScale))
+  const peakR = Math.min(58, telemetry.imuPeak.g * gScale)
 
   return (
     <div style={{ flex: 1, minHeight: 0, display: 'flex', gap: 6, padding: '6px 12px 4px 8px', fontFamily: 'sans-serif' }}>
@@ -1107,6 +1111,18 @@ function RideDynamicsPanel({
               <rect x={-126} y={90 + pitch * 2.2 - 210} width={420} height={210} fill={`url(#${attitudeClip}-sky)`} />
               <rect x={-126} y={90 + pitch * 2.2} width={420} height={210} fill="#5c3412" />
               <line x1={-126} y1={90 + pitch * 2.2} x2={294} y2={90 + pitch * 2.2} stroke="#fff" strokeWidth={2} opacity={0.9} />
+              {[-10, 10].map((p) => (
+                <line
+                  key={p}
+                  x1={62}
+                  y1={90 + pitch * 2.2 - p * 2.2}
+                  x2={106}
+                  y2={90 + pitch * 2.2 - p * 2.2}
+                  stroke="#fff"
+                  strokeWidth={1}
+                  opacity={0.45}
+                />
+              ))}
             </g>
           </g>
           <circle cx={84} cy={90} r={70} fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth={1.5} />
@@ -1115,6 +1131,28 @@ function RideDynamicsPanel({
             const i = rim(d, d === 0 ? 61 : 64)
             return <line key={d} x1={o.x} y1={o.y} x2={i.x} y2={i.y} stroke="rgba(255,255,255,0.6)" strokeWidth={d === 0 ? 2 : 1.2} />
           })}
+          {telemetry.imuPeak.leanL > 1 &&
+            (() => {
+              const p = rim(-telemetry.imuPeak.leanL, 71)
+              const q = rim(-telemetry.imuPeak.leanL, 61)
+              return <line x1={p.x} y1={p.y} x2={q.x} y2={q.y} stroke="#ff8a65" strokeWidth={2.4} strokeLinecap="round" />
+            })()}
+          {telemetry.imuPeak.leanR > 1 &&
+            (() => {
+              const p = rim(telemetry.imuPeak.leanR, 71)
+              const q = rim(telemetry.imuPeak.leanR, 61)
+              return <line x1={p.x} y1={p.y} x2={q.x} y2={q.y} stroke="#ff8a65" strokeWidth={2.4} strokeLinecap="round" />
+            })()}
+          {(() => {
+            const p = rim(lean, 68)
+            return (
+              <polygon
+                points={`${p.x},${p.y} ${p.x - 5},${p.y - 9} ${p.x + 5},${p.y - 9}`}
+                fill={leanColor(absLean)}
+                transform={`rotate(${lean}, ${p.x}, ${p.y})`}
+              />
+            )
+          })()}
           <line x1={54} y1={90} x2={75} y2={90} stroke="#ffd700" strokeWidth={3} strokeLinecap="round" />
           <line x1={93} y1={90} x2={114} y2={90} stroke="#ffd700" strokeWidth={3} strokeLinecap="round" />
           <circle cx={84} cy={90} r={2.6} fill="#ffd700" />
@@ -1132,8 +1170,15 @@ function RideDynamicsPanel({
           <circle cx={75} cy={88} r={29} fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth={0.8} strokeDasharray="3 3" />
           <line x1={17} y1={88} x2={133} y2={88} stroke="rgba(255,255,255,0.12)" strokeWidth={0.8} />
           <line x1={75} y1={30} x2={75} y2={146} stroke="rgba(255,255,255,0.12)" strokeWidth={0.8} />
-          <line x1={75} y1={88} x2={75 + Math.max(-58, Math.min(58, gx * (58 / 1.2)))} y2={88 + Math.max(-58, Math.min(58, gy * (58 / 1.2)))} stroke={gColor(totalG)} strokeWidth={1.5} opacity={0.5} />
-          <circle cx={75 + Math.max(-58, Math.min(58, gx * (58 / 1.2)))} cy={88 + Math.max(-58, Math.min(58, gy * (58 / 1.2)))} r={6} fill={gColor(totalG)} stroke="#fff" strokeWidth={1.2} />
+          <text x={75} y={26} textAnchor="middle" fill="rgba(255,255,255,0.55)" fontSize={9} fontWeight={700} fontFamily="monospace">
+            BRAKE
+          </text>
+          <text x={75} y={158} textAnchor="middle" fill="rgba(255,255,255,0.55)" fontSize={9} fontWeight={700} fontFamily="monospace">
+            ACCEL
+          </text>
+          {telemetry.imuPeak.g > 0.05 && <circle cx={75} cy={88} r={peakR} fill="none" stroke="#ffb300" strokeWidth={1.2} strokeDasharray="2 2" opacity={0.7} />}
+          <line x1={75} y1={88} x2={75 + gDx} y2={88 + gDy} stroke={gColor(totalG)} strokeWidth={1.5} opacity={0.5} />
+          <circle cx={75 + gDx} cy={88 + gDy} r={6} fill={gColor(totalG)} stroke="#fff" strokeWidth={1.2} />
           <text x={75} y={186} textAnchor="middle" fill={gColor(totalG)} fontSize={30} fontWeight="900" fontFamily="monospace">
             {totalG.toFixed(2)}
           </text>
@@ -1145,8 +1190,8 @@ function RideDynamicsPanel({
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 9, paddingTop: 50, paddingRight: 2 }}>
         {stat('MAX L', `${Math.round(telemetry.imuPeak.leanL)}\u00b0`, '#ff8a65')}
         {stat('MAX R', `${Math.round(telemetry.imuPeak.leanR)}\u00b0`, '#ff8a65')}
-        {stat('PITCH', telemetry.pitchDeg != null ? (absPitch === 0 ? `0\u00b0` : `${pitchDir}${absPitch}\u00b0`) : '-', '#80cbc4')}
-        {stat('PEAK G', telemetry.imuPeak.g > 0.05 ? telemetry.imuPeak.g.toFixed(2) : '-', '#ffb300')}
+        {stat('PITCH', telemetry.pitchDeg != null ? (absPitch === 0 ? `0\u00b0` : `${pitchDir}${absPitch}\u00b0`) : '\u2014', '#80cbc4')}
+        {stat('PEAK G', telemetry.imuPeak.g > 0.05 ? telemetry.imuPeak.g.toFixed(2) : '\u2014', '#ffb300')}
         <ResetMaxButton onReset={actions.resetImuPeak} width={132} />
       </div>
     </div>
@@ -1211,10 +1256,10 @@ function CylinderHeadsPanel({ telemetry, actions }: { telemetry: MotoTelemetry; 
     <div style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', gap: 4, padding: '8px 12px 4px', fontFamily: 'sans-serif' }}>
       {side('L', telemetry.chtLeftC, telemetry.chtPeak.left)}
       <div style={{ flex: '0 0 124px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, paddingTop: 20 }}>
-        <span style={{ color: '#888', fontSize: 11, fontWeight: 800, letterSpacing: 2, fontFamily: 'monospace' }}>{'< BOXER >'}</span>
-        <span style={{ color: '#888', fontSize: 12, fontWeight: 800, letterSpacing: 2, fontFamily: 'monospace', marginTop: 4 }}>dT</span>
+        <span style={{ color: '#888', fontSize: 11, fontWeight: 800, letterSpacing: 2, fontFamily: 'monospace' }}>{'\u25c4 BOXER \u25ba'}</span>
+        <span style={{ color: '#888', fontSize: 12, fontWeight: 800, letterSpacing: 2, fontFamily: 'monospace', marginTop: 4 }}>\u0394T</span>
         <span style={{ color: deltaColor, fontSize: 30, fontWeight: 900, fontFamily: 'monospace', lineHeight: 1 }}>
-          {delta !== null ? `${delta}\u00b0` : '-'}
+          {delta !== null ? `${delta}\u00b0` : '\u2014'}
         </span>
         <div style={{ marginTop: 8 }}>
           <ResetMaxButton onReset={actions.resetChtPeak} width={116} />
@@ -1418,6 +1463,11 @@ function GraphPane({
   const clipId = useSvgId(`graph-clip-${metricKey}`)
   const areaId = useSvgId(`graph-area-${metricKey}`)
   const gradId = useSvgId(`graph-grad-${metricKey}`)
+  const resetMetric = () => {
+    actions.clearMetric(metricKey)
+    if (IMU_KEYS.includes(metricKey)) actions.resetImuPeak()
+    if (CHT_KEYS.includes(metricKey)) actions.resetChtPeak()
+  }
 
   const onPtrDown = (e: React.PointerEvent<SVGSVGElement>) => {
     panRef.current = { active: true, startX: e.clientX, startOff: viewOffset }
@@ -1455,7 +1505,7 @@ function GraphPane({
             <button
               type="button"
               onClick={() => {
-                actions.clearMetric(metricKey)
+                resetMetric()
                 setConfirmReset(false)
               }}
               style={actionBtn('#5c1010', '#ff6b6b', compact)}
@@ -1561,6 +1611,19 @@ function GraphPane({
           </text>
         )}
         <rect x={cx} y={cy} width={cw} height={ch} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={0.5} rx={4} />
+        {data.length > 0 &&
+          (() => {
+            const totalRange = Math.max(data[data.length - 1].ts - data[0].ts, GRAPH_WINDOW_MS)
+            const barW = Math.max(24, cw * (GRAPH_WINDOW_MS / totalRange))
+            const maxOff = Math.max(0, totalRange - GRAPH_WINDOW_MS)
+            const barX = cx + cw - (viewOffset / Math.max(1, maxOff)) * (cw - barW) - barW
+            return (
+              <>
+                <rect x={cx} y={cy + ch + 30} width={cw} height={4} fill="rgba(255,255,255,0.05)" rx={2} />
+                <rect x={barX} y={cy + ch + 30} width={barW} height={4} fill={cfg.color} rx={2} opacity={0.45} />
+              </>
+            )
+          })()}
       </svg>
     </div>
   )
