@@ -14,7 +14,17 @@ import { About } from '../../components/pages/settings/pages/system/About'
 import { PowerOff } from '../../components/pages/settings/pages/system/PowerOff'
 import { Restart } from '../../components/pages/settings/pages/system/Restart'
 import { USBDongle } from '../../components/pages/settings/pages/system/usbDongle/USBDongle'
-import { SettingsNode } from '../types'
+import { SettingsNode, ValueTransform } from '../types'
+
+const audioValueTransform: ValueTransform<number | undefined, number> = {
+  toView: (v) => Math.round((v ?? 1) * 100),
+  fromView: (v, prev) => {
+    const next = v / 100
+    if (!Number.isFinite(next)) return prev ?? 1
+    return next
+  },
+  format: (v) => `${v} %`
+}
 
 export const motoSettingsSchema: SettingsNode<Config> = {
   type: 'route',
@@ -68,6 +78,45 @@ export const motoSettingsSchema: SettingsNode<Config> = {
             labelTitle: 'settings.preferredConnection',
             description: 'Which transport to bring up when more than one transport is available.',
             labelDescription: 'settings.preferredConnectionDescription'
+          }
+        }
+      ]
+    },
+    {
+      type: 'route',
+      route: 'audio',
+      label: 'Audio',
+      labelKey: 'settings.audio',
+      path: '',
+      children: [
+        {
+          type: 'slider',
+          label: 'Music',
+          labelKey: 'settings.music',
+          path: 'audioVolume',
+          displayValue: true,
+          displayValueUnit: '%',
+          valueTransform: audioValueTransform,
+          page: {
+            title: 'Music',
+            labelTitle: 'settings.music',
+            description: 'Music volume.',
+            labelDescription: 'settings.musicDescription'
+          }
+        },
+        {
+          type: 'slider',
+          label: 'Navigation',
+          labelKey: 'settings.navigation',
+          path: 'navVolume',
+          displayValue: true,
+          displayValueUnit: '%',
+          valueTransform: audioValueTransform,
+          page: {
+            title: 'Navigation',
+            labelTitle: 'settings.navigation',
+            description: 'Navigation volume.',
+            labelDescription: 'settings.navigationDescription'
           }
         }
       ]

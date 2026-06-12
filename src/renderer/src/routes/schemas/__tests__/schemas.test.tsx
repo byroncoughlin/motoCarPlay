@@ -60,6 +60,7 @@ describe('settings schemas', () => {
     }
     expect((settingsSchema.children as any[]).map((child) => child.route)).toEqual([
       'connection',
+      'audio',
       'motoDisplay',
       'projection',
       'system'
@@ -84,5 +85,19 @@ describe('settings schemas', () => {
       displayValue: true
     })
     expect(wifi.options.map((option: any) => option.value)).toEqual(['2.4ghz', '5ghz'])
+  })
+
+  test('moto settings expose the compact audio sliders from the round dashboard', () => {
+    if (settingsSchema.type !== 'route') {
+      throw new Error('settingsSchema must be a route node')
+    }
+
+    const audio = (settingsSchema.children as any[]).find((child) => child.route === 'audio')
+    const sliders = audio.children.filter((child: any) => child.type === 'slider')
+
+    expect(sliders.map((child: any) => child.path)).toEqual(['audioVolume', 'navVolume'])
+    expect(sliders.map((child: any) => child.label)).toEqual(['Music', 'Navigation'])
+    expect(sliders[0].valueTransform.toView(0.42)).toBe(42)
+    expect(sliders[0].valueTransform.fromView(65, 1)).toBe(0.65)
   })
 })
