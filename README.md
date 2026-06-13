@@ -28,7 +28,7 @@ heading, altitude, ambient temperature, cylinder-head temperature on both jugs,
 lean, pitch, G-force, GPS diagnostics, and Pi CPU temperature.
 
 <p align="center">
-  <img src="documentation/images/dashboard.png" alt="LIVI MotoCarPlay dashboard" width="48%" />
+  <img src="documentation/images/dashboard-carplay.png" alt="LIVI MotoCarPlay dashboard" width="48%" />
 </p>
 
 > The screenshots in this README are from the LIVI/MotoCarPlay v2 Pi build, not
