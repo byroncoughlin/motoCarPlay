@@ -1,46 +1,48 @@
 <p align="center">
   <a href="https://byronthegreat.com/projects/motocarplay/"><img alt="Live Demo" src="https://img.shields.io/badge/live%20demo-byronthegreat.com-2ea44f"></a>
   <img alt="Platform" src="https://img.shields.io/badge/platform-Raspberry%20Pi%205-c51a4a">
-  <img alt="Display" src="https://img.shields.io/badge/display-800x800%20round-ffca28">
-  <img alt="Rendering" src="https://img.shields.io/badge/rendering-GStreamer%20%2B%20hardware%20decode-4fc3f7">
+  <img alt="OS" src="https://img.shields.io/badge/OS-Raspberry%20Pi%20(Trixie)-a80030">
+  <img alt="Base" src="https://img.shields.io/badge/base-LIVI-254f8a">
   <img alt="License" src="https://img.shields.io/badge/license-MIT-blue">
 </p>
 
-# motoCarPlay on LIVI
+# LIVI - MotoCarPlay v2
 
-**A hardware-accelerated Apple CarPlay dashboard with live motorcycle instrumentation, built for my 1975 BMW R75/6.**
+**A hardware-accelerated round-display Apple CarPlay dashboard with live
+motorcycle instrumentation, built for a 1975 BMW R75/6.**
 
-**Try the live browser demo → [byronthegreat.com/projects/motocarplay](https://byronthegreat.com/projects/motocarplay/)**
-_(the dashboard UI running in your browser, driven by a simulated ride; the center CarPlay screen is a static screenshot)_
+**Try the live browser demo -> [byronthegreat.com/projects/motocarplay](https://byronthegreat.com/projects/motocarplay/)**
+_(the dashboard UI running in your browser, driven by a simulated ride; the
+center CarPlay screen is a static screenshot)_
 
-> **Current version:** this repo is the ride-forward motoCarPlay build.
-> The original prototype lives in
-> [byroncoughlin/round-carplay](https://github.com/byroncoughlin/round-carplay):
-> it proved the round dashboard, sensor overlays, graphing, and ambient backdrop.
-> This repo ports/rebuilds that project on
-> [LIVI](https://github.com/f-io/LIVI), giving the Pi a native GStreamer video
-> path, hardware-accelerated decode, and a compositor that is much better suited
-> to actually living on the motorcycle.
+> **Current version:** this repo is my LIVI-based MotoCarPlay v2 build. The
+> original prototype lives in
+> [byroncoughlin/round-carplay](https://github.com/byroncoughlin/round-carplay),
+> where I first adapted the round-screen idea for the motorcycle dash. This
+> version ports that work onto LIVI's modern Raspberry Pi foundation: native
+> GStreamer video, an embedded Linux compositor, cleaner restarts, hardware-aware
+> rendering, and the same round BMW airhead instrument cluster.
 
 CarPlay runs in a centered square on an 800x800 round screen. The curved space
-around it becomes the instrument cluster: cylinder-head temps, lean/pitch/G,
-GPS speed and heading, ambient temperature, Pi temperature, altitude, and live
-history graphs. The optional backdrop can either sample the CarPlay frame for an
-average fill color or render a blurred, zoomed copy behind the rounded CarPlay
-window so the square feels like it belongs in the circle.
+around it shows sensor data read straight off the bike: cylinder-head temps,
+lean/pitch/G, GPS speed and heading, altitude, ambient temperature, and Pi CPU
+temperature. The optional backdrop lets CarPlay color bleed out to the bezel,
+either as an average sampled color or as a blurred, enlarged glow.
 
 <p align="center">
-  <img src="docs/images/moto-dashboard.png" alt="motoCarPlay dashboard" width="48%" />
+  <img src="documentation/images/dashboard.png" alt="MotoCarPlay dashboard" width="48%" />
 </p>
 
-> **This is a personal build.** It stands on a lot of open-source work:
-> [f-io/LIVI](https://github.com/f-io/LIVI) for the modern head-unit foundation,
-> [f-io/pi-carplay](https://github.com/f-io/pi-carplay) for earlier Raspberry Pi
-> CarPlay work, and
-> [OneMakerShow/round-carplay](https://github.com/OneMakerShow/round-carplay)
-> for the round-display CarPlay idea that my first motoCarPlay fork started from.
-> Full credit stays visible because the project only exists thanks to those
-> foundations.
+> Photo note: on-bike photos of the display mounted in the R75/6 dash are still
+> coming. The screenshots here are the live dash UI.
+<!-- Add real mounted/riding photos here, e.g. documentation/images/bike-01.jpg -->
+
+> **This is a personal build with visible lineage.** LIVI provides the current
+> head-unit foundation. My earlier MotoCarPlay prototype started as a hard fork
+> of [OneMakerShow/round-carplay](https://github.com/OneMakerShow/round-carplay),
+> itself based on [f-io/pi-carplay](https://github.com/f-io/pi-carplay). The
+> motorcycle instrumentation is my rebuild for an old BMW with no OBD/CAN bus:
+> every reading comes from a sensor wired to the Pi.
 
 ---
 
@@ -48,9 +50,10 @@ window so the square feels like it belongs in the circle.
 
 ### CarPlay, centered in the circle
 
-Wireless CarPlay (via a Carlinkit adapter) renders in a clipped, rounded square
-inside the 800x800 round panel. The four curved segments around it are the
-motorcycle dashboard:
+Wireless CarPlay, via a Carlinkit adapter, renders in an 800x800 LIVI projection
+surface with the view area inset to create the largest clean square inside the
+round Waveshare panel. The result is the familiar CarPlay card in the middle and
+four curved pockets around it for the motorcycle:
 
 | Arc | Shows |
 |---|---|
@@ -58,216 +61,207 @@ motorcycle dashboard:
 | **Bottom** | Altitude, lean-angle inclinometer, pitch, G-force |
 | **Left / Right** | Cylinder-head temperature, one bar gauge per jug, color-coded by heat |
 
-The prototype proved that layout in Electron. The LIVI rebuild keeps the same
-round motorcycle idea, but moves the projection path into a native Linux video
-pipeline with the CarPlay stream decoded and composed by GStreamer.
-
 ### Optional ambient backdrop
 
-Black around the CarPlay square looked too much like a screen dropped into a
-hole. MotoCarPlay has two backdrop modes:
+The original prototype used a blurred, enlarged copy of the CarPlay frame to
+hide the square-in-a-circle problem. LIVI - MotoCarPlay v2 keeps that idea, but
+makes it an explicit opt-in setting.
 
 | Mode | What it does |
 |---|---|
-| **Average Color** | Downscales the live CarPlay frame to a small grid, averages the whole crop, and paints the round edges with that sampled color. |
-| **Blur Glow** | Crops, shrinks, blurs, and scales the live CarPlay frame behind the foreground window so the bezel picks up the same color and motion. |
+| **Off** | Plain normal LIVI rendering. No sampling or backdrop work. |
+| **Average Color** | Samples the live CarPlay frame and fills the round edges with a smoothed average color. |
+| **Blur Glow** | Samples the live CarPlay frame, enlarges it, blurs it, and lets the color spill into the bezel. |
 
-Backdrop is a real toggle. When it is off, the app uses the normal projection
-pipeline and does not spend work sampling, blurring, or animating the background.
-When Blur Glow is on, the blur branch stays tiny and temporally blends each
-sampled frame so colorful screens ease instead of jumping.
+The backdrop is there for the round-screen look, not as a requirement. I keep it
+disabled when I want the lightest possible head-unit mode.
 
 ### Live graphing with risk zones
 
 Tap any metric to open a full-screen graph over the CarPlay card: a big live
-number, rolling min/max values, reset controls, and a scrollable history. Graphs
-that matter for engine or board health get color risk bands painted under the
-trace:
+number, rolling **MIN / MAX**, a **RESET**, and a scrollable history. Graphs that
+matter for engine/board health get **color risk bands** painted under the trace:
 
 | Metric | Bands |
 |---|---|
-| **Cylinder-head temp** | cold (blue) → normal (green) → warm (amber) → hot (red) |
-| **Pi CPU temp** | healthy (green) → warm (amber) → throttle (red) |
+| **Cylinder-head temp** | cold (blue) -> normal (green) -> warm (amber) -> hot (red) |
+| **Pi CPU temp** | healthy (green) -> warm (amber) -> throttle (red) |
 
-Tap the ambient reading and the screen splits into a dual graph: outside air on
-top, Pi CPU temperature below. The Pi lives in a small enclosure, so thermal
-headroom matters.
+Tap the **ambient** reading and the screen splits into a dual graph: ambient on
+top, Pi CPU temperature below. The Pi runs in a sealed case, so the CPU trace
+shows thermal headroom at a glance.
 
 <p align="center">
-  <img src="docs/images/moto-graph-split.png" alt="Ambient + Pi CPU split graph" width="32%" />
+  <img src="documentation/images/graph-split.png" alt="Ambient and Pi CPU split graph" width="32%" />
   &emsp;
-  <img src="docs/images/moto-graph-cht.png" alt="Cylinder-head temp graph with risk band" width="32%" />
+  <img src="documentation/images/graph-cht.png" alt="Cylinder-head temp graph with risk band" width="32%" />
 </p>
 
-### Why LIVI
+### Keeps the right time without WiFi
 
-The first motoCarPlay repo proved the dashboard. LIVI made it feel like a
-platform:
-
-- native GStreamer projection instead of a software-heavy browser video path
-- hardware decode on Raspberry Pi 5
-- a compositor that can keep the video plane under transparent UI
-- faster clean restarts after mode changes
-- a better base for Carlinkit, CarPlay, Android Auto, audio, and future head-unit work
-
-In plain terms: the old repo is the prototype; this repo is the version I want
-to keep riding forward.
+A Pi has no clock when it is powered off. Two things fix that. The Pi 5 RTC
+battery holds the time across power-off, so the clock is right at boot with no
+network. As a backup, `gps.py` sets the system clock from GPS UTC on the first
+valid fix when the time is badly off, so the dash stays correct even after days
+with no cell or WiFi. See
+[`PI_SETUP.md`](PI_SETUP.md#gps-clock-set-no-wifi-time-fix) for details.
 
 ---
 
 ## Parts list
 
 Everything connects to the Pi's GPIO or USB. Prices are what I actually paid
-for the original motoCarPlay build (USD); yours will vary.
+(USD); yours will vary. Purchase links are either the exact product page I used
+or a search link for the same part family when the original listing was generic.
 
 ### Compute & display
 
-| Part | What I used | Qty | Price |
-|---|---|--:|--:|
-| Pi 5 (2GB) + active cooler + case | iRasptek Basic Kit for Raspberry Pi 5 (2GB) | 1 | $110.99 |
-| microSD card | SanDisk Extreme PRO 32GB (A1 / U3 / V30) | 1 | $31.99 |
-| Round touchscreen | Waveshare 3.4" HDMI Round, 800x800 IPS, 10-pt touch | 1 | $105.99 |
-| Enclosure | 3D-printed Pi case + display back (own filament) | 1 | DIY |
+| Part | What I used | Qty | Price | Link |
+|---|---|--:|--:|---|
+| Pi 5 (2GB) + active cooler + case | iRasptek Basic Kit for Raspberry Pi 5 (2GB) | 1 | $110.99 | [search](https://www.amazon.com/s?k=iRasptek+Basic+Kit+Raspberry+Pi+5+2GB) |
+| microSD card | SanDisk Extreme PRO 32GB (A1 / U3 / V30) | 1 | $31.99 | [search](https://www.amazon.com/s?k=SanDisk+Extreme+PRO+32GB+A1+U3+V30+microSD) |
+| Round touchscreen | Waveshare 3.4" HDMI Round, 800x800 IPS, 10-pt touch | 1 | $105.99 | [search](https://www.amazon.com/s?k=Waveshare+3.4+inch+HDMI+Round+LCD+800x800) |
+| Enclosure | 3D-printed Pi case + display back (own filament) | 1 | DIY | - |
 
 ### CarPlay
 
-| Part | What I used | Qty | Price |
-|---|---|--:|--:|
-| Wireless CarPlay adapter | Carlinkit **CPC200-CCPA** | 1 | $55.99 |
+| Part | What I used | Qty | Price | Link |
+|---|---|--:|--:|---|
+| Wireless CarPlay adapter | Carlinkit **CPC200-CCPA** | 1 | $55.99 | [search](https://www.amazon.com/s?k=Carlinkit+CPC200-CCPA) |
 
 ### Sensors
 
-| Part | What I used | Qty | Price |
-|---|---|--:|--:|
-| GPS receiver | Adafruit Ultimate GPS GNSS w/ USB (99-ch, 10 Hz) | 1 | $29.95 |
-| GPS antenna | Adafruit External Active Antenna, 28 dB, 5 m, SMA | 1 | $21.50 |
-| Antenna pigtail | u.FL → SMA RG178 jumper (5-pack, used 1) | 1 | $6.99 |
-| GPS backup cell | CR1220 coin cell (GPS module almanac, faster warm fix) | 1 | $2.49 |
-| IMU (lean / pitch / G) | Adafruit **BNO055** 9-DOF (UART mode) | 1 | $39.10 |
-| Ambient temp | BOJACK **DS18B20** waterproof probe kit (incl. pull-up) | 1 | $8.99 |
-| CHT amplifier | Adafruit **MAX31856** universal thermocouple board | 2 | $35.00 |
-| CHT thermocouple | K-type probe w/ **14 mm** spark-plug washer, 3 m lead | 2 | $31.98 |
+| Part | What I used | Qty | Price | Link |
+|---|---|--:|--:|---|
+| GPS receiver | Adafruit Ultimate GPS GNSS w/ USB (99-ch, 10 Hz) | 1 | $29.95 | [Adafruit](https://www.adafruit.com/product/4279) |
+| GPS antenna | Adafruit External Active Antenna, 28 dB, 5 m, SMA | 1 | $21.50 | [Adafruit search](https://www.adafruit.com/search?q=external%20active%20GPS%20antenna%2028dB%205m%20SMA) |
+| Antenna pigtail | u.FL -> SMA RG178 jumper (5-pack, used 1) | 1 | $6.99 | [search](https://www.amazon.com/s?k=u.FL+to+SMA+RG178+jumper) |
+| GPS backup cell | CR1220 coin cell (GPS module almanac, faster warm fix) | 1 | $2.49 | [search](https://www.amazon.com/s?k=CR1220+coin+cell) |
+| IMU (lean / pitch / G) | Adafruit **BNO055** 9-DOF (UART mode) | 1 | $39.10 | [Adafruit](https://www.adafruit.com/product/2472) |
+| Ambient temp | BOJACK **DS18B20** waterproof probe kit (incl. pull-up) | 1 | $8.99 | [search](https://www.amazon.com/s?k=DS18B20+waterproof+temperature+probe) |
+| CHT amplifier | Adafruit **MAX31856** universal thermocouple board | 2 | $35.00 | [Adafruit](https://www.adafruit.com/product/3263) |
+| CHT thermocouple | K-type probe w/ **14 mm** spark-plug washer, 3 m lead | 2 | $31.98 | [search](https://www.amazon.com/s?k=K-type+thermocouple+14mm+spark+plug+temperature+probe) |
 
 ### Real-time clock
 
-| Part | What I used | Qty | Price |
-|---|---|--:|--:|
-| RTC battery | ML2032 rechargeable Li coin cell | 1 | $8.99 |
-| RTC holder | RTC battery box for Pi 5 (cell not included) | 1 | $5.49 |
+| Part | What I used | Qty | Price | Link |
+|---|---|--:|--:|---|
+| RTC battery | ML2032 rechargeable Li coin cell | 1 | $8.99 | [search](https://www.amazon.com/s?k=ML2032+rechargeable+coin+cell) |
+| RTC holder | RTC battery box for Pi 5 (cell not included) | 1 | $5.49 | [search](https://www.amazon.com/s?k=Raspberry+Pi+5+RTC+battery+box+ML2032) |
 
 ### Cabling & adapters
 
-| Part | What I used | Qty | Price |
-|---|---|--:|--:|
-| Jumper wires | 120-pc Dupont kit (M-F / M-M / F-F) | 1 | $8.99 |
-| HDMI cable | Cable Matters ultra-thin HDMI, 6 ft (2-pack, used 1) | 1 | $15.99 |
-| HDMI right-angle | 180° HDMI M-F U-shaped adapter (2-pack, used 1) | 1 | $10.99 |
-| Micro-HDMI adapter | Micro-HDMI M → HDMI F 180° angled (2-pack, used 1) | 1 | $9.99 |
-| USB-C → USB-A cable | Amazon Basics, 6 ft | 1 | $2.82 |
+| Part | What I used | Qty | Price | Link |
+|---|---|--:|--:|---|
+| Jumper wires | 120-pc Dupont kit (M-F / M-M / F-F) | 1 | $8.99 | [search](https://www.amazon.com/s?k=120+pc+Dupont+jumper+wire+kit) |
+| HDMI cable | Cable Matters ultra-thin HDMI, 6 ft (2-pack, used 1) | 1 | $15.99 | [search](https://www.amazon.com/s?k=Cable+Matters+ultra+thin+HDMI+6+ft) |
+| HDMI right-angle | 180-degree HDMI M-F U-shaped adapter (2-pack, used 1) | 1 | $10.99 | [search](https://www.amazon.com/s?k=180+degree+HDMI+male+female+U+shaped+adapter) |
+| Micro-HDMI adapter | Micro-HDMI M -> HDMI F 180-degree angled (2-pack, used 1) | 1 | $9.99 | [search](https://www.amazon.com/s?k=micro+HDMI+male+to+HDMI+female+180+degree+adapter) |
+| USB-C -> USB-A cable | Amazon Basics, 6 ft | 1 | $2.82 | [search](https://www.amazon.com/s?k=Amazon+Basics+USB+C+to+USB+A+6+ft+cable) |
 
-**Parts subtotal: ≈ $544** (+ $13.84 Adafruit shipping & tax on the GPS order).
-Excludes the 3D-printed enclosure and the iPhone you already own.
+**Parts subtotal: about $544** (+ $13.84 Adafruit shipping & tax on the GPS
+order). Excludes the 3D-printed enclosure and the iPhone you already own.
 
 > **Why these specific parts:**
 > - The R75/6 takes **14 mm** spark plugs, so the thermocouple washers are 14 mm.
 > - The **BNO055 runs over UART, not I2C**. I had trouble with it on I2C.
+>   Details live in `sensors/imu.py`.
 > - The Waveshare panel is **HDMI**, so the Pi 5's micro-HDMI is adapted to it.
+>   That's the little stack of HDMI adapters above.
 
 ---
 
 ## Instrument wiring & Pi setup
 
-The R75/6 has no OBD port and no CAN bus, so the bike learns to speak through
-discrete sensors wired to the Pi. The original prototype repo still has the
-fresh-flash wiring/setup notes:
+Full reproduce-from-a-fresh-flash instructions live in
+**[`PI_SETUP.md`](PI_SETUP.md)**: `config.txt` overlays, sensor wiring pinouts,
+udev rules, the systemd user services, and the gotchas learned the hard way.
 
-- [PI setup notes](https://github.com/byroncoughlin/round-carplay/blob/main/PI_SETUP.md)
-- [Full wiring map](https://github.com/byroncoughlin/round-carplay/blob/main/WIRING.md)
+Sensor scripts (`sensors/*.py`) each document their exact wiring in the file
+header. Quick map:
 
-Quick map:
+| Sensor | Script | Bus |
+|---|---|---|
+| BNO055 IMU (lean/pitch/G) | `imu.py` | UART `/dev/ttyAMA0` |
+| CHT left/right (MAX31856 x2) | `cht_temp.py` | SPI0 (CE0 = left, CE1 = right) |
+| Ambient (DS18B20) | `ambient_temp.py` | 1-Wire (GPIO4) |
+| GPS (Adafruit Ultimate, USB) | `gps.py` | USB serial `/dev/gps` |
+| Pi CPU temp | `pi_temp.py` | `/sys/class/thermal` (no wiring) |
 
-| Sensor | Bus |
-|---|---|
-| BNO055 IMU (lean/pitch/G) | UART |
-| CHT left/right (MAX31856 x2) | SPI |
-| Ambient (DS18B20) | 1-Wire |
-| GPS (Adafruit Ultimate, USB) | USB serial |
-| Pi CPU temp | `/sys/class/thermal` |
-
-LIVI handles the projection/video/compositor side. The motorcycle sensors feed
-the round overlay layer and graph history.
+For the full physical pin map, see **[`WIRING.md`](WIRING.md)**.
 
 ---
 
-## Build & deploy
+## Build & deploy the app
 
-### Build host prerequisites
+This repo is the current LIVI-based app. The browser demo remains at
+byronthegreat.com, but the motorcycle build is the arm64 AppImage from this
+repository.
 
-- Node.js 24+ with `corepack` / `pnpm`
-- Python 3.x
-- GStreamer development headers
-- `libusb-1.0-0-dev`, `libudev-dev`
-- Linux compositor dependencies used by `scripts/compositor/build-linux.sh`
+### Prerequisites
 
-On the Pi build host I use the repo's `pnpm` workflow:
+- Node and **pnpm 11.x** (the repo declares `pnpm@11.5.3`)
+- Linux build dependencies for Electron, native USB modules, and the LIVI
+  compositor/GStreamer packaging scripts
+- FUSE/AppImage support on the target Pi
+
+### Build the arm64 AppImage
 
 ```bash
-pnpm install --frozen-lockfile
-pnpm run build:armLinux:appimage
+pnpm run install:ci
+pnpm run build:armLinux:appimage  # -> dist/LIVI-*-linux-arm64.AppImage
 ```
-
-That produces an ARM64 AppImage under `dist/`.
 
 ### Deploy to the Pi
 
 ```bash
-rsync -az --progress dist/LIVI-*-arm64.AppImage \
+rsync -az --progress dist/LIVI-*-linux-arm64.AppImage \
   byron@motocarplay.local:/home/byron/LIVI/LIVI.AppImage
-
-ssh byron@motocarplay.local "chmod +x /home/byron/LIVI/LIVI.AppImage && sudo reboot"
 ```
 
-The Pi autostarts `/home/byron/LIVI/LIVI.AppImage` on boot.
+The Pi autostarts the AppImage on boot; the sensor scripts run as systemd user
+services. The app and the Python sensors talk over a local Socket.IO channel.
 
 ---
 
 ## Settings reference
 
-The motorcycle build keeps settings intentionally small.
+Open Settings via the tuning icon. Projection/video changes and Moto Display
+mode changes can trigger a clean relaunch so the compositor and CarPlay session
+come back in the correct mode.
+
+<p align="center">
+  <img src="documentation/images/settings.png" alt="Settings" width="40%" />
+  &emsp;
+  <img src="documentation/images/info.png" alt="Info and dongle status" width="40%" />
+</p>
 
 ### System
 
 | Setting | Typical | What it does |
 |---|---|---|
-| **Wi-Fi Frequency** | 5 GHz | Wireless CarPlay adapter band. |
-| **Auto Connect** | On | Bring the dongle/phone session up automatically. |
-| **Preferred Connection** | Dongle | Use the Carlinkit path for CarPlay. |
-| **FPS** | 45 | Projection frame rate requested from the phone. |
-| **DPI** | 140 | CarPlay UI scaling hint. |
-| **View Area** | 118 px on all sides | Crops the phone stream into the square inside the round panel. |
+| **Wi-Fi Frequency** | 5 GHz | Band the dongle uses for wireless CarPlay. |
+| **Auto Connect** | On | Reconnects to the preferred transport automatically. |
+| **Preferred Connection** | Dongle | Chooses dongle, native, or automatic transport behavior. |
+| **FPS** | 45 | Frames per second requested for the projection stream. |
+| **DPI** | 140 | UI scaling hint to the phone. Higher = denser. |
+| **View Area** | 118 px per side | Insets the 800x800 stream so CarPlay sits inside the round screen. |
+| **USB Dongle Info** | - | Shows dongle identity and connection state. |
+| **About** | - | LIVI/app information. |
 
 ### Moto Display
 
 | Control | What it does |
 |---|---|
-| **Backdrop** | Enables/disables optional CarPlay-derived background rendering. |
-| **Backdrop Style** | Average Color or Blur Glow. Changing this requires a clean app restart. |
-| **Ambient Fill** | Uses a fixed fill color when dynamic backdrop is off. |
-| **Fill Color** | Manual round-edge fill color. |
-| **Round Corners** | Clips the CarPlay window corners so it looks native inside the dashboard. |
-| **Tilt Calibration** | Zeros lean/pitch with the bike sitting level. |
-| **Graph History** | Clears stored graph traces. |
+| **Backdrop** | Enables/disables the optional ambient backdrop completely. |
+| **Backdrop Style** | Switches between **Average Color** and **Blur Glow**. |
+| **Ambient Fill** | Uses a fixed fill color around the CarPlay card. |
+| **Fill Color** | Chooses that fixed ambient fill color. |
+| **Round Corners** | Applies the mask that keeps the CarPlay card visually rounded. |
+| **Tilt Calibration** | Zeroes the lean/pitch readout with the bike sitting level. |
+| **Graph History** | Clears the rolling graph data. |
 
 ---
-
-## Credits
-
-- Current foundation: [f-io/LIVI](https://github.com/f-io/LIVI)
-- Raspberry Pi CarPlay lineage: [f-io/pi-carplay](https://github.com/f-io/pi-carplay)
-- Original round-display idea: [OneMakerShow/round-carplay](https://github.com/OneMakerShow/round-carplay)
-- First motoCarPlay prototype: [byroncoughlin/round-carplay](https://github.com/byroncoughlin/round-carplay)
-
-See [`CREDITS.md`](CREDITS.md) for a longer list of prior art and third-party components.
 
 ## Disclaimer
 
@@ -275,6 +269,13 @@ _Apple and CarPlay are trademarks of Apple Inc. This project is not affiliated
 with or endorsed by Apple. All trademarks are the property of their respective
 owners. Mounting a screen on a motorcycle and reading it while riding is done at
 your own risk. Keep your eyes on the road._
+
+## Credits
+
+- Current head-unit foundation: [f-io/LIVI](https://github.com/f-io/LIVI)
+- Original Raspberry Pi CarPlay work: [f-io/pi-carplay](https://github.com/f-io/pi-carplay)
+- Round-screen CarPlay prototype base: [OneMakerShow/round-carplay](https://github.com/OneMakerShow/round-carplay)
+- MotoCarPlay v1 prototype/story/demo: [byroncoughlin/round-carplay](https://github.com/byroncoughlin/round-carplay)
 
 ## License
 
