@@ -24,61 +24,6 @@ export const motoSettingsSchema: SettingsNode<Config> = {
   children: [
     {
       type: 'route',
-      route: 'motoDisplay',
-      label: 'Moto Display',
-      path: '',
-      children: [
-        {
-          type: 'checkbox',
-          label: 'Backdrop',
-          path: 'backdropEnabled'
-        },
-        {
-          type: 'select',
-          label: 'Backdrop Style',
-          path: 'backdropMode',
-          displayValue: true,
-          options: [
-            { label: 'Average Color', value: 'color' },
-            { label: 'Blur Glow', value: 'blur' }
-          ],
-          page: {
-            title: 'Backdrop Style',
-            description: 'Choose how the optional CarPlay backdrop is rendered.'
-          }
-        },
-        {
-          type: 'checkbox',
-          label: 'Ambient Fill',
-          path: 'ambientFillEnabled'
-        },
-        {
-          type: 'color',
-          label: 'Fill Color',
-          path: 'ambientFillColor',
-          displayValue: true
-        },
-        {
-          type: 'checkbox',
-          label: 'Round Corners',
-          path: 'roundedCornerMaskEnabled'
-        },
-        {
-          type: 'custom',
-          label: 'Tilt Calibration',
-          path: '',
-          component: TiltCalibrationControl
-        },
-        {
-          type: 'custom',
-          label: 'Graph History',
-          path: '',
-          component: ClearGraphHistoryControl
-        }
-      ]
-    },
-    {
-      type: 'route',
       route: 'system',
       label: 'System',
       labelKey: 'settings.system',
@@ -235,6 +180,61 @@ export const motoSettingsSchema: SettingsNode<Config> = {
               component: About
             }
           ]
+        }
+      ]
+    },
+    {
+      type: 'route',
+      route: 'motoDisplay',
+      label: 'Moto Display',
+      path: '',
+      children: [
+        {
+          type: 'checkbox',
+          label: 'Backdrop',
+          path: 'backdropEnabled'
+        },
+        {
+          type: 'select',
+          label: 'Backdrop Style',
+          path: 'backdropMode',
+          displayValue: true,
+          options: [
+            { label: 'Average Color', value: 'color' },
+            { label: 'Blur Glow', value: 'blur' }
+          ],
+          page: {
+            title: 'Backdrop Style',
+            description: 'Choose how the optional CarPlay backdrop is rendered.'
+          }
+        },
+        {
+          type: 'checkbox',
+          label: 'Ambient Fill',
+          path: 'ambientFillEnabled'
+        },
+        {
+          type: 'color',
+          label: 'Fill Color',
+          path: 'ambientFillColor',
+          displayValue: true
+        },
+        {
+          type: 'checkbox',
+          label: 'Round Corners',
+          path: 'roundedCornerMaskEnabled'
+        },
+        {
+          type: 'custom',
+          label: 'Tilt Calibration',
+          path: '',
+          component: TiltCalibrationControl
+        },
+        {
+          type: 'custom',
+          label: 'Graph History',
+          path: '',
+          component: ClearGraphHistoryControl
         }
       ]
     }
