@@ -3,6 +3,7 @@ import { useSmartSettings } from '../useSmartSettings'
 
 const saveSettings = jest.fn()
 const markRestartBaseline = jest.fn()
+const restartApp = jest.fn()
 let isDongleConnected = true
 
 jest.mock('@store/store', () => ({
@@ -19,8 +20,10 @@ describe('useSmartSettings', () => {
   beforeEach(() => {
     saveSettings.mockReset()
     markRestartBaseline.mockReset()
+    restartApp.mockReset().mockResolvedValue(undefined)
     isDongleConnected = true
     ;(window as any).projection = { usb: { forceReset: jest.fn().mockResolvedValue(true) } }
+    ;(window as any).app = { restartApp }
   })
 
   test('handleFieldChange updates state and persists settings', () => {
@@ -108,7 +111,7 @@ describe('useSmartSettings', () => {
     expect(result.current.state.volume).toBe(20)
   })
 
-  test('backdrop and background fill settings stay mutually exclusive and enable corner mask', () => {
+  test('backdrop changes require confirmation and restart the app', async () => {
     const initial = {
       backdropEnabled: false,
       ambientFillEnabled: true,
@@ -125,6 +128,14 @@ describe('useSmartSettings', () => {
       result.current.handleFieldChange('backdropEnabled', true)
     })
 
+    expect(result.current.state.backdropEnabled).toBe(false)
+    expect(result.current.pendingAppRestartChange?.nextBackdropEnabled).toBe(true)
+    expect(saveSettings).not.toHaveBeenCalled()
+
+    await act(async () => {
+      await result.current.confirmPendingAppRestartChange()
+    })
+
     expect(result.current.state.backdropEnabled).toBe(true)
     expect(result.current.state.ambientFillEnabled).toBe(false)
     expect(result.current.state.roundedCornerMaskEnabled).toBe(true)
@@ -133,9 +144,10 @@ describe('useSmartSettings', () => {
       ambientFillEnabled: false,
       roundedCornerMaskEnabled: true
     })
+    expect(restartApp).toHaveBeenCalledTimes(1)
   })
 
-  test('background fill disables backdrop and enables corner mask', () => {
+  test('background fill disables backdrop through the restart confirmation path', async () => {
     const initial = {
       backdropEnabled: true,
       ambientFillEnabled: false,
@@ -152,6 +164,14 @@ describe('useSmartSettings', () => {
       result.current.handleFieldChange('ambientFillEnabled', true)
     })
 
+    expect(result.current.state.backdropEnabled).toBe(true)
+    expect(result.current.pendingAppRestartChange?.nextBackdropEnabled).toBe(false)
+    expect(saveSettings).not.toHaveBeenCalled()
+
+    await act(async () => {
+      await result.current.confirmPendingAppRestartChange()
+    })
+
     expect(result.current.state.backdropEnabled).toBe(false)
     expect(result.current.state.ambientFillEnabled).toBe(true)
     expect(result.current.state.roundedCornerMaskEnabled).toBe(true)
@@ -160,6 +180,7 @@ describe('useSmartSettings', () => {
       ambientFillEnabled: true,
       roundedCornerMaskEnabled: true
     })
+    expect(restartApp).toHaveBeenCalledTimes(1)
   })
 
   test('corner mask can be turned back off after fill toggles enable it', () => {
@@ -188,7 +209,7 @@ describe('useSmartSettings', () => {
     })
   })
 
-  test('turning off backdrop or background fill also turns off corner mask', () => {
+  test('turning off backdrop or background fill also turns off corner mask', async () => {
     const backdropSettings = {
       backdropEnabled: true,
       ambientFillEnabled: false,
@@ -200,6 +221,14 @@ describe('useSmartSettings', () => {
       backdrop.result.current.handleFieldChange('backdropEnabled', false)
     })
 
+    expect(backdrop.result.current.state.backdropEnabled).toBe(true)
+    expect(backdrop.result.current.pendingAppRestartChange?.nextBackdropEnabled).toBe(false)
+    expect(saveSettings).not.toHaveBeenCalled()
+
+    await act(async () => {
+      await backdrop.result.current.confirmPendingAppRestartChange()
+    })
+
     expect(backdrop.result.current.state.backdropEnabled).toBe(false)
     expect(backdrop.result.current.state.roundedCornerMaskEnabled).toBe(false)
     expect(saveSettings).toHaveBeenLastCalledWith({
@@ -209,6 +238,7 @@ describe('useSmartSettings', () => {
     })
 
     saveSettings.mockClear()
+    restartApp.mockClear()
 
     const fillSettings = {
       backdropEnabled: false,
@@ -228,6 +258,31 @@ describe('useSmartSettings', () => {
       ambientFillEnabled: false,
       roundedCornerMaskEnabled: false
     })
+    expect(restartApp).not.toHaveBeenCalled()
+  })
+
+  test('cancels a pending backdrop restart change without saving', () => {
+    const initial = {
+      backdropEnabled: false,
+      ambientFillEnabled: false,
+      roundedCornerMaskEnabled: false
+    } as any
+    const settings = { ...initial }
+    const { result } = renderHook(() => useSmartSettings(initial, settings))
+
+    act(() => {
+      result.current.handleFieldChange('backdropEnabled', true)
+    })
+    expect(result.current.pendingAppRestartChange).not.toBeNull()
+
+    act(() => {
+      result.current.cancelPendingAppRestartChange()
+    })
+
+    expect(result.current.pendingAppRestartChange).toBeNull()
+    expect(result.current.state.backdropEnabled).toBe(false)
+    expect(saveSettings).not.toHaveBeenCalled()
+    expect(restartApp).not.toHaveBeenCalled()
   })
 
   test('handleFieldChange with validate override blocks invalid values', () => {

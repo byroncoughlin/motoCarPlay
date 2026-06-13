@@ -5,6 +5,8 @@ const navigateMock = jest.fn()
 let mockNode: any = null
 const handleFieldChange = jest.fn()
 const restartMock = jest.fn()
+const confirmPendingAppRestartChange = jest.fn()
+const cancelPendingAppRestartChange = jest.fn()
 const applyBtList = jest.fn()
 
 const statusState = { isDongleConnected: true, isAaActive: false }
@@ -18,7 +20,10 @@ const smartState = {
   handleFieldChange,
   needsRestart: false as boolean,
   restart: restartMock,
-  requestRestart: jest.fn()
+  requestRestart: jest.fn(),
+  pendingAppRestartChange: null as null | { nextBackdropEnabled: boolean },
+  confirmPendingAppRestartChange,
+  cancelPendingAppRestartChange
 }
 
 jest.mock('react-router', () => ({
@@ -99,6 +104,9 @@ describe('SettingsPage', () => {
     liviState.settings = { some: 'settings', wirelessAaEnabled: false }
     liviState.bluetoothPairedDirty = false
     smartState.needsRestart = false
+    smartState.pendingAppRestartChange = null
+    confirmPendingAppRestartChange.mockReset()
+    cancelPendingAppRestartChange.mockReset()
   })
 
   test('returns null when node is not found', () => {
@@ -231,5 +239,22 @@ describe('SettingsPage', () => {
     render(<SettingsPage />)
     fireEvent.click(screen.getByTestId('restart'))
     expect(restartMock).toHaveBeenCalled()
+  })
+
+  test('shows a confirmation dialog for pending backdrop app restarts', () => {
+    mockNode = { type: 'route', label: 'Display', children: [] }
+    smartState.pendingAppRestartChange = { nextBackdropEnabled: true }
+
+    render(<SettingsPage />)
+
+    expect(screen.getByRole('dialog', { name: 'Restart LIVI for backdrop change' })).toBeInTheDocument()
+    expect(screen.getByText('Restart LIVI?')).toBeInTheDocument()
+    expect(screen.getByText(/sample live CarPlay colors/)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('Cancel'))
+    expect(cancelPendingAppRestartChange).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(screen.getByText('Save & Restart'))
+    expect(confirmPendingAppRestartChange).toHaveBeenCalledTimes(1)
   })
 })

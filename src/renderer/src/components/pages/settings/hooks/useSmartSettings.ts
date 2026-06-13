@@ -10,6 +10,13 @@ type OverrideConfig = {
 
 type Overrides = Record<string, OverrideConfig>
 
+type PendingAppRestartChange<T> = {
+  path: string
+  nextBackdropEnabled: boolean
+  nextState: T
+  nextSettings: T
+}
+
 function isRestartRelevantPath(path?: string) {
   if (!path) return true
   return !(path === 'bindings' || path.startsWith('bindings.'))
@@ -41,6 +48,8 @@ export function useSmartSettings<T extends Record<string, unknown>>(
   const overrides = options?.overrides ?? {}
   const [state, setState] = useState<T>(() => ({ ...initial }))
   const [restartRequested, setRestartRequested] = useState(false)
+  const [pendingAppRestartChange, setPendingAppRestartChange] =
+    useState<PendingAppRestartChange<T> | null>(null)
 
   const saveSettings = useLiviStore((s) => s.saveSettings)
   const restartBaseline = useLiviStore((s) => s.restartBaseline)
@@ -81,28 +90,76 @@ export function useSmartSettings<T extends Record<string, unknown>>(
     setRestartRequested(true)
   }, [])
 
-  const handleFieldChange = (path: string, rawValue: unknown) => {
-    const prevValue = state[path]
-    const override = overrides[path]
+  const buildSettingsChange = useCallback(
+    (baseState: T, path: string, rawValue: unknown) => {
+      const prevValue = baseState[path]
+      const override = overrides[path]
 
-    const nextValue = override?.transform?.(rawValue, prevValue) ?? rawValue
-    if (override?.validate && !override.validate(nextValue)) return
+      const nextValue = override?.transform?.(rawValue, prevValue) ?? rawValue
+      if (override?.validate && !override.validate(nextValue)) return null
 
-    setState((prev) => {
-      const next = { ...prev, [path]: nextValue }
-      applyMotoLinkedSettings(next, path, nextValue)
+      const nextState = { ...baseState, [path]: nextValue }
+      applyMotoLinkedSettings(nextState, path, nextValue)
 
-      const newSettings = structuredClone((settings ?? {}) as T)
-      Object.entries(next).forEach(([p, v]) => {
-        setValueByPath(newSettings, p, v)
+      const nextSettings = structuredClone((settings ?? {}) as T)
+      Object.entries(nextState).forEach(([p, v]) => {
+        setValueByPath(nextSettings, p, v)
       })
 
-      saveSettings(newSettings)
-      return next
-    })
+      return { nextState, nextSettings }
+    },
+    [overrides, settings]
+  )
+
+  const backdropEnabled = Boolean((settings as Record<string, unknown> | undefined)?.backdropEnabled)
+
+  const handleFieldChange = (path: string, rawValue: unknown) => {
+    const change = buildSettingsChange(state, path, rawValue)
+    if (!change) return
+
+    const nextBackdropEnabled = Boolean(
+      (change.nextSettings as Record<string, unknown>).backdropEnabled
+    )
+    if (nextBackdropEnabled !== backdropEnabled) {
+      setPendingAppRestartChange({
+        path,
+        nextBackdropEnabled,
+        nextState: change.nextState,
+        nextSettings: change.nextSettings
+      })
+      return
+    }
+
+    setState(change.nextState)
+    void saveSettings(change.nextSettings)
   }
 
-  const resetState = () => setState(initial)
+  const cancelPendingAppRestartChange = useCallback(() => {
+    setPendingAppRestartChange(null)
+  }, [])
+
+  const confirmPendingAppRestartChange = useCallback(async () => {
+    const pending = pendingAppRestartChange
+    if (!pending) return false
+
+    setPendingAppRestartChange(null)
+    setState(pending.nextState)
+    await saveSettings(pending.nextSettings)
+
+    try {
+      await window.app?.restartApp?.()
+    } catch (e) {
+      console.warn('[settings] app restart after backdrop change failed:', e)
+      return false
+    }
+
+    return true
+  }, [pendingAppRestartChange, saveSettings])
+
+  const resetState = () => {
+    setPendingAppRestartChange(null)
+    setState(initial)
+  }
 
   const restart = async () => {
     if (!needsRestart) return false
@@ -128,6 +185,9 @@ export function useSmartSettings<T extends Record<string, unknown>>(
     handleFieldChange,
     resetState,
     restart,
-    requestRestart
+    requestRestart,
+    pendingAppRestartChange,
+    cancelPendingAppRestartChange,
+    confirmPendingAppRestartChange
   }
 }

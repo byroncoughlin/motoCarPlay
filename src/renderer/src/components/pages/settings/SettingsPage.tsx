@@ -1,4 +1,4 @@
-import { Box, Typography } from '@mui/material'
+import { Box, Button, Typography } from '@mui/material'
 import type { SettingsNode } from '@renderer/routes/types'
 import type { Config } from '@shared/types'
 import { useLiviStore, useStatusStore } from '@store/store'
@@ -13,6 +13,76 @@ import { SettingsFieldRow } from './components/SettingsFieldRow'
 import { useSmartSettingsFromSchema } from './hooks/useSmartSettingsFromSchema'
 import { getNodeByPath, getValueByPath } from './utils'
 
+function BackdropRestartDialog({
+  enabling,
+  onCancel,
+  onConfirm
+}: {
+  enabling: boolean
+  onCancel: () => void
+  onConfirm: () => void
+}) {
+  return (
+    <Box
+      role="dialog"
+      aria-modal="true"
+      aria-label="Restart LIVI for backdrop change"
+      sx={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 5000,
+        display: 'grid',
+        placeItems: 'center',
+        p: '24px',
+        background: 'rgba(0,0,0,0.9)'
+      }}
+    >
+      <Box
+        sx={{
+          width: 'min(390px, 100%)',
+          borderRadius: '8px',
+          border: '1px solid rgba(255,255,255,0.14)',
+          background: '#101316',
+          p: '24px',
+          textAlign: 'center',
+          boxShadow: '0 18px 50px rgba(0,0,0,0.55)'
+        }}
+      >
+        <Typography sx={{ fontSize: 28, fontWeight: 900, lineHeight: 1.05 }}>
+          Restart LIVI?
+        </Typography>
+        <Typography sx={{ mt: 1, color: 'rgba(255,255,255,0.68)', fontSize: 15, lineHeight: 1.25 }}>
+          {enabling
+            ? 'Backdrop needs a clean restart before it can sample live CarPlay colors.'
+            : 'Turning Backdrop off needs a clean restart to remove the live sampling path.'}
+        </Typography>
+        <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', mt: '24px' }}>
+          <Button
+            variant="outlined"
+            onClick={onCancel}
+            sx={{ minHeight: 54, borderRadius: '8px', fontWeight: 900 }}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="outlined"
+            onClick={onConfirm}
+            sx={{
+              minHeight: 54,
+              borderRadius: '8px',
+              fontWeight: 900,
+              color: '#ffca28',
+              borderColor: 'rgba(255,202,40,0.5)'
+            }}
+          >
+            Save & Restart
+          </Button>
+        </Box>
+      </Box>
+    </Box>
+  )
+}
+
 export function SettingsPage() {
   const navigate = useNavigate()
   const { '*': splat } = useParams()
@@ -25,8 +95,16 @@ export function SettingsPage() {
 
   const settings = useLiviStore((s) => s.settings) as Config
 
-  const { state, handleFieldChange, needsRestart, restart, requestRestart } =
-    useSmartSettingsFromSchema(settingsSchema, settings)
+  const {
+    state,
+    handleFieldChange,
+    needsRestart,
+    restart,
+    requestRestart,
+    pendingAppRestartChange,
+    cancelPendingAppRestartChange,
+    confirmPendingAppRestartChange
+  } = useSmartSettingsFromSchema(settingsSchema, settings)
 
   const btDirty = useLiviStore((s) => s.bluetoothPairedDirty)
   const applyBtList = useLiviStore((s) => s.applyBluetoothPairedList)
@@ -51,6 +129,15 @@ export function SettingsPage() {
 
   const title = node.labelKey ? t(node.labelKey) : node.label
   const showRestart = restartAvailable && (Boolean(needsRestart) || Boolean(btDirty))
+  const restartDialog = pendingAppRestartChange ? (
+    <BackdropRestartDialog
+      enabling={pendingAppRestartChange.nextBackdropEnabled}
+      onCancel={cancelPendingAppRestartChange}
+      onConfirm={() => {
+        void confirmPendingAppRestartChange()
+      }}
+    />
+  ) : null
 
   if ('path' in node && node.page) {
     const labelPath = node.type === 'select' ? node.labelPath : undefined
@@ -78,6 +165,7 @@ export function SettingsPage() {
             savedLabel={savedLabel}
             onLabelChange={onLabelChange}
           />
+          {restartDialog}
         </Box>
       </SettingsLayout>
     )
@@ -143,6 +231,7 @@ export function SettingsPage() {
           />
         )
       })}
+      {restartDialog}
     </SettingsLayout>
   )
 }
