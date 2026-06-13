@@ -57,6 +57,8 @@ struct Player {
   guint32 host_id = 0;
   guint8 last_sample_rgb[3] = {0, 0, 0};
   bool has_sample_rgb = false;
+  gint64 last_sample_us = 0;
+  gint64 sample_interval_us = G_USEC_PER_SEC;
 #endif
 };
 
@@ -445,7 +447,19 @@ static std::string normal_pipeline_desc(const std::string& codec, const char* de
 
 static std::string sampled_backdrop_pipeline_desc(const std::string& codec, const char* decoder,
     const std::string& presink, const PlayerOptions& opt) {
-  int sample_rate = clamp_i(opt.sample_rate, 1, 4);
+  int tw = opt.tier_w > 0 ? opt.tier_w : opt.display_w;
+  int th = opt.tier_h > 0 ? opt.tier_h : opt.display_h;
+  int vw = opt.vis_w > 0 ? opt.vis_w : tw;
+  int vh = opt.vis_h > 0 ? opt.vis_h : th;
+  std::string sample_crop;
+  if (tw > 0 && th > 0 && vw > 0 && vh > 0) {
+    int cl = clamp_i(opt.crop_l, 0, std::max(0, tw - 1));
+    int ct = clamp_i(opt.crop_t, 0, std::max(0, th - 1));
+    int cr = std::max(0, tw - cl - vw);
+    int cb = std::max(0, th - ct - vh);
+    sample_crop = crop_chain(cl, ct, cr, cb);
+  }
+
   return "appsrc name=src is-live=true do-timestamp=true format=time"
     " min-latency=0 max-latency=0 caps=" +
     caps_for(codec) + " ! " + parser_for(codec) +
@@ -456,9 +470,11 @@ static std::string sampled_backdrop_pipeline_desc(const std::string& codec, cons
     " t. ! queue max-size-buffers=2 max-size-bytes=0 max-size-time=0 leaky=downstream"
     " ! " + presink + sink_chain() +
     " t. ! queue max-size-buffers=1 max-size-bytes=0 max-size-time=0 leaky=downstream"
-    " ! videorate drop-only=true max-rate=" + std::to_string(sample_rate) +
-    " ! videoscale method=1 ! video/x-raw,width=1,height=1"
-    " ! videoconvert ! video/x-raw,format=RGB"
+    " ! identity name=sample_gate silent=true"
+    " ! " + sample_crop +
+    "videoconvert ! video/x-raw,format=RGB"
+    // method=4 is bilinear multi-tap; direct 1x1 bilinear behaves like a center sample.
+    " ! videoscale method=4 ! video/x-raw,format=RGB,width=1,height=1"
     " ! appsink name=sample_sink emit-signals=true sync=false max-buffers=1 drop=true";
 }
 
@@ -478,6 +494,21 @@ static bool sample_delta_visible(const guint8* a, const guint8* b) {
   return std::abs((int)a[0] - (int)b[0]) +
       std::abs((int)a[1] - (int)b[1]) +
       std::abs((int)a[2] - (int)b[2]) >= 10;
+}
+
+static GstPadProbeReturn sampled_backdrop_gate_probe(GstPad*, GstPadProbeInfo* info,
+    gpointer data) {
+  Player* p = static_cast<Player*>(data);
+  if (!p || !(GST_PAD_PROBE_INFO_TYPE(info) & GST_PAD_PROBE_TYPE_BUFFER)) {
+    return GST_PAD_PROBE_OK;
+  }
+
+  const gint64 now = g_get_monotonic_time();
+  if (p->last_sample_us != 0 && now - p->last_sample_us < p->sample_interval_us) {
+    return GST_PAD_PROBE_DROP;
+  }
+  p->last_sample_us = now;
+  return GST_PAD_PROBE_OK;
 }
 
 static GstFlowReturn sampled_backdrop_new_sample(GstElement* sink, gpointer data) {
@@ -647,6 +678,16 @@ static Player* livi_create_player(const std::string& codec, guintptr handle,
 #ifdef __linux__
   p->host_fd = host_fd;
   p->host_id = host_id;
+  p->sample_interval_us = G_USEC_PER_SEC / clamp_i(options.sample_rate, 1, 4);
+  GstElement* sample_gate = gst_bin_get_by_name(GST_BIN(pipeline), "sample_gate");
+  if (sample_gate && sampled) {
+    GstPad* sp = gst_element_get_static_pad(sample_gate, "sink");
+    if (sp) {
+      gst_pad_add_probe(sp, GST_PAD_PROBE_TYPE_BUFFER, sampled_backdrop_gate_probe, p, NULL);
+      gst_object_unref(sp);
+    }
+  }
+  if (sample_gate) gst_object_unref(sample_gate);
   if (p->sample_sink && sampled) {
     g_signal_connect(p->sample_sink, "new-sample", G_CALLBACK(sampled_backdrop_new_sample), p);
   }
