@@ -193,8 +193,8 @@ describe('App', () => {
     const frame = document.getElementById('round-host-frame')
     expect(frame).toBeInTheDocument()
     expect(frame).toHaveStyle({
-      width: 'min(500px, calc(100% - 16px))',
-      height: 'min(520px, calc(100% - 16px))',
+      width: 'min(565px, 100%)',
+      height: 'min(565px, 100%)',
       overflow: 'hidden'
     })
     expect(screen.getByTestId('routes').parentElement).toBe(frame)

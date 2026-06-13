@@ -431,8 +431,10 @@ export const SettingsLayout = ({
                 display: 'grid',
                 gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
                 gap: '8px',
-                alignContent: 'start',
-                minHeight: 'auto'
+                alignContent: 'stretch',
+                gridAutoRows: 'minmax(0, 1fr)',
+                height: '100%',
+                minHeight: '100%'
               }
             : {
                 display: 'flex',
@@ -441,7 +443,7 @@ export const SettingsLayout = ({
               },
           '& .settings-content-stack > .MuiPaper-root': isSettingsRoot
             ? {
-                minHeight: '86px',
+                minHeight: '220px',
                 borderRadius: '8px',
                 border: '1px solid rgba(255,255,255,0.12)',
                 borderBottom: '1px solid rgba(255,255,255,0.12)',
@@ -450,21 +452,22 @@ export const SettingsLayout = ({
                 gridTemplateColumns: '1fr',
                 justifyItems: 'center',
                 alignItems: 'center',
-                p: '10px',
-                gap: '8px',
+                p: '18px',
+                gap: '12px',
                 '& > p': {
                   width: '100%',
                   p: 0,
                   justifyContent: 'center',
                   textAlign: 'center',
                   color: '#f8fafc',
-                  fontSize: '15px',
+                  fontSize: '24px',
                   fontWeight: 900,
-                  lineHeight: 1.08
+                  lineHeight: 1.05
                 },
                 '& > svg': {
                   position: 'static',
-                  color: 'rgba(255,255,255,0.58)'
+                  color: 'rgba(255,255,255,0.58)',
+                  fontSize: '30px'
                 }
               }
             : undefined

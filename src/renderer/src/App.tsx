@@ -5,6 +5,7 @@ import { useCallback, useContext, useEffect, useLayoutEffect, useRef, useState }
 import { HashRouter as Router, useLocation, useNavigate, useRoutes } from 'react-router'
 import { AppLayout } from './components/layouts/AppLayout'
 import { Cluster, Projection } from './components/pages'
+import { MOTO_CENTER_SQUARE_SIZE } from './components/pages/projection/motoLayout'
 import { SystemMonitor } from './components/pages/projection/SystemMonitor'
 import { ROUTES } from './constants'
 import { AppContext } from './context'
@@ -283,8 +284,8 @@ function AppInner() {
               id="round-host-frame"
               sx={{
                 position: 'relative',
-                width: 'min(500px, calc(100% - 16px))',
-                height: 'min(520px, calc(100% - 16px))',
+                width: `min(${MOTO_CENTER_SQUARE_SIZE}px, 100%)`,
+                height: `min(${MOTO_CENTER_SQUARE_SIZE}px, 100%)`,
                 overflow: 'hidden'
               }}
             >

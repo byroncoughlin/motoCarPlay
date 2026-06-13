@@ -65,26 +65,24 @@ describe('settings schemas', () => {
       throw new Error('settingsSchema must be a route node')
     }
     expect((settingsSchema.children as any[]).map((child) => child.route)).toEqual([
-      'connection',
-      'audio',
-      'bindings',
       'motoDisplay',
-      'projection',
       'system'
     ])
     expect(settingsRoutes?.path).toBe('new-settings')
     expect(Array.isArray(settingsRoutes?.children)).toBe(true)
   })
 
-  test('moto connection settings expose Wi-Fi frequency like the round dashboard', () => {
+  test('moto system settings flatten connection controls into the system list', () => {
     if (settingsSchema.type !== 'route') {
       throw new Error('settingsSchema must be a route node')
     }
 
-    const connection = (settingsSchema.children as any[]).find(
-      (child) => child.route === 'connection'
+    const system = (settingsSchema.children as any[]).find((child) => child.route === 'system')
+    const wifi = system.children.find((child: any) => child.path === 'wifiType')
+    const autoConnect = system.children.find((child: any) => child.path === 'autoConn')
+    const preferredConnection = system.children.find(
+      (child: any) => child.path === 'connectionPreference'
     )
-    const wifi = connection.children.find((child: any) => child.path === 'wifiType')
 
     expect(wifi).toMatchObject({
       type: 'select',
@@ -92,58 +90,14 @@ describe('settings schemas', () => {
       displayValue: true
     })
     expect(wifi.options.map((option: any) => option.value)).toEqual(['2.4ghz', '5ghz'])
-  })
-
-  test('moto settings expose the compact audio sliders from the round dashboard', () => {
-    if (settingsSchema.type !== 'route') {
-      throw new Error('settingsSchema must be a route node')
-    }
-
-    const audio = (settingsSchema.children as any[]).find((child) => child.route === 'audio')
-    const sliders = audio.children.filter((child: any) => child.type === 'slider')
-
-    expect(sliders.map((child: any) => child.path)).toEqual(['audioVolume', 'navVolume'])
-    expect(sliders.map((child: any) => child.label)).toEqual(['Music', 'Navigation'])
-    expect(sliders[0].valueTransform.toView(0.42)).toBe(42)
-    expect(sliders[0].valueTransform.fromView(65, 1)).toBe(0.65)
-  })
-
-  test('moto settings expose the compact round dashboard key bindings', () => {
-    if (settingsSchema.type !== 'route') {
-      throw new Error('settingsSchema must be a route node')
-    }
-
-    const bindings = (settingsSchema.children as any[]).find(
-      (child) => child.route === 'bindings'
-    )
-
-    expect(bindings.children.map((child: any) => child.bindingKey)).toEqual([
-      'up',
-      'down',
-      'left',
-      'right',
-      'selectUp',
-      'selectDown',
-      'back',
-      'home',
-      'playPause',
-      'pause',
-      'next',
-      'prev'
-    ])
-    expect(bindings.children.map((child: any) => child.defaultValue)).toEqual([
-      'ArrowUp',
-      'ArrowDown',
-      'ArrowLeft',
-      'ArrowRight',
-      'KeyB',
-      'Space',
-      'Backspace',
-      'KeyH',
-      'KeyP',
-      'KeyO',
-      'KeyN',
-      'KeyB'
+    expect(autoConnect).toMatchObject({
+      type: 'checkbox',
+      label: 'Auto Connect'
+    })
+    expect(preferredConnection.options.map((option: any) => option.value)).toEqual([
+      'dongle',
+      'auto',
+      'native'
     ])
   })
 
@@ -178,37 +132,73 @@ describe('settings schemas', () => {
     })
   })
 
-  test('moto projection settings keep the compact round dashboard controls', () => {
+  test('moto system settings flatten projection controls and keep detail pages', () => {
     if (settingsSchema.type !== 'route') {
       throw new Error('settingsSchema must be a route node')
     }
 
-    const projection = (settingsSchema.children as any[]).find(
-      (child) => child.route === 'projection'
+    const system = (settingsSchema.children as any[]).find((child) => child.route === 'system')
+    const projectionControls = system.children.filter((child: any) =>
+      ['projectionFps', 'projectionDpi', 'viewArea'].includes(child.path || child.route)
     )
 
-    expect(projection.children.map((child: any) => child.label)).toEqual([
-      'FPS',
-      'DPI',
-      'View Area'
-    ])
-    expect(projection.children.map((child: any) => child.path)).toEqual([
+    expect(projectionControls.map((child: any) => child.label)).toEqual(['FPS', 'DPI', 'View Area'])
+    expect(projectionControls.map((child: any) => child.path)).toEqual([
       'projectionFps',
       'projectionDpi',
       ''
     ])
-    expect(projection.children.map((child: any) => child.route)).toEqual([
+    expect(projectionControls.map((child: any) => child.route)).toEqual([
       undefined,
       undefined,
       'viewArea'
     ])
   })
 
+  test('moto system settings keep only active system pages', () => {
+    if (settingsSchema.type !== 'route') {
+      throw new Error('settingsSchema must be a route node')
+    }
+
+    const system = (settingsSchema.children as any[]).find((child) => child.route === 'system')
+
+    expect(system.children.map((child: any) => child.label)).toEqual([
+      'Wi-Fi Frequency',
+      'Auto Connect',
+      'Preferred Connection',
+      'FPS',
+      'DPI',
+      'View Area',
+      'USB Dongle Info',
+      'About'
+    ])
+    expect(system.children.map((child: any) => child.route).filter(Boolean)).toEqual([
+      'viewArea',
+      'usbDongle',
+      'about'
+    ])
+    expect(system.children.map((child: any) => child.route)).not.toEqual(
+      expect.arrayContaining(['restart', 'poweroff'])
+    )
+    expect(
+      system.children.find((child: any) => child.route === 'usbDongle').children[0].label
+    ).toBe('USB Dongle Info')
+  })
+
   test('active moto settings omit unused generic controls from the round dashboard', () => {
     const paths = collectPaths(settingsSchema)
+    const rootRoutes =
+      settingsSchema.type === 'route' ? settingsSchema.children.map((c) => c.route) : []
 
+    expect(rootRoutes).not.toEqual(
+      expect.arrayContaining(['connection', 'audio', 'bindings', 'projection'])
+    )
     expect(paths).not.toEqual(
       expect.arrayContaining([
+        'audioVolume',
+        'navVolume',
+        'bindings.up',
+        'bindings.down',
         'camera.main',
         'camera.dash',
         'camera.aux',

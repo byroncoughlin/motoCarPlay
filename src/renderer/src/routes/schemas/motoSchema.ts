@@ -12,20 +12,8 @@ import {
   SAFE_AREA_MIN
 } from '../../components/pages/settings/constants'
 import { About } from '../../components/pages/settings/pages/system/About'
-import { PowerOff } from '../../components/pages/settings/pages/system/PowerOff'
-import { Restart } from '../../components/pages/settings/pages/system/Restart'
 import { USBDongle } from '../../components/pages/settings/pages/system/usbDongle/USBDongle'
-import { SettingsNode, ValueTransform } from '../types'
-
-const audioValueTransform: ValueTransform<number | undefined, number> = {
-  toView: (v) => Math.round((v ?? 1) * 100),
-  fromView: (v, prev) => {
-    const next = v / 100
-    if (!Number.isFinite(next)) return prev ?? 1
-    return next
-  },
-  format: (v) => `${v} %`
-}
+import { SettingsNode } from '../types'
 
 export const motoSettingsSchema: SettingsNode<Config> = {
   type: 'route',
@@ -34,186 +22,6 @@ export const motoSettingsSchema: SettingsNode<Config> = {
   labelKey: 'settings.settingsTitle',
   path: 'settings',
   children: [
-    {
-      type: 'route',
-      route: 'connection',
-      label: 'Connection',
-      path: '',
-      children: [
-        {
-          type: 'select',
-          label: 'Wi-Fi Frequency',
-          labelKey: 'settings.wifiFrequency',
-          path: 'wifiType',
-          displayValue: true,
-          options: [
-            { label: '2.4 GHz', value: '2.4ghz' },
-            { label: '5 GHz', value: '5ghz' }
-          ],
-          page: {
-            title: 'Wi-Fi Frequency',
-            labelTitle: 'settings.wifiFrequency',
-            description: 'Wi-Fi frequency selection.',
-            labelDescription: 'settings.wifiFrequencyDescription'
-          }
-        },
-        {
-          type: 'checkbox',
-          label: 'Auto Connect',
-          labelKey: 'settings.autoConnect',
-          path: 'autoConn'
-        },
-        {
-          type: 'select',
-          label: 'Preferred Connection',
-          labelKey: 'settings.preferredConnection',
-          path: 'connectionPreference',
-          displayValue: true,
-          options: [
-            { label: 'Dongle', labelKey: 'settings.preferredConnectionDongle', value: 'dongle' },
-            { label: 'Auto', labelKey: 'settings.preferredConnectionAuto', value: 'auto' },
-            { label: 'Native', labelKey: 'settings.preferredConnectionNative', value: 'native' }
-          ],
-          page: {
-            title: 'Preferred Connection',
-            labelTitle: 'settings.preferredConnection',
-            description: 'Which transport to bring up when more than one transport is available.',
-            labelDescription: 'settings.preferredConnectionDescription'
-          }
-        }
-      ]
-    },
-    {
-      type: 'route',
-      route: 'audio',
-      label: 'Audio',
-      labelKey: 'settings.audio',
-      path: '',
-      children: [
-        {
-          type: 'slider',
-          label: 'Music',
-          labelKey: 'settings.music',
-          path: 'audioVolume',
-          displayValue: true,
-          displayValueUnit: '%',
-          valueTransform: audioValueTransform,
-          page: {
-            title: 'Music',
-            labelTitle: 'settings.music',
-            description: 'Music volume.',
-            labelDescription: 'settings.musicDescription'
-          }
-        },
-        {
-          type: 'slider',
-          label: 'Navigation',
-          labelKey: 'settings.navigation',
-          path: 'navVolume',
-          displayValue: true,
-          displayValueUnit: '%',
-          valueTransform: audioValueTransform,
-          page: {
-            title: 'Navigation',
-            labelTitle: 'settings.navigation',
-            description: 'Navigation volume.',
-            labelDescription: 'settings.navigationDescription'
-          }
-        }
-      ]
-    },
-    {
-      type: 'route',
-      route: 'bindings',
-      label: 'Bindings',
-      path: '',
-      children: [
-        {
-          type: 'keybinding',
-          label: 'Up',
-          path: 'bindings.up',
-          bindingKey: 'up',
-          defaultValue: 'ArrowUp'
-        },
-        {
-          type: 'keybinding',
-          label: 'Down',
-          path: 'bindings.down',
-          bindingKey: 'down',
-          defaultValue: 'ArrowDown'
-        },
-        {
-          type: 'keybinding',
-          label: 'Left',
-          path: 'bindings.left',
-          bindingKey: 'left',
-          defaultValue: 'ArrowLeft'
-        },
-        {
-          type: 'keybinding',
-          label: 'Right',
-          path: 'bindings.right',
-          bindingKey: 'right',
-          defaultValue: 'ArrowRight'
-        },
-        {
-          type: 'keybinding',
-          label: 'Select Up',
-          path: 'bindings.selectUp',
-          bindingKey: 'selectUp',
-          defaultValue: 'KeyB'
-        },
-        {
-          type: 'keybinding',
-          label: 'Select Down',
-          path: 'bindings.selectDown',
-          bindingKey: 'selectDown',
-          defaultValue: 'Space'
-        },
-        {
-          type: 'keybinding',
-          label: 'Back',
-          path: 'bindings.back',
-          bindingKey: 'back',
-          defaultValue: 'Backspace'
-        },
-        {
-          type: 'keybinding',
-          label: 'Home',
-          path: 'bindings.home',
-          bindingKey: 'home',
-          defaultValue: 'KeyH'
-        },
-        {
-          type: 'keybinding',
-          label: 'Play/Pause',
-          path: 'bindings.playPause',
-          bindingKey: 'playPause',
-          defaultValue: 'KeyP'
-        },
-        {
-          type: 'keybinding',
-          label: 'Pause',
-          path: 'bindings.pause',
-          bindingKey: 'pause',
-          defaultValue: 'KeyO'
-        },
-        {
-          type: 'keybinding',
-          label: 'Next',
-          path: 'bindings.next',
-          bindingKey: 'next',
-          defaultValue: 'KeyN'
-        },
-        {
-          type: 'keybinding',
-          label: 'Prev',
-          path: 'bindings.prev',
-          bindingKey: 'prev',
-          defaultValue: 'KeyB'
-        }
-      ]
-    },
     {
       type: 'route',
       route: 'motoDisplay',
@@ -257,10 +65,52 @@ export const motoSettingsSchema: SettingsNode<Config> = {
     },
     {
       type: 'route',
-      route: 'projection',
-      label: 'Projection',
+      route: 'system',
+      label: 'System',
+      labelKey: 'settings.system',
       path: '',
       children: [
+        {
+          type: 'select',
+          label: 'Wi-Fi Frequency',
+          labelKey: 'settings.wifiFrequency',
+          path: 'wifiType',
+          displayValue: true,
+          options: [
+            { label: '2.4 GHz', value: '2.4ghz' },
+            { label: '5 GHz', value: '5ghz' }
+          ],
+          page: {
+            title: 'Wi-Fi Frequency',
+            labelTitle: 'settings.wifiFrequency',
+            description: 'Wi-Fi frequency selection.',
+            labelDescription: 'settings.wifiFrequencyDescription'
+          }
+        },
+        {
+          type: 'checkbox',
+          label: 'Auto Connect',
+          labelKey: 'settings.autoConnect',
+          path: 'autoConn'
+        },
+        {
+          type: 'select',
+          label: 'Preferred Connection',
+          labelKey: 'settings.preferredConnection',
+          path: 'connectionPreference',
+          displayValue: true,
+          options: [
+            { label: 'Dongle', labelKey: 'settings.preferredConnectionDongle', value: 'dongle' },
+            { label: 'Auto', labelKey: 'settings.preferredConnectionAuto', value: 'auto' },
+            { label: 'Native', labelKey: 'settings.preferredConnectionNative', value: 'native' }
+          ],
+          page: {
+            title: 'Preferred Connection',
+            labelTitle: 'settings.preferredConnection',
+            description: 'Which transport to bring up when more than one transport is available.',
+            labelDescription: 'settings.preferredConnectionDescription'
+          }
+        },
         {
           type: 'number',
           label: 'FPS',
@@ -341,61 +191,18 @@ export const motoSettingsSchema: SettingsNode<Config> = {
               displayValue: true
             }
           ]
-        }
-      ]
-    },
-    {
-      type: 'route',
-      route: 'system',
-      label: 'System',
-      labelKey: 'settings.system',
-      path: '',
-      children: [
+        },
         {
           type: 'route',
-          label: 'USB Dongle',
-          labelKey: 'settings.usbDongle',
+          label: 'USB Dongle Info',
           route: 'usbDongle',
           path: '',
           children: [
             {
               type: 'custom',
-              label: 'USB Dongle',
-              labelKey: 'settings.usbDongle',
+              label: 'USB Dongle Info',
               path: 'carName',
               component: USBDongle
-            }
-          ]
-        },
-        {
-          type: 'route',
-          label: 'Restart System',
-          labelKey: 'settings.restartSystem',
-          route: 'restart',
-          path: '',
-          children: [
-            {
-              type: 'custom',
-              label: 'Restart System',
-              labelKey: 'settings.restartSystem',
-              path: 'carName',
-              component: Restart
-            }
-          ]
-        },
-        {
-          type: 'route',
-          label: 'Power Off',
-          labelKey: 'settings.powerOff',
-          route: 'poweroff',
-          path: '',
-          children: [
-            {
-              type: 'custom',
-              label: 'Power Off',
-              labelKey: 'settings.powerOff',
-              path: 'carName',
-              component: PowerOff
             }
           ]
         },
