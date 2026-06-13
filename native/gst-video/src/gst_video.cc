@@ -445,6 +445,8 @@ static std::string normal_pipeline_desc(const std::string& codec, const char* de
     " ! " + presink + sink_chain();
 }
 
+static constexpr int kSampledBackdropGrid = 32;
+
 static std::string sampled_backdrop_pipeline_desc(const std::string& codec, const char* decoder,
     const std::string& presink, const PlayerOptions& opt) {
   int tw = opt.tier_w > 0 ? opt.tier_w : opt.display_w;
@@ -459,6 +461,9 @@ static std::string sampled_backdrop_pipeline_desc(const std::string& codec, cons
     int cb = std::max(0, th - ct - vh);
     sample_crop = crop_chain(cl, ct, cr, cb);
   }
+  std::string sample_caps = "video/x-raw,format=RGB,width=" +
+      std::to_string(kSampledBackdropGrid) + ",height=" +
+      std::to_string(kSampledBackdropGrid);
 
   return "appsrc name=src is-live=true do-timestamp=true format=time"
     " min-latency=0 max-latency=0 caps=" +
@@ -473,8 +478,8 @@ static std::string sampled_backdrop_pipeline_desc(const std::string& codec, cons
     " ! identity name=sample_gate silent=true"
     " ! " + sample_crop +
     "videoconvert ! video/x-raw,format=RGB"
-    // method=4 is bilinear multi-tap; direct 1x1 bilinear behaves like a center sample.
-    " ! videoscale method=4 ! video/x-raw,format=RGB,width=1,height=1"
+    // Average a small downscaled tile in C++; direct 1x1 scaling is center-biased on Pi.
+    " ! videoscale method=4 ! " + sample_caps +
     " ! appsink name=sample_sink emit-signals=true sync=false max-buffers=1 drop=true";
 }
 
@@ -511,6 +516,54 @@ static GstPadProbeReturn sampled_backdrop_gate_probe(GstPad*, GstPadProbeInfo* i
   return GST_PAD_PROBE_OK;
 }
 
+static bool average_rgb_sample(GstSample* sample, GstMapInfo* map, guint8 rgb[3]) {
+  if (!sample || !map || map->size < 3) return false;
+
+  GstCaps* caps = gst_sample_get_caps(sample);
+  GstVideoInfo info;
+  if (caps && gst_video_info_from_caps(&info, caps) &&
+      GST_VIDEO_INFO_FORMAT(&info) == GST_VIDEO_FORMAT_RGB) {
+    int width = GST_VIDEO_INFO_WIDTH(&info);
+    int height = GST_VIDEO_INFO_HEIGHT(&info);
+    int stride = GST_VIDEO_INFO_PLANE_STRIDE(&info, 0);
+    if (width > 0 && height > 0 && stride >= width * 3) {
+      gsize needed = static_cast<gsize>(height - 1) * static_cast<gsize>(stride) +
+          static_cast<gsize>(width) * 3;
+      if (map->size >= needed) {
+        guint64 r = 0, g = 0, b = 0;
+        for (int y = 0; y < height; y++) {
+          const guint8* row = map->data + static_cast<gsize>(y) * static_cast<gsize>(stride);
+          for (int x = 0; x < width; x++) {
+            const guint8* px = row + x * 3;
+            r += px[0];
+            g += px[1];
+            b += px[2];
+          }
+        }
+        guint64 count = static_cast<guint64>(width) * static_cast<guint64>(height);
+        rgb[0] = static_cast<guint8>((r + count / 2) / count);
+        rgb[1] = static_cast<guint8>((g + count / 2) / count);
+        rgb[2] = static_cast<guint8>((b + count / 2) / count);
+        return true;
+      }
+    }
+  }
+
+  gsize count = map->size / 3;
+  if (count == 0) return false;
+  guint64 r = 0, g = 0, b = 0;
+  for (gsize i = 0; i < count; i++) {
+    const guint8* px = map->data + i * 3;
+    r += px[0];
+    g += px[1];
+    b += px[2];
+  }
+  rgb[0] = static_cast<guint8>((r + count / 2) / count);
+  rgb[1] = static_cast<guint8>((g + count / 2) / count);
+  rgb[2] = static_cast<guint8>((b + count / 2) / count);
+  return true;
+}
+
 static GstFlowReturn sampled_backdrop_new_sample(GstElement* sink, gpointer data) {
   Player* p = static_cast<Player*>(data);
   if (!p || p->host_fd < 0 || p->host_id == 0) return GST_FLOW_OK;
@@ -521,8 +574,8 @@ static GstFlowReturn sampled_backdrop_new_sample(GstElement* sink, gpointer data
   GstBuffer* buffer = gst_sample_get_buffer(sample);
   GstMapInfo map;
   if (buffer && gst_buffer_map(buffer, &map, GST_MAP_READ)) {
-    if (map.size >= 3) {
-      guint8 rgb[3] = {map.data[0], map.data[1], map.data[2]};
+    guint8 rgb[3] = {0, 0, 0};
+    if (average_rgb_sample(sample, &map, rgb)) {
       if (!p->has_sample_rgb || sample_delta_visible(rgb, p->last_sample_rgb)) {
         memcpy(p->last_sample_rgb, rgb, sizeof(rgb));
         p->has_sample_rgb = true;
