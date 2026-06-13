@@ -2,6 +2,7 @@ import { PhoneType } from '@shared/types/Config'
 import { AudioCommand, CommandMapping } from '@shared/types/ProjectionEnums'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { Projection } from '../Projection'
+import { motoGraphPaneGeometry } from '../ProjectionSensorOverlay'
 
 const navigateMock = jest.fn()
 let mockPathname = '/'
@@ -299,6 +300,44 @@ describe('Projection page', () => {
     fireEvent.pointerUp(close)
 
     expect(screen.queryByTestId('projection-metric-graph')).not.toBeInTheDocument()
+  })
+
+  test('uses the original round dashboard graph geometry', async () => {
+    expect(motoGraphPaneGeometry(true)).toEqual({
+      svgW: 565,
+      svgH: 214,
+      cx: 58,
+      cy: 8,
+      cw: 497,
+      ch: 168
+    })
+    expect(motoGraphPaneGeometry(false)).toEqual({
+      svgW: 565,
+      svgH: 430,
+      cx: 58,
+      cy: 8,
+      cw: 497,
+      ch: 358
+    })
+
+    render(<Projection {...baseProps()} />)
+
+    act(() => {
+      telemetryCb?.({ gpsFix: true, speedKph: 88.5 })
+    })
+
+    fireEvent.click(screen.getByLabelText('GPS speed'))
+
+    expect(screen.getByTestId('projection-metric-graph-chart-speed')).toHaveAttribute(
+      'viewBox',
+      '0 0 565 214'
+    )
+    expect(screen.getByTestId('projection-metric-graph-plot-speed')).toHaveAttribute('x', '58')
+    expect(screen.getByTestId('projection-metric-graph-plot-speed')).toHaveAttribute('width', '497')
+    expect(screen.getByTestId('projection-metric-graph-plot-speed')).toHaveAttribute(
+      'height',
+      '168'
+    )
   })
 
   test('keeps round dashboard controls active while waiting for phone video', () => {
@@ -2238,7 +2277,6 @@ describe('Projection page', () => {
 
     expect(setNavVideoOverlayActive).toHaveBeenCalledWith(false)
   })
-
 })
 
 function baseProps(overrides: any = {}) {

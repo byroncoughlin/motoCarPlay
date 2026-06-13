@@ -2425,12 +2425,7 @@ function GraphPane({
   const [viewOffset, setViewOffset] = React.useState(0)
   const [confirmReset, setConfirmReset] = React.useState(false)
   const panRef = React.useRef({ active: false, startX: 0, startOff: 0 })
-  const svgW = 565
-  const cy = 8
-  const cx = compact ? 58 : 75
-  const cw = compact ? svgW - cx - 10 : 449
-  const ch = compact ? 168 : 318
-  const svgH = cy + ch + (compact ? 38 : 34)
+  const { svgW, svgH, cx, cy, cw, ch } = motoGraphPaneGeometry(compact)
   const windowEnd = nowMs - viewOffset
   const windowStart = windowEnd - GRAPH_WINDOW_MS
   const visible = data.filter((p) => p.ts >= windowStart - 5000 && p.ts <= windowEnd + 5000)
@@ -2639,14 +2634,14 @@ function GraphPane({
         </div>
       </div>
       <svg
+        data-testid={`projection-metric-graph-chart-${metricKey}`}
         viewBox={`0 0 ${svgW} ${svgH}`}
         style={{
           flex: 1,
           minHeight: 0,
           display: 'block',
           cursor: 'ew-resize',
-          touchAction: 'none',
-          marginTop: compact ? 0 : -14
+          touchAction: 'none'
         }}
         preserveAspectRatio="xMidYMid meet"
         onPointerDown={onPtrDown}
@@ -2668,7 +2663,15 @@ function GraphPane({
             </clipPath>
           )}
         </defs>
-        <rect x={cx} y={cy} width={cw} height={ch} fill="#080808" rx={4} />
+        <rect
+          data-testid={`projection-metric-graph-plot-${metricKey}`}
+          x={cx}
+          y={cy}
+          width={cw}
+          height={ch}
+          fill="#080808"
+          rx={4}
+        />
         {yTicks.map((v, i) => {
           const y = yFor(v)
           return (
@@ -2842,6 +2845,16 @@ function GraphPane({
       </svg>
     </div>
   )
+}
+
+export function motoGraphPaneGeometry(compact: boolean) {
+  const svgW = 565
+  const cx = 58
+  const cy = 8
+  const cw = svgW - cx - 10
+  const ch = compact ? 168 : 358
+  const svgH = cy + ch + (compact ? 38 : 64)
+  return { svgW, svgH, cx, cy, cw, ch }
 }
 
 const actionBtn = (bg: string, fg: string, compact = false): React.CSSProperties => ({
