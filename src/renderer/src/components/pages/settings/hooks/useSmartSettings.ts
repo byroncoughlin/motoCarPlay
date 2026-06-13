@@ -13,6 +13,7 @@ type Overrides = Record<string, OverrideConfig>
 type PendingAppRestartChange<T> = {
   path: string
   nextBackdropEnabled: boolean
+  kind: 'enable' | 'disable' | 'mode'
   nextState: T
   nextSettings: T
 }
@@ -38,6 +39,10 @@ function applyMotoLinkedSettings(next: Record<string, unknown>, path: string, va
       next.roundedCornerMaskEnabled = false
     }
   }
+}
+
+function normalizeBackdropMode(value: unknown): 'color' | 'blur' {
+  return value === 'blur' ? 'blur' : 'color'
 }
 
 export function useSmartSettings<T extends Record<string, unknown>>(
@@ -112,6 +117,9 @@ export function useSmartSettings<T extends Record<string, unknown>>(
   )
 
   const backdropEnabled = Boolean((settings as Record<string, unknown> | undefined)?.backdropEnabled)
+  const backdropMode = normalizeBackdropMode(
+    (settings as Record<string, unknown> | undefined)?.backdropMode
+  )
 
   const handleFieldChange = (path: string, rawValue: unknown) => {
     const change = buildSettingsChange(state, path, rawValue)
@@ -120,10 +128,25 @@ export function useSmartSettings<T extends Record<string, unknown>>(
     const nextBackdropEnabled = Boolean(
       (change.nextSettings as Record<string, unknown>).backdropEnabled
     )
+    const nextBackdropMode = normalizeBackdropMode(
+      (change.nextSettings as Record<string, unknown>).backdropMode
+    )
     if (nextBackdropEnabled !== backdropEnabled) {
       setPendingAppRestartChange({
         path,
         nextBackdropEnabled,
+        kind: nextBackdropEnabled ? 'enable' : 'disable',
+        nextState: change.nextState,
+        nextSettings: change.nextSettings
+      })
+      return
+    }
+
+    if (nextBackdropEnabled && nextBackdropMode !== backdropMode) {
+      setPendingAppRestartChange({
+        path,
+        nextBackdropEnabled,
+        kind: 'mode',
         nextState: change.nextState,
         nextSettings: change.nextSettings
       })

@@ -726,6 +726,37 @@ describe('Projection page', () => {
     )
   })
 
+  test('lets native blur backdrop show through the view-area bars', () => {
+    liviState.backdropSampleColor = '#32506c'
+
+    render(
+      <Projection
+        {...baseProps({
+          receivingVideo: true,
+          settings: {
+            ...baseProps().settings,
+            projectionWidth: 800,
+            projectionHeight: 800,
+            projectionViewAreaTop: 118,
+            projectionViewAreaBottom: 118,
+            projectionViewAreaLeft: 118,
+            projectionViewAreaRight: 118,
+            backdropEnabled: true,
+            backdropMode: 'blur',
+            ambientFillColor: '#20364a',
+            roundedCornerMaskEnabled: true
+          }
+        })}
+      />
+    )
+
+    expect(screen.queryByTestId('view-area-mask-top')).not.toBeInTheDocument()
+    expect(screen.getByTestId('view-area-corner-mask-top-left')).toBeInTheDocument()
+    expect(screen.getByTestId('view-area-corner-mask-top-left').style.background).toContain(
+      '#20364a'
+    )
+  })
+
   test('hides waiting pane when video frames are present', () => {
     render(<Projection {...baseProps()} receivingVideo />)
 

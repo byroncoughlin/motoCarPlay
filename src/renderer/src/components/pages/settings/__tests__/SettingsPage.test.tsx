@@ -21,7 +21,10 @@ const smartState = {
   needsRestart: false as boolean,
   restart: restartMock,
   requestRestart: jest.fn(),
-  pendingAppRestartChange: null as null | { nextBackdropEnabled: boolean },
+  pendingAppRestartChange: null as null | {
+    nextBackdropEnabled: boolean
+    kind: 'enable' | 'disable' | 'mode'
+  },
   confirmPendingAppRestartChange,
   cancelPendingAppRestartChange
 }
@@ -243,13 +246,13 @@ describe('SettingsPage', () => {
 
   test('shows a confirmation dialog for pending backdrop app restarts', () => {
     mockNode = { type: 'route', label: 'Display', children: [] }
-    smartState.pendingAppRestartChange = { nextBackdropEnabled: true }
+    smartState.pendingAppRestartChange = { nextBackdropEnabled: true, kind: 'enable' }
 
     render(<SettingsPage />)
 
     expect(screen.getByRole('dialog', { name: 'Restart LIVI for backdrop change' })).toBeInTheDocument()
     expect(screen.getByText('Restart LIVI?')).toBeInTheDocument()
-    expect(screen.getByText(/sample live CarPlay colors/)).toBeInTheDocument()
+    expect(screen.getByText(/attach to live CarPlay video/)).toBeInTheDocument()
 
     fireEvent.click(screen.getByText('Cancel'))
     expect(cancelPendingAppRestartChange).toHaveBeenCalledTimes(1)

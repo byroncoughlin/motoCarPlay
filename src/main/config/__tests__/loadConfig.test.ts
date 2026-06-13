@@ -17,6 +17,7 @@ jest.mock('@shared/types', () => ({
     height: 480,
     kiosk: true,
     backdropEnabled: false,
+    backdropMode: 'color',
     ambientFillEnabled: false,
     roundedCornerMaskEnabled: false,
     bindings: {}
@@ -28,6 +29,7 @@ const defaultConfig = {
   height: 480,
   kiosk: true,
   backdropEnabled: false,
+  backdropMode: 'color',
   ambientFillEnabled: false,
   roundedCornerMaskEnabled: false,
   bindings: {}

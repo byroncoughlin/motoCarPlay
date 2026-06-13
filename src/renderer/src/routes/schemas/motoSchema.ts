@@ -34,6 +34,20 @@ export const motoSettingsSchema: SettingsNode<Config> = {
           path: 'backdropEnabled'
         },
         {
+          type: 'select',
+          label: 'Backdrop Style',
+          path: 'backdropMode',
+          displayValue: true,
+          options: [
+            { label: 'Average Color', value: 'color' },
+            { label: 'Blur Glow', value: 'blur' }
+          ],
+          page: {
+            title: 'Backdrop Style',
+            description: 'Choose how the optional CarPlay backdrop is rendered.'
+          }
+        },
+        {
           type: 'checkbox',
           label: 'Ambient Fill',
           path: 'ambientFillEnabled'

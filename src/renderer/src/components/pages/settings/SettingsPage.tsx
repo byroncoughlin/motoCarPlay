@@ -14,11 +14,11 @@ import { useSmartSettingsFromSchema } from './hooks/useSmartSettingsFromSchema'
 import { getNodeByPath, getValueByPath } from './utils'
 
 function BackdropRestartDialog({
-  enabling,
+  kind,
   onCancel,
   onConfirm
 }: {
-  enabling: boolean
+  kind: 'enable' | 'disable' | 'mode'
   onCancel: () => void
   onConfirm: () => void
 }) {
@@ -52,9 +52,11 @@ function BackdropRestartDialog({
           Restart LIVI?
         </Typography>
         <Typography sx={{ mt: 1, color: 'rgba(255,255,255,0.68)', fontSize: 15, lineHeight: 1.25 }}>
-          {enabling
-            ? 'Backdrop needs a clean restart before it can sample live CarPlay colors.'
-            : 'Turning Backdrop off needs a clean restart to remove the live sampling path.'}
+          {kind === 'enable'
+            ? 'Backdrop needs a clean restart before it can attach to live CarPlay video.'
+            : kind === 'mode'
+              ? 'Changing Backdrop Style needs a clean restart to swap the native video path.'
+              : 'Turning Backdrop off needs a clean restart to remove the live backdrop path.'}
         </Typography>
         <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', mt: '24px' }}>
           <Button
@@ -131,7 +133,7 @@ export function SettingsPage() {
   const showRestart = restartAvailable && (Boolean(needsRestart) || Boolean(btDirty))
   const restartDialog = pendingAppRestartChange ? (
     <BackdropRestartDialog
-      enabling={pendingAppRestartChange.nextBackdropEnabled}
+      kind={pendingAppRestartChange.kind}
       onCancel={cancelPendingAppRestartChange}
       onConfirm={() => {
         void confirmPendingAppRestartChange()

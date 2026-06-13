@@ -80,6 +80,7 @@ export type LastKnownGps = {
 }
 
 export type AppearanceMode = 'auto' | 'night' | 'day'
+export type BackdropMode = 'color' | 'blur'
 
 export type WindowBounds = {
   x: number
@@ -194,6 +195,7 @@ export type Config = {
   uiZoomPercent: number
   appearanceMode: AppearanceMode
   backdropEnabled?: boolean
+  backdropMode?: BackdropMode
   ambientFillEnabled?: boolean
   ambientFillColor?: string
   roundedCornerMaskEnabled?: boolean

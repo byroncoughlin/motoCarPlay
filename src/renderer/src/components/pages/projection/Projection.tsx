@@ -1118,9 +1118,10 @@ const CarplayComponent: React.FC<CarplayProps> = ({
 
   const visibleWidth = aaContent?.contentWidth ?? resolvedNegotiatedWidth
   const visibleHeight = aaContent?.contentHeight ?? resolvedNegotiatedHeight
+  const blurBackdropActive = settings.backdropEnabled === true && settings.backdropMode === 'blur'
   const fillEnabled = motoFillEnabled(settings)
   const maskColor =
-    settings.backdropEnabled === true
+    settings.backdropEnabled === true && !blurBackdropActive
       ? (backdropSampleColor ?? motoFillHex(settings))
       : motoFillHex(settings)
   const roundedCornerMask = settings.roundedCornerMaskEnabled === true
@@ -1199,7 +1200,7 @@ const CarplayComponent: React.FC<CarplayProps> = ({
         }}
         color={maskColor}
         cornerMask={roundedCornerMask}
-        barsVisible
+        barsVisible={!blurBackdropActive}
       />
 
       <ProjectionSensorOverlay />

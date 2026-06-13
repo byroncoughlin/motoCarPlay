@@ -78,7 +78,12 @@ type MotoActions = {
 
 type MotoSettings = Pick<
   Config,
-  'backdropEnabled' | 'ambientFillEnabled' | 'ambientFillColor' | 'leanOffset' | 'pitchOffset'
+  | 'backdropEnabled'
+  | 'backdropMode'
+  | 'ambientFillEnabled'
+  | 'ambientFillColor'
+  | 'leanOffset'
+  | 'pitchOffset'
 >
 
 type MetricZone = {
@@ -2904,10 +2909,14 @@ export function ProjectionSensorOverlay() {
   const { pathname } = useLocation()
   const motoSettings = settings as MotoSettings | null
   const { telemetry, activeGraph, dataRef, actions } = useMotoTelemetry(motoSettings)
+  const blurBackdropActive =
+    motoSettings?.backdropEnabled === true && motoSettings.backdropMode === 'blur'
   const arcBackground = motoSettings
-    ? ((motoSettings.backdropEnabled === true
-        ? (backdropSampleColor ?? motoFillHex(motoSettings))
-        : motoFillHex(motoSettings)) ?? 'transparent')
+    ? (blurBackdropActive
+        ? 'transparent'
+        : ((motoSettings.backdropEnabled === true
+            ? (backdropSampleColor ?? motoFillHex(motoSettings))
+            : motoFillHex(motoSettings)) ?? 'transparent'))
     : 'transparent'
 
   React.useEffect(() => {

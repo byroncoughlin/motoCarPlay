@@ -59,6 +59,8 @@ struct Player {
   bool has_sample_rgb = false;
   gint64 last_sample_us = 0;
   gint64 sample_interval_us = G_USEC_PER_SEC;
+  gint64 last_blur_us = 0;
+  gint64 blur_interval_us = G_USEC_PER_SEC;
 #endif
 };
 
@@ -516,6 +518,21 @@ static GstPadProbeReturn sampled_backdrop_gate_probe(GstPad*, GstPadProbeInfo* i
   return GST_PAD_PROBE_OK;
 }
 
+static GstPadProbeReturn dynamic_backdrop_gate_probe(GstPad*, GstPadProbeInfo* info,
+    gpointer data) {
+  Player* p = static_cast<Player*>(data);
+  if (!p || !(GST_PAD_PROBE_INFO_TYPE(info) & GST_PAD_PROBE_TYPE_BUFFER)) {
+    return GST_PAD_PROBE_OK;
+  }
+
+  const gint64 now = g_get_monotonic_time();
+  if (p->last_blur_us != 0 && now - p->last_blur_us < p->blur_interval_us) {
+    return GST_PAD_PROBE_DROP;
+  }
+  p->last_blur_us = now;
+  return GST_PAD_PROBE_OK;
+}
+
 static bool average_rgb_sample(GstSample* sample, GstMapInfo* map, guint8 rgb[3]) {
   if (!sample || !map || map->size < 3) return false;
 
@@ -612,14 +629,17 @@ static std::string dynamic_backdrop_pipeline_desc(const std::string& codec, cons
   int view_w = std::max(2, dw - vl - vr);
   int view_h = std::max(2, dh - vt - vb);
 
-  int blur_w = round_even_i(clamp_i(dw / 8, 72, 128));
-  int blur_h = round_even_i(clamp_i(dh / 8, 72, 128));
+  int blur_w = round_even_i(clamp_i(dw / 16, 40, 64));
+  int blur_h = round_even_i(clamp_i(dh / 16, 40, 64));
+  int zoom_l = clamp_i(dw / 10, 0, std::max(0, dw / 3));
+  int zoom_t = clamp_i(dh / 10, 0, std::max(0, dh / 3));
 
   std::string normalize =
     crop_chain(cl, ct, cr, cb) +
     "videoscale method=0 ! video/x-raw,width=" + std::to_string(dw) +
     ",height=" + std::to_string(dh) + " ! ";
 
+  std::string backdrop_zoom = crop_chain(zoom_l, zoom_t, zoom_l, zoom_t);
   std::string view_crop = crop_chain(vl, vt, vr, vb);
 
   return "appsrc name=src is-live=true do-timestamp=true format=time"
@@ -644,12 +664,14 @@ static std::string dynamic_backdrop_pipeline_desc(const std::string& codec, cons
     " ! queue max-size-buffers=1 max-size-bytes=0 max-size-time=0 leaky=downstream"
     " ! " + sink_chain() +
     " t. ! queue max-size-buffers=1 max-size-bytes=0 max-size-time=0 leaky=downstream"
-    " ! videoscale method=0 ! video/x-raw,width=" + std::to_string(blur_w) +
+    " ! identity name=blur_gate silent=true"
+    " ! " + backdrop_zoom +
+    "videoscale method=0 ! video/x-raw,width=" + std::to_string(blur_w) +
     ",height=" + std::to_string(blur_h) +
     " ! videoconvert ! video/x-raw,format=AYUV"
-    " ! gaussianblur sigma=8 qos=false"
-    // Keep the blur branch cheap at low resolution, then use bilinear upscale so the
-    // 800x800 backdrop does not show nearest-neighbor blocks.
+    " ! gaussianblur sigma=5 qos=false"
+    // Keep the blur branch tiny and zoom-cropped, then use bilinear upscale so the
+    // full display reads like an ambient copy instead of a second sharp video.
     " ! videoscale method=1 ! video/x-raw,width=" + std::to_string(dw) +
     ",height=" + std::to_string(dh) +
     " ! comp.sink_0"
@@ -732,6 +754,7 @@ static Player* livi_create_player(const std::string& codec, guintptr handle,
   p->host_fd = host_fd;
   p->host_id = host_id;
   p->sample_interval_us = G_USEC_PER_SEC / clamp_i(options.sample_rate, 1, 4);
+  p->blur_interval_us = G_USEC_PER_SEC;
   GstElement* sample_gate = gst_bin_get_by_name(GST_BIN(pipeline), "sample_gate");
   if (sample_gate && sampled) {
     GstPad* sp = gst_element_get_static_pad(sample_gate, "sink");
@@ -741,6 +764,15 @@ static Player* livi_create_player(const std::string& codec, guintptr handle,
     }
   }
   if (sample_gate) gst_object_unref(sample_gate);
+  GstElement* blur_gate = gst_bin_get_by_name(GST_BIN(pipeline), "blur_gate");
+  if (blur_gate && dynamic) {
+    GstPad* sp = gst_element_get_static_pad(blur_gate, "sink");
+    if (sp) {
+      gst_pad_add_probe(sp, GST_PAD_PROBE_TYPE_BUFFER, dynamic_backdrop_gate_probe, p, NULL);
+      gst_object_unref(sp);
+    }
+  }
+  if (blur_gate) gst_object_unref(blur_gate);
   if (p->sample_sink && sampled) {
     g_signal_connect(p->sample_sink, "new-sample", G_CALLBACK(sampled_backdrop_new_sample), p);
   }

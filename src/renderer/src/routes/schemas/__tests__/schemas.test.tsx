@@ -112,6 +112,7 @@ describe('settings schemas', () => {
 
     expect(motoDisplay.children.map((child: any) => child.path)).toEqual([
       'backdropEnabled',
+      'backdropMode',
       'ambientFillEnabled',
       'ambientFillColor',
       'roundedCornerMaskEnabled',
@@ -120,13 +121,22 @@ describe('settings schemas', () => {
     ])
     expect(motoDisplay.children.map((child: any) => child.label)).toEqual([
       'Backdrop',
+      'Backdrop Style',
       'Ambient Fill',
       'Fill Color',
       'Round Corners',
       'Tilt Calibration',
       'Graph History'
     ])
-    expect(motoDisplay.children[2]).toMatchObject({
+    expect(motoDisplay.children[1]).toMatchObject({
+      type: 'select',
+      displayValue: true,
+      options: [
+        { label: 'Average Color', value: 'color' },
+        { label: 'Blur Glow', value: 'blur' }
+      ]
+    })
+    expect(motoDisplay.children[3]).toMatchObject({
       type: 'color',
       displayValue: true
     })

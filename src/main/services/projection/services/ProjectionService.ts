@@ -273,7 +273,10 @@ export class ProjectionService {
       this.recreateMainGstVideo()
     }
 
-    if (prev?.backdropEnabled !== this.config.backdropEnabled) {
+    if (
+      prev?.backdropEnabled !== this.config.backdropEnabled ||
+      prev?.backdropMode !== this.config.backdropMode
+    ) {
       this.clearSampledBackdropColor()
     }
 
@@ -308,11 +311,14 @@ export class ProjectionService {
   }
 
   private mainGstVideoOptions(cfg: Config = this.config): GstVideoOptions {
+    const backdropEnabled = cfg.backdropEnabled === true
+    const blurBackdrop = backdropEnabled && cfg.backdropMode === 'blur'
+    const colorBackdrop = backdropEnabled && !blurBackdrop
     return {
-      dynamicBackdrop: false,
+      dynamicBackdrop: blurBackdrop,
       // Use the live sampled-color branch only when a native player is being created.
       // Toggling backdrop must not recreate the active CarPlay plane mid-session.
-      sampledBackdrop: cfg.backdropEnabled === true,
+      sampledBackdrop: colorBackdrop,
       onBackdropColor: (hex) => this.applySampledBackdropColor(hex),
       displayWidth: cfg.projectionWidth ?? 0,
       displayHeight: cfg.projectionHeight ?? 0,
@@ -326,7 +332,6 @@ export class ProjectionService {
   private mainGstVideoOptionsKey(cfg: Config): string {
     const opts = this.mainGstVideoOptions(cfg)
     return [
-      opts.dynamicBackdrop === true ? 1 : 0,
       opts.displayWidth ?? 0,
       opts.displayHeight ?? 0,
       opts.viewAreaTop ?? 0,
@@ -356,6 +361,7 @@ export class ProjectionService {
 
   private applySampledBackdropColor(hex: string): void {
     if (this.config.backdropEnabled !== true) return
+    if (this.config.backdropMode === 'blur') return
     if (!/^#[0-9a-fA-F]{6}$/.test(hex)) return
     const color = hex.toLowerCase()
     if (color === this.sampledBackdropColor) return

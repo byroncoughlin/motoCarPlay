@@ -67,6 +67,7 @@ export const DEFAULT_CONFIG: Config = {
   wifiInterface: 'wlan0',
   appearanceMode: 'auto',
   backdropEnabled: false,
+  backdropMode: 'color',
   ambientFillEnabled: false,
   ambientFillColor: '#142321',
   roundedCornerMaskEnabled: false,

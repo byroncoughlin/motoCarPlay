@@ -130,6 +130,7 @@ describe('useSmartSettings', () => {
 
     expect(result.current.state.backdropEnabled).toBe(false)
     expect(result.current.pendingAppRestartChange?.nextBackdropEnabled).toBe(true)
+    expect(result.current.pendingAppRestartChange?.kind).toBe('enable')
     expect(saveSettings).not.toHaveBeenCalled()
 
     await act(async () => {
@@ -166,6 +167,7 @@ describe('useSmartSettings', () => {
 
     expect(result.current.state.backdropEnabled).toBe(true)
     expect(result.current.pendingAppRestartChange?.nextBackdropEnabled).toBe(false)
+    expect(result.current.pendingAppRestartChange?.kind).toBe('disable')
     expect(saveSettings).not.toHaveBeenCalled()
 
     await act(async () => {
@@ -223,6 +225,7 @@ describe('useSmartSettings', () => {
 
     expect(backdrop.result.current.state.backdropEnabled).toBe(true)
     expect(backdrop.result.current.pendingAppRestartChange?.nextBackdropEnabled).toBe(false)
+    expect(backdrop.result.current.pendingAppRestartChange?.kind).toBe('disable')
     expect(saveSettings).not.toHaveBeenCalled()
 
     await act(async () => {
@@ -255,6 +258,64 @@ describe('useSmartSettings', () => {
     expect(fill.result.current.state.roundedCornerMaskEnabled).toBe(false)
     expect(saveSettings).toHaveBeenLastCalledWith({
       backdropEnabled: false,
+      ambientFillEnabled: false,
+      roundedCornerMaskEnabled: false
+    })
+    expect(restartApp).not.toHaveBeenCalled()
+  })
+
+  test('active backdrop style changes require confirmation and restart the app', async () => {
+    const initial = {
+      backdropEnabled: true,
+      backdropMode: 'color',
+      ambientFillEnabled: false,
+      roundedCornerMaskEnabled: true
+    } as any
+    const settings = { ...initial }
+    const { result } = renderHook(() => useSmartSettings(initial, settings))
+
+    act(() => {
+      result.current.handleFieldChange('backdropMode', 'blur')
+    })
+
+    expect(result.current.state.backdropMode).toBe('color')
+    expect(result.current.pendingAppRestartChange?.nextBackdropEnabled).toBe(true)
+    expect(result.current.pendingAppRestartChange?.kind).toBe('mode')
+    expect(saveSettings).not.toHaveBeenCalled()
+
+    await act(async () => {
+      await result.current.confirmPendingAppRestartChange()
+    })
+
+    expect(result.current.state.backdropMode).toBe('blur')
+    expect(saveSettings).toHaveBeenLastCalledWith({
+      backdropEnabled: true,
+      backdropMode: 'blur',
+      ambientFillEnabled: false,
+      roundedCornerMaskEnabled: true
+    })
+    expect(restartApp).toHaveBeenCalledTimes(1)
+  })
+
+  test('inactive backdrop style changes save without app restart', () => {
+    const initial = {
+      backdropEnabled: false,
+      backdropMode: 'color',
+      ambientFillEnabled: false,
+      roundedCornerMaskEnabled: false
+    } as any
+    const settings = { ...initial }
+    const { result } = renderHook(() => useSmartSettings(initial, settings))
+
+    act(() => {
+      result.current.handleFieldChange('backdropMode', 'blur')
+    })
+
+    expect(result.current.pendingAppRestartChange).toBeNull()
+    expect(result.current.state.backdropMode).toBe('blur')
+    expect(saveSettings).toHaveBeenLastCalledWith({
+      backdropEnabled: false,
+      backdropMode: 'blur',
       ambientFillEnabled: false,
       roundedCornerMaskEnabled: false
     })
