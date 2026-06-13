@@ -14,6 +14,7 @@
 #include <cmath>
 #include <initializer_list>
 #include <string>
+#include <vector>
 #ifdef __linux__
 #include <execinfo.h>
 #include <fcntl.h>
@@ -62,6 +63,9 @@ struct Player {
   gint64 sample_interval_us = G_USEC_PER_SEC;
   gint64 last_blur_us = 0;
   gint64 blur_interval_us = G_USEC_PER_SEC;
+  std::vector<guint8> last_blur_frame;
+  int last_blur_stride = 0;
+  int last_blur_height = 0;
 #endif
 };
 
@@ -535,6 +539,8 @@ static GstPadProbeReturn dynamic_backdrop_gate_probe(GstPad*, GstPadProbeInfo* i
 }
 
 static constexpr int kDynamicBackdropCornerRadiusPx = 38;
+static constexpr int kDynamicBackdropFramesPerSecond = 4;
+static constexpr int kDynamicBackdropBlendNewPercent = 35;
 
 static void mask_rounded_corner_pixel(guint8* base, int stride, int x, int y, double cx,
     double cy, double radius) {
@@ -609,6 +615,76 @@ static GstPadProbeReturn rounded_foreground_mask_probe(GstPad* pad, GstPadProbeI
     gst_buffer_unmap(buffer, &map);
   }
 
+  return GST_PAD_PROBE_OK;
+}
+
+static void reset_blur_history(Player* p, const guint8* data, gsize size, int stride,
+    int height) {
+  if (!p || !data || size == 0) return;
+  p->last_blur_frame.assign(data, data + size);
+  p->last_blur_stride = stride;
+  p->last_blur_height = height;
+}
+
+static GstPadProbeReturn dynamic_backdrop_smooth_probe(GstPad* pad, GstPadProbeInfo* info,
+    gpointer data) {
+  Player* p = static_cast<Player*>(data);
+  if (!p || !(GST_PAD_PROBE_INFO_TYPE(info) & GST_PAD_PROBE_TYPE_BUFFER)) {
+    return GST_PAD_PROBE_OK;
+  }
+
+  GstBuffer* buffer = GST_PAD_PROBE_INFO_BUFFER(info);
+  if (!buffer) return GST_PAD_PROBE_OK;
+
+  GstCaps* caps = gst_pad_get_current_caps(pad);
+  GstVideoInfo video_info;
+  bool ok = caps && gst_video_info_from_caps(&video_info, caps) &&
+      GST_VIDEO_INFO_FORMAT(&video_info) == GST_VIDEO_FORMAT_AYUV;
+  if (caps) gst_caps_unref(caps);
+  if (!ok) return GST_PAD_PROBE_OK;
+
+  int width = GST_VIDEO_INFO_WIDTH(&video_info);
+  int height = GST_VIDEO_INFO_HEIGHT(&video_info);
+  int stride = GST_VIDEO_INFO_PLANE_STRIDE(&video_info, 0);
+  if (width <= 0 || height <= 0 || stride < width * 4) return GST_PAD_PROBE_OK;
+
+  buffer = gst_buffer_make_writable(buffer);
+  if (!buffer) return GST_PAD_PROBE_OK;
+  GST_PAD_PROBE_INFO_DATA(info) = buffer;
+
+  GstMapInfo map;
+  if (!gst_buffer_map(buffer, &map, GST_MAP_WRITE)) return GST_PAD_PROBE_OK;
+
+  gsize row_bytes = static_cast<gsize>(width) * 4;
+  gsize needed = static_cast<gsize>(height - 1) * static_cast<gsize>(stride) + row_bytes;
+  if (map.size < needed) {
+    gst_buffer_unmap(buffer, &map);
+    return GST_PAD_PROBE_OK;
+  }
+
+  if (p->last_blur_frame.size() != map.size || p->last_blur_stride != stride ||
+      p->last_blur_height != height) {
+    reset_blur_history(p, map.data, map.size, stride, height);
+    gst_buffer_unmap(buffer, &map);
+    return GST_PAD_PROBE_OK;
+  }
+
+  constexpr int old_percent = 100 - kDynamicBackdropBlendNewPercent;
+  for (int y = 0; y < height; y++) {
+    gsize row = static_cast<gsize>(y) * static_cast<gsize>(stride);
+    for (gsize x = 0; x < row_bytes; x++) {
+      gsize idx = row + x;
+      int blended =
+        ((int)map.data[idx] * kDynamicBackdropBlendNewPercent +
+          (int)p->last_blur_frame[idx] * old_percent + 50) /
+        100;
+      guint8 v = static_cast<guint8>(clamp_i(blended, 0, 255));
+      map.data[idx] = v;
+      p->last_blur_frame[idx] = v;
+    }
+  }
+
+  gst_buffer_unmap(buffer, &map);
   return GST_PAD_PROBE_OK;
 }
 
@@ -753,6 +829,7 @@ static std::string dynamic_backdrop_pipeline_desc(const std::string& codec, cons
     "videoscale method=0 ! video/x-raw,width=" + std::to_string(blur_w) +
     ",height=" + std::to_string(blur_h) +
     " ! videoconvert ! video/x-raw,format=AYUV"
+    " ! identity name=blur_smooth silent=true"
     " ! gaussianblur sigma=5 qos=false"
     // Keep the blur branch tiny and zoom-cropped, then use bilinear upscale so the
     // full display reads like an ambient copy instead of a second sharp video.
@@ -838,7 +915,7 @@ static Player* livi_create_player(const std::string& codec, guintptr handle,
   p->host_fd = host_fd;
   p->host_id = host_id;
   p->sample_interval_us = G_USEC_PER_SEC / clamp_i(options.sample_rate, 1, 4);
-  p->blur_interval_us = G_USEC_PER_SEC;
+  p->blur_interval_us = G_USEC_PER_SEC / kDynamicBackdropFramesPerSecond;
   GstElement* sample_gate = gst_bin_get_by_name(GST_BIN(pipeline), "sample_gate");
   if (sample_gate && sampled) {
     GstPad* sp = gst_element_get_static_pad(sample_gate, "sink");
@@ -857,6 +934,15 @@ static Player* livi_create_player(const std::string& codec, guintptr handle,
     }
   }
   if (blur_gate) gst_object_unref(blur_gate);
+  GstElement* blur_smooth = gst_bin_get_by_name(GST_BIN(pipeline), "blur_smooth");
+  if (blur_smooth && dynamic) {
+    GstPad* sp = gst_element_get_static_pad(blur_smooth, "src");
+    if (sp) {
+      gst_pad_add_probe(sp, GST_PAD_PROBE_TYPE_BUFFER, dynamic_backdrop_smooth_probe, p, NULL);
+      gst_object_unref(sp);
+    }
+  }
+  if (blur_smooth) gst_object_unref(blur_smooth);
   GstElement* round_mask = gst_bin_get_by_name(GST_BIN(pipeline), "round_mask");
   if (round_mask && dynamic) {
     GstPad* sp = gst_element_get_static_pad(round_mask, "src");
