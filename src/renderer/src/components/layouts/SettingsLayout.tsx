@@ -1,19 +1,205 @@
 import ArrowBackIosOutlinedIcon from '@mui/icons-material/ArrowBackIosOutlined'
 import CloseOutlinedIcon from '@mui/icons-material/CloseOutlined'
+import DesktopWindowsOutlinedIcon from '@mui/icons-material/DesktopWindowsOutlined'
+import ExitToAppOutlinedIcon from '@mui/icons-material/ExitToAppOutlined'
+import MonitorHeartOutlinedIcon from '@mui/icons-material/MonitorHeartOutlined'
+import PowerSettingsNewOutlinedIcon from '@mui/icons-material/PowerSettingsNewOutlined'
 import RestartAltOutlinedIcon from '@mui/icons-material/RestartAltOutlined'
 import Box from '@mui/material/Box'
+import Button from '@mui/material/Button'
 import IconButton from '@mui/material/IconButton'
 import Stack from '@mui/material/Stack'
-import { useTheme } from '@mui/material/styles'
 import Typography from '@mui/material/Typography'
-import { useLayoutEffect, useMemo, useState } from 'react'
+import type { ReactElement, ReactNode } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 import { ROUTES } from '../../constants'
 import { SettingsLayoutProps } from './types'
 
-type Vp = { w: number; h: number }
+type ConfirmAction = 'desktop' | 'reboot'
 
-const clampPx = (min: number, pref: number, max: number) => Math.max(min, Math.min(pref, max))
+const formatClock12 = (date: Date): string => {
+  const hours = date.getHours() % 12 || 12
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  const divider = date.getSeconds() % 2 === 0 ? ':' : ' '
+  return `${hours}${divider}${minutes}`
+}
+
+const useSettingsClock = (): string => {
+  const [now, setNow] = useState(() => new Date())
+
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(new Date()), 1000)
+    return () => window.clearInterval(id)
+  }, [])
+
+  return formatClock12(now)
+}
+
+const blurActiveElement = () => {
+  const el = document.activeElement as HTMLElement | null
+  if (el && el !== document.body) el.blur?.()
+}
+
+type HeaderActionProps = {
+  label: string
+  ariaLabel: string
+  icon: ReactElement
+  tone?: 'normal' | 'danger' | 'success'
+  onClick: () => void
+}
+
+function HeaderActionButton({
+  label,
+  ariaLabel,
+  icon,
+  tone = 'normal',
+  onClick
+}: HeaderActionProps) {
+  const palette =
+    tone === 'danger'
+      ? { color: '#ff8585', border: 'rgba(255,133,133,0.32)', bg: 'rgba(255,85,85,0.1)' }
+      : tone === 'success'
+        ? { color: '#7ee787', border: 'rgba(126,231,135,0.28)', bg: 'rgba(126,231,135,0.09)' }
+        : { color: '#d8dee9', border: 'rgba(255,255,255,0.14)', bg: 'rgba(255,255,255,0.055)' }
+
+  return (
+    <Box
+      component="button"
+      type="button"
+      aria-label={ariaLabel}
+      onClick={onClick}
+      sx={{
+        appearance: 'none',
+        border: `1px solid ${palette.border}`,
+        borderRadius: '8px',
+        background: palette.bg,
+        color: palette.color,
+        minWidth: 0,
+        width: '100%',
+        height: '58px',
+        p: 0,
+        display: 'grid',
+        placeItems: 'center',
+        gridTemplateRows: '28px 16px',
+        gap: '2px',
+        cursor: 'pointer',
+        userSelect: 'none',
+        touchAction: 'manipulation',
+        WebkitTapHighlightColor: 'transparent',
+        '& svg': { fontSize: 27 },
+        '&:active': {
+          transform: 'translateY(1px)',
+          borderColor: palette.color,
+          background: `color-mix(in srgb, ${palette.color} 17%, transparent)`
+        },
+        '&:focus-visible': {
+          outline: `2px solid ${palette.color}`,
+          outlineOffset: 2
+        }
+      }}
+    >
+      {icon}
+      <Box
+        component="span"
+        sx={{
+          fontSize: '10px',
+          lineHeight: 1,
+          fontWeight: 900,
+          letterSpacing: 0,
+          textTransform: 'uppercase',
+          whiteSpace: 'nowrap'
+        }}
+      >
+        {label}
+      </Box>
+    </Box>
+  )
+}
+
+function ConfirmOverlay({
+  action,
+  onCancel,
+  onConfirm
+}: {
+  action: ConfirmAction
+  onCancel: () => void
+  onConfirm: () => void
+}) {
+  const copy =
+    action === 'desktop'
+      ? {
+          title: 'Exit to desktop?',
+          body: 'This closes LIVI and leaves the dashboard.',
+          confirm: 'Exit',
+          color: '#ff8585'
+        }
+      : {
+          title: 'Reboot Pi?',
+          body: 'The display will go dark while the Pi restarts.',
+          confirm: 'Reboot',
+          color: '#ffca28'
+        }
+
+  return (
+    <Box
+      role="dialog"
+      aria-modal="true"
+      aria-label={copy.title}
+      sx={{
+        position: 'absolute',
+        inset: 0,
+        zIndex: 30,
+        background: 'rgba(0,0,0,0.9)',
+        display: 'grid',
+        placeItems: 'center',
+        p: '24px'
+      }}
+    >
+      <Box
+        sx={{
+          width: 'min(390px, 100%)',
+          borderRadius: '8px',
+          border: '1px solid rgba(255,255,255,0.14)',
+          background: '#101316',
+          p: '24px',
+          boxShadow: '0 18px 50px rgba(0,0,0,0.55)',
+          textAlign: 'center'
+        }}
+      >
+        <Typography sx={{ fontSize: 28, fontWeight: 900, lineHeight: 1.05 }}>
+          {copy.title}
+        </Typography>
+        <Typography sx={{ mt: 1, color: 'rgba(255,255,255,0.62)', fontSize: 15, lineHeight: 1.25 }}>
+          {copy.body}
+        </Typography>
+
+        <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', mt: '24px' }}>
+          <Button
+            variant="outlined"
+            onClick={onCancel}
+            sx={{ minHeight: 54, borderRadius: '8px', fontWeight: 900 }}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="outlined"
+            onClick={onConfirm}
+            sx={{
+              minHeight: 54,
+              borderRadius: '8px',
+              fontWeight: 900,
+              color: copy.color,
+              borderColor: `${copy.color}80`
+            }}
+          >
+            {copy.confirm}
+          </Button>
+        </Box>
+      </Box>
+    </Box>
+  )
+}
 
 export const SettingsLayout = ({
   children,
@@ -22,243 +208,217 @@ export const SettingsLayout = ({
   onRestart
 }: SettingsLayoutProps) => {
   const navigate = useNavigate()
-  const theme = useTheme()
   const location = useLocation()
-
-  //const handleNavigate = () => navigate(-1)
-  const handleNavigate = () => {
-    const el = document.activeElement as HTMLElement | null
-    if (el && el !== document.body) el.blur?.()
-    requestAnimationFrame(() => navigate(-1))
-  }
+  const clock = useSettingsClock()
+  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null)
 
   const isSettingsRoot = location.pathname === ROUTES.SETTINGS
   const showBack = !isSettingsRoot
+
+  const sectionTitle = useMemo(() => {
+    if (isSettingsRoot) return 'Settings'
+    return title
+  }, [isSettingsRoot, title])
+
+  const handleNavigate = () => {
+    blurActiveElement()
+    requestAnimationFrame(() => navigate(-1))
+  }
+
   const handleCloseSettings = () => navigate(ROUTES.HOME, { replace: true })
 
-  const [vp, setVp] = useState<Vp>(() => {
-    const vv = window.visualViewport
-    return {
-      w: Math.round(vv?.width ?? window.innerWidth),
-      h: Math.round(vv?.height ?? window.innerHeight)
+  const handleOpenMonitor = () => {
+    window.dispatchEvent(new CustomEvent('livi:open-system-monitor'))
+  }
+
+  const handleConfirm = () => {
+    const action = confirmAction
+    setConfirmAction(null)
+    if (action === 'desktop') {
+      window.app?.quitApp?.().catch(console.error)
+      return
     }
-  })
-
-  useLayoutEffect(() => {
-    const vv = window.visualViewport
-
-    const update = () => {
-      setVp({
-        w: Math.round(vv?.width ?? window.innerWidth),
-        h: Math.round(vv?.height ?? window.innerHeight)
-      })
+    if (action === 'reboot') {
+      window.app?.rebootSystem?.().catch(console.error)
     }
-
-    update()
-    window.addEventListener('resize', update)
-    vv?.addEventListener('resize', update)
-
-    return () => {
-      window.removeEventListener('resize', update)
-      vv?.removeEventListener('resize', update)
-    }
-  }, [])
-
-  const px = useMemo(() => {
-    const vw = vp.w / 100
-    const vh = vp.h / 100
-    const roundSafe = Math.abs(vp.w - vp.h) <= 80 && vp.w <= 900 && vp.h <= 900
-
-    const pl = roundSafe ? 8 : clampPx(12, 1.5 * vw, 28)
-    const pr = roundSafe ? 8 : clampPx(12, 3.5 * vw, 28)
-    const pt = roundSafe ? 0 : clampPx(8, 2.2 * vh, 18)
-    const pb = roundSafe ? 0 : clampPx(10, 2.2 * vh, 18)
-
-    const headerH = roundSafe ? clampPx(34, 4.8 * vh, 40) : clampPx(32, 5.5 * vh, 44)
-    const slotLeftW = roundSafe ? clampPx(34, 5 * vw, 44) : clampPx(36, 6 * vw, 56)
-    const slotRightW = roundSafe ? clampPx(44, 7 * vw, 76) : clampPx(36, 8 * vw, 100)
-    const iconPx = roundSafe ? clampPx(18, 2.8 * vh, 22) : clampPx(18, 3.2 * vh, 28)
-    const titlePx = roundSafe ? clampPx(18, 2.8 * vh, 23) : clampPx(16, 3.6 * vh, 34)
-    const applyPx = roundSafe ? clampPx(12, 1.6 * vh, 14) : clampPx(13, 1.8 * vh, 16)
-    const frameW = roundSafe ? clampPx(420, 62.5 * vw, 500) : undefined
-    const frameH = roundSafe ? clampPx(430, 65 * vh, 520) : undefined
-
-    return {
-      roundSafe,
-      frameW,
-      frameH,
-      pl,
-      pr,
-      pt,
-      pb,
-      headerH,
-      slotLeftW,
-      slotRightW,
-      iconPx,
-      titlePx,
-      applyPx
-    }
-  }, [vp.h, vp.w])
+  }
 
   return (
     <Box
       sx={{
         position: 'absolute',
-        ...(px.roundSafe
-          ? {
-              top: '50%',
-              left: '50%',
-              width: `${px.frameW}px`,
-              height: `${px.frameH}px`,
-              maxWidth: 'calc(100% - 16px)',
-              maxHeight: 'calc(100% - 16px)',
-              transform: 'translate(-50%, -50%)'
-            }
-          : { inset: 0 }),
+        inset: 0,
         display: 'flex',
         flexDirection: 'column',
         minHeight: 0,
         overflow: 'hidden',
         boxSizing: 'border-box',
-        pl: `${px.pl}px`,
-        pr: `${px.pr}px`,
-        pt: `${px.pt}px`,
-        pb: `${px.pb}px`,
-        gap: px.roundSafe ? '6px' : '0.75rem'
+        p: '12px',
+        gap: '9px',
+        background: 'linear-gradient(180deg, rgba(14,18,22,0.98), rgba(5,7,10,0.98))',
+        color: 'text.primary'
       }}
     >
       <Box
         sx={{
           display: 'grid',
-          gridTemplateColumns: `${px.slotLeftW}px 1fr ${px.slotRightW}px`,
+          gridTemplateColumns: '88px 74px minmax(0, 1fr) 74px 64px',
+          gap: '8px',
           alignItems: 'center',
-          height: `${px.headerH}px`,
-          px: '0.5rem',
-          boxSizing: 'border-box',
           flex: '0 0 auto'
         }}
       >
-        <Box
-          sx={{
-            width: `${px.slotLeftW}px`,
-            height: '100%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'flex-start'
-          }}
-        >
-          {showBack ? (
-            <IconButton
-              onClick={handleNavigate}
-              aria-label="Back"
-              className="nav-focus-primary"
-              disableRipple
-              disableFocusRipple
-              disableTouchRipple
-              sx={{
-                width: `${px.slotLeftW}px`,
-                height: '100%',
-                p: 0,
-                m: 0,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-            >
-              <ArrowBackIosOutlinedIcon sx={{ fontSize: `${px.iconPx}px` }} />
-            </IconButton>
-          ) : isSettingsRoot ? (
-            <IconButton
-              onClick={handleCloseSettings}
-              aria-label="Close settings"
-              className="nav-focus-primary"
-              disableRipple
-              disableFocusRipple
-              disableTouchRipple
-              sx={{
-                width: `${px.slotLeftW}px`,
-                height: '100%',
-                p: 0,
-                m: 0,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-            >
-              <CloseOutlinedIcon sx={{ fontSize: `${px.iconPx}px` }} />
-            </IconButton>
-          ) : (
-            <Box sx={{ width: `${px.slotLeftW}px`, height: '100%' }} />
-          )}
-        </Box>
+        <HeaderActionButton
+          label="Desktop"
+          ariaLabel="Exit to desktop"
+          icon={<ExitToAppOutlinedIcon />}
+          tone="danger"
+          onClick={() => setConfirmAction('desktop')}
+        />
+        <HeaderActionButton
+          label="Monitor"
+          ariaLabel="Open Pi monitor"
+          icon={<MonitorHeartOutlinedIcon />}
+          onClick={handleOpenMonitor}
+        />
 
         <Box
           sx={{
-            height: '100%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            minWidth: 0
+            minWidth: 0,
+            height: '58px',
+            borderRadius: '8px',
+            border: '1px solid rgba(255,255,255,0.1)',
+            background: 'rgba(255,255,255,0.045)',
+            display: 'grid',
+            placeItems: 'center',
+            px: '8px'
           }}
         >
           <Typography
+            data-testid="settings-clock"
             sx={{
-              textAlign: 'center',
-              fontWeight: 800,
-              lineHeight: 1.05,
-              fontSize: `${px.titlePx}px`,
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              maxWidth: '100%'
+              fontFamily: 'monospace',
+              fontSize: '36px',
+              lineHeight: 1,
+              fontWeight: 900,
+              letterSpacing: 0,
+              fontVariantNumeric: 'tabular-nums',
+              whiteSpace: 'nowrap'
             }}
           >
-            {title}
+            {clock}
           </Typography>
         </Box>
 
-        <Box
+        <HeaderActionButton
+          label="Reboot"
+          ariaLabel="Reboot Pi"
+          icon={<PowerSettingsNewOutlinedIcon />}
+          onClick={() => setConfirmAction('reboot')}
+        />
+        <IconButton
+          onClick={handleCloseSettings}
+          aria-label="Close settings"
+          className="nav-focus-primary"
+          disableRipple
+          disableFocusRipple
+          disableTouchRipple
           sx={{
-            width: `${px.slotRightW}px`,
-            height: '100%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'flex-end'
+            width: '64px',
+            height: '58px',
+            borderRadius: '8px',
+            border: '1px solid rgba(255,255,255,0.14)',
+            color: '#f8fafc',
+            background: 'rgba(255,255,255,0.055)',
+            '& svg': { fontSize: 35 },
+            '&:active': { transform: 'translateY(1px)' }
           }}
         >
-          {showRestart ? (
-            <IconButton
-              onClick={onRestart}
-              aria-label="Apply"
-              sx={{
-                width: `${px.slotRightW}px`,
-                height: '100%',
-                p: 0,
-                m: 0,
-                color: theme.palette.primary.main,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-            >
-              <Box
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  whiteSpace: 'nowrap',
-                  fontSize: `${px.applyPx}px`,
-                  gap: '0.5rem'
-                }}
-              >
-                <span>Apply</span>
-                <RestartAltOutlinedIcon sx={{ fontSize: `${px.iconPx}px` }} />
-              </Box>
-            </IconButton>
-          ) : (
-            <Box sx={{ width: `${px.slotRightW}px`, height: '100%' }} />
-          )}
-        </Box>
+          <CloseOutlinedIcon />
+        </IconButton>
+      </Box>
+
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: '72px minmax(0, 1fr) 96px',
+          alignItems: 'center',
+          minHeight: '42px',
+          gap: '8px',
+          flex: '0 0 auto'
+        }}
+      >
+        {showBack ? (
+          <IconButton
+            onClick={handleNavigate}
+            aria-label="Back"
+            className="nav-focus-primary"
+            disableRipple
+            disableFocusRipple
+            disableTouchRipple
+            sx={{
+              width: '72px',
+              height: '42px',
+              borderRadius: '8px',
+              border: '1px solid rgba(255,255,255,0.12)',
+              color: '#d8dee9',
+              background: 'rgba(255,255,255,0.045)'
+            }}
+          >
+            <ArrowBackIosOutlinedIcon sx={{ fontSize: 22 }} />
+          </IconButton>
+        ) : (
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 0.75,
+              color: 'rgba(255,255,255,0.34)'
+            }}
+          >
+            <DesktopWindowsOutlinedIcon sx={{ fontSize: 19 }} />
+          </Box>
+        )}
+
+        <Typography
+          sx={{
+            minWidth: 0,
+            textAlign: 'center',
+            fontWeight: 900,
+            lineHeight: 1.05,
+            fontSize: '22px',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            letterSpacing: 0
+          }}
+        >
+          {sectionTitle}
+        </Typography>
+
+        {showRestart ? (
+          <Button
+            onClick={onRestart}
+            aria-label="Apply"
+            variant="outlined"
+            startIcon={<RestartAltOutlinedIcon sx={{ fontSize: 19 }} />}
+            sx={{
+              minWidth: 0,
+              height: '42px',
+              borderRadius: '8px',
+              px: '10px',
+              color: '#7ee787',
+              borderColor: 'rgba(126,231,135,0.32)',
+              fontWeight: 900,
+              fontSize: '12px',
+              lineHeight: 1
+            }}
+          >
+            Apply
+          </Button>
+        ) : (
+          <Box />
+        )}
       </Box>
 
       <Box
@@ -270,19 +430,64 @@ export const SettingsLayout = ({
           scrollbarGutter: 'stable',
           WebkitOverflowScrolling: 'touch',
           touchAction: 'pan-y',
-          pb: px.roundSafe ? '10px' : 0
+          pr: '2px',
+          pb: '6px',
+          '& .settings-content-stack': isSettingsRoot
+            ? {
+                display: 'grid',
+                gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                gap: '8px',
+                alignContent: 'start',
+                minHeight: 'auto'
+              }
+            : {
+                display: 'flex',
+                flexDirection: 'column',
+                minHeight: '100%'
+              },
+          '& .settings-content-stack > .MuiPaper-root': isSettingsRoot
+            ? {
+                minHeight: '86px',
+                borderRadius: '8px',
+                border: '1px solid rgba(255,255,255,0.12)',
+                borderBottom: '1px solid rgba(255,255,255,0.12)',
+                background: 'rgba(255,255,255,0.05)',
+                display: 'grid',
+                gridTemplateColumns: '1fr',
+                justifyItems: 'center',
+                alignItems: 'center',
+                p: '10px',
+                gap: '8px',
+                '& > p': {
+                  width: '100%',
+                  p: 0,
+                  justifyContent: 'center',
+                  textAlign: 'center',
+                  color: '#f8fafc',
+                  fontSize: '15px',
+                  fontWeight: 900,
+                  lineHeight: 1.08
+                },
+                '& > svg': {
+                  position: 'static',
+                  color: 'rgba(255,255,255,0.58)'
+                }
+              }
+            : undefined
         }}
       >
-        <Stack
-          spacing={0}
-          sx={{
-            minHeight: '100%',
-            padding: px.roundSafe ? '0 0 0 2px' : '0 0 0 0.5rem'
-          }}
-        >
-          {children}
+        <Stack className="settings-content-stack" spacing={0}>
+          {children as ReactNode}
         </Stack>
       </Box>
+
+      {confirmAction && (
+        <ConfirmOverlay
+          action={confirmAction}
+          onCancel={() => setConfirmAction(null)}
+          onConfirm={handleConfirm}
+        />
+      )}
     </Box>
   )
 }

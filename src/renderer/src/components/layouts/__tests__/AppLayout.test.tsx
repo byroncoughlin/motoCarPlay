@@ -106,6 +106,24 @@ describe('AppLayout', () => {
     expect(shell?.contains(container.querySelector('#content-root'))).toBe(true)
   })
 
+  test('removes nav on settings and gives settings the full safe square', () => {
+    mockPathname = '/settings'
+    const navRef = createRef<HTMLDivElement>()
+    const mainRef = createRef<HTMLDivElement>()
+    const { container } = render(
+      <AppLayout navRef={navRef} mainRef={mainRef} receivingVideo={false}>
+        <div>Content</div>
+      </AppLayout>
+    )
+
+    expect(container.querySelector('#nav-root')).not.toBeInTheDocument()
+    expect(container.querySelector('#content-root')?.getAttribute('data-nav-hidden')).toBe('1')
+    expect(container.querySelector('#round-host-shell')).toHaveStyle({
+      width: 'min(565px, calc(100vw - 16px))',
+      height: 'min(565px, calc(100dvh - 16px))'
+    })
+  })
+
   test('does not wrap projection in the round host shell', () => {
     mockPathname = '/'
     const navRef = createRef<HTMLDivElement>()
@@ -193,10 +211,13 @@ describe('AppLayout', () => {
 
     const navChild = getByTestId('nav')
     ;(navChild as HTMLElement).setAttribute('tabindex', '-1')
-    ;(navChild as HTMLElement).focus()
-    fireEvent.focusIn(navChild)
+    act(() => {
+      ;(navChild as HTMLElement).focus()
+      fireEvent.focusIn(navChild)
+    })
 
     expect(container.querySelector('#content-root')?.getAttribute('data-nav-hidden')).toBe('0')
+    expect(container.querySelector('#nav-root')).toBeInTheDocument()
   })
 
   test('clears auto-hide timer and keeps nav visible when leaving auto-hide pages', () => {
@@ -223,7 +244,8 @@ describe('AppLayout', () => {
       jest.advanceTimersByTime(3000)
     })
 
-    expect(container.querySelector('#content-root')?.getAttribute('data-nav-hidden')).toBe('0')
+    expect(container.querySelector('#content-root')?.getAttribute('data-nav-hidden')).toBe('1')
+    expect(container.querySelector('#nav-root')).not.toBeInTheDocument()
   })
 
   test('removes wake listeners on unmount for auto-hide pages', () => {

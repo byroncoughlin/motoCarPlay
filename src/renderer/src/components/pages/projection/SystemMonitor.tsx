@@ -17,7 +17,9 @@ const formatUptime = (seconds: number): string => {
 }
 
 const statRow = (label: string, value: string, color?: string): React.ReactElement => (
-  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 }}>
+  <div
+    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 }}
+  >
     <span style={{ color: '#9aa0a6', fontSize: 15, letterSpacing: 1, fontWeight: 600 }}>
       {label}
     </span>
@@ -39,9 +41,14 @@ export function SystemMonitor(): React.ReactElement | null {
   const [stats, setStats] = React.useState<SystemStats | null>(null)
   const openRef = React.useRef(open)
   openRef.current = open
+  const statsReaderAvailable = typeof window.app?.systemStats === 'function'
 
   React.useEffect(() => {
-    if (typeof window.app?.systemStats !== 'function') return undefined
+    const onOpenMonitor = (): void => {
+      setOpen(true)
+    }
+
+    window.addEventListener('livi:open-system-monitor', onOpenMonitor)
 
     const activePointers = new Set<number>()
     let timer: number | null = null
@@ -53,6 +60,7 @@ export function SystemMonitor(): React.ReactElement | null {
     }
 
     const onPointerDown = (event: PointerEvent): void => {
+      if (typeof window.app?.systemStats !== 'function') return
       activePointers.add(event.pointerId)
       if (activePointers.size === 2 && !timer && !openRef.current) {
         timer = window.setTimeout(() => {
@@ -63,6 +71,7 @@ export function SystemMonitor(): React.ReactElement | null {
     }
 
     const onPointerUp = (event: PointerEvent): void => {
+      if (typeof window.app?.systemStats !== 'function') return
       activePointers.delete(event.pointerId)
       if (activePointers.size < 2) clearTimer()
     }
@@ -73,6 +82,7 @@ export function SystemMonitor(): React.ReactElement | null {
 
     return () => {
       clearTimer()
+      window.removeEventListener('livi:open-system-monitor', onOpenMonitor)
       window.removeEventListener('pointerdown', onPointerDown)
       window.removeEventListener('pointerup', onPointerUp)
       window.removeEventListener('pointercancel', onPointerUp)
@@ -163,7 +173,7 @@ export function SystemMonitor(): React.ReactElement | null {
           </button>
         </div>
 
-        {!stats || stats.error ? (
+        {!statsReaderAvailable || !stats || stats.error ? (
           <div
             style={{
               color: '#8b9096',
@@ -174,7 +184,7 @@ export function SystemMonitor(): React.ReactElement | null {
               justifyContent: 'center'
             }}
           >
-            {stats?.error ? 'stats unavailable' : 'reading...'}
+            {!statsReaderAvailable || stats?.error ? 'stats unavailable' : 'reading...'}
           </div>
         ) : (
           <div
@@ -188,7 +198,9 @@ export function SystemMonitor(): React.ReactElement | null {
             }}
           >
             <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+              <div
+                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}
+              >
                 <span style={{ color: '#9aa0a6', fontSize: 15, letterSpacing: 1, fontWeight: 600 }}>
                   CPU
                 </span>
@@ -269,7 +281,10 @@ export function SystemMonitor(): React.ReactElement | null {
               stats.tempC != null ? `${stats.tempC.toFixed(1)}\u00b0C` : '--',
               stats.tempC != null ? heat(stats.tempC, 70, 80) : undefined
             )}
-            {statRow('LOAD', stats.load ? stats.load.map((load) => load.toFixed(2)).join(' ') : '--')}
+            {statRow(
+              'LOAD',
+              stats.load ? stats.load.map((load) => load.toFixed(2)).join(' ') : '--'
+            )}
             {statRow('UPTIME', stats.uptime != null ? formatUptime(stats.uptime) : '--')}
           </div>
         )}

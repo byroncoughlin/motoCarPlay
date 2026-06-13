@@ -32,6 +32,26 @@ export function registerAppIpc(runtimeState: runtimeStateProps, services: Servic
     app.quit()
   })
 
+  registerIpcHandle('app:rebootSystem', () => {
+    if (runtimeState.isQuitting) return { ok: false, error: 'App is already quitting' }
+
+    try {
+      usbService?.beginShutdown()
+    } catch {}
+
+    if (process.platform !== 'linux') {
+      return { ok: false, error: 'System reboot is only supported on Linux' }
+    }
+
+    try {
+      const child = spawn('sudo', ['reboot'], { detached: true, stdio: 'ignore' })
+      child.unref()
+      return { ok: true }
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) }
+    }
+  })
+
   // App Restart
   let restartInProgress = false
   registerIpcHandle('app:restartApp', async () => {

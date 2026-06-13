@@ -39,11 +39,13 @@ export const AppLayout: FC<PropsWithChildren<AppLayoutProps>> = ({
   const singleTab = tabs.length <= 1
 
   const hideNavHome = pathname === ROUTES.HOME
-  const hideNav = hideNavHome || (inAutoHideNavPage && clusterNavHidden)
-  const renderNav = !singleTab && !hideNavHome
+  const hideNavSettings = pathname.startsWith(ROUTES.SETTINGS)
+  const hideNav = hideNavHome || hideNavSettings || (inAutoHideNavPage && clusterNavHidden)
+  const renderNav = !singleTab && !hideNavHome && !hideNavSettings
   const isMainWindow = getWindowRole() === 'main'
   const inHostUiPage = pathname !== ROUTES.HOME && pathname !== ROUTES.CLUSTER
   const useRoundHostShell = isMainWindow && inHostUiPage
+  const settingsHostShell = useRoundHostShell && hideNavSettings
 
   // Steering wheel position
   const isRhd = Number(settings?.hand ?? 0) === 1
@@ -143,8 +145,12 @@ export const AppLayout: FC<PropsWithChildren<AppLayoutProps>> = ({
         <div
           id="round-host-shell"
           style={{
-            width: 'min(591px, calc(100vw - 16px))',
-            height: 'min(536px, calc(100dvh - 16px))',
+            width: settingsHostShell
+              ? 'min(565px, calc(100vw - 16px))'
+              : 'min(591px, calc(100vw - 16px))',
+            height: settingsHostShell
+              ? 'min(565px, calc(100dvh - 16px))'
+              : 'min(536px, calc(100dvh - 16px))',
             display: 'flex',
             flexDirection: layoutDirection,
             position: 'relative',

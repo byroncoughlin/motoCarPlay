@@ -271,7 +271,8 @@ function AppInner() {
           display: isHostUiRoute ? 'grid' : 'block',
           placeItems: isHostUiRoute ? 'center' : undefined,
           overflow: 'hidden',
-          pointerEvents: isProjectionRoute || location.pathname === ROUTES.CLUSTER ? 'none' : 'auto',
+          pointerEvents:
+            isProjectionRoute || location.pathname === ROUTES.CLUSTER ? 'none' : 'auto',
           backgroundColor: isHostUiRoute ? 'background.default' : 'transparent'
         }}
       >
@@ -280,8 +281,8 @@ function AppInner() {
             id="round-host-frame"
             sx={{
               position: 'relative',
-              width: 'min(500px, calc(100% - 16px))',
-              height: 'min(520px, calc(100% - 16px))',
+              width: '100%',
+              height: '100%',
               overflow: 'hidden'
             }}
           >

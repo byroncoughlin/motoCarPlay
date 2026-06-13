@@ -17,6 +17,10 @@ describe('SettingsLayout', () => {
   beforeEach(() => {
     navigateMock.mockReset()
     mockPathname = '/settings/system'
+    ;(window as any).app = {
+      quitApp: jest.fn().mockResolvedValue(undefined),
+      rebootSystem: jest.fn().mockResolvedValue({ ok: true })
+    }
     jest.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
       cb(0)
       return 1
@@ -114,5 +118,67 @@ describe('SettingsLayout', () => {
 
     expect(blurSpy).not.toHaveBeenCalled()
     expect(navigateMock).toHaveBeenCalledWith(-1)
+  })
+
+  test('renders the settings clock in 12-hour time', () => {
+    jest.useFakeTimers()
+    jest.setSystemTime(new Date('2026-06-12T17:07:00'))
+    mockPathname = '/settings'
+
+    try {
+      render(
+        <SettingsLayout title="Settings" showRestart={false}>
+          <div>Body</div>
+        </SettingsLayout>
+      )
+
+      expect(screen.getByTestId('settings-clock')).toHaveTextContent('5:07')
+    } finally {
+      jest.useRealTimers()
+    }
+  })
+
+  test('opens the Pi monitor via a window event', () => {
+    const listener = jest.fn()
+    window.addEventListener('livi:open-system-monitor', listener)
+    render(
+      <SettingsLayout title="System" showRestart={false}>
+        <div>Body</div>
+      </SettingsLayout>
+    )
+
+    fireEvent.click(screen.getByLabelText('Open Pi monitor'))
+    expect(listener).toHaveBeenCalledTimes(1)
+    window.removeEventListener('livi:open-system-monitor', listener)
+  })
+
+  test('confirms exit to desktop before quitting the app', () => {
+    render(
+      <SettingsLayout title="System" showRestart={false}>
+        <div>Body</div>
+      </SettingsLayout>
+    )
+
+    fireEvent.click(screen.getByLabelText('Exit to desktop'))
+    expect(screen.getByRole('dialog', { name: 'Exit to desktop?' })).toBeInTheDocument()
+    expect((window as any).app.quitApp).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByText('Exit'))
+    expect((window as any).app.quitApp).toHaveBeenCalledTimes(1)
+  })
+
+  test('confirms Pi reboot before invoking rebootSystem', () => {
+    render(
+      <SettingsLayout title="System" showRestart={false}>
+        <div>Body</div>
+      </SettingsLayout>
+    )
+
+    fireEvent.click(screen.getByLabelText('Reboot Pi'))
+    expect(screen.getByRole('dialog', { name: 'Reboot Pi?' })).toBeInTheDocument()
+    expect((window as any).app.rebootSystem).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reboot' }))
+    expect((window as any).app.rebootSystem).toHaveBeenCalledTimes(1)
   })
 })

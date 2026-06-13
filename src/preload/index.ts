@@ -260,6 +260,8 @@ const appApi = {
   beginInstall: (): Promise<void> => ipcRenderer.invoke('app:beginInstall'),
   abortUpdate: (): Promise<void> => ipcRenderer.invoke('app:abortUpdate'),
   quitApp: (): Promise<void> => ipcRenderer.invoke('app:quitApp'),
+  rebootSystem: (): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke('app:rebootSystem'),
   restartApp: (): Promise<void> => ipcRenderer.invoke('app:restartApp'),
   openExternal: (url: string): Promise<{ ok: boolean; error?: string }> =>
     ipcRenderer.invoke('app:openExternal', url),

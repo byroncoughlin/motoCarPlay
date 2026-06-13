@@ -671,12 +671,8 @@ describe('Projection page', () => {
     render(<Projection {...baseProps({ receivingVideo: false })} />)
 
     expect(screen.getByTestId('projection-waiting-pane')).toBeInTheDocument()
-    expect(screen.getByTestId('projection-waiting-status-pills')).toHaveTextContent(
-      'Adapter found'
-    )
-    expect(screen.getByTestId('projection-waiting-status-pills')).toHaveTextContent(
-      'iPhone linked'
-    )
+    expect(screen.getByTestId('projection-waiting-status-pills')).toHaveTextContent('Adapter found')
+    expect(screen.getByTestId('projection-waiting-status-pills')).toHaveTextContent('iPhone linked')
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 
@@ -721,9 +717,7 @@ describe('Projection page', () => {
     })
 
     expect(screen.getByTestId('projection-waiting-pane')).toBeInTheDocument()
-    expect(screen.getByTestId('projection-waiting-status-pills')).toHaveTextContent(
-      'Adapter found'
-    )
+    expect(screen.getByTestId('projection-waiting-status-pills')).toHaveTextContent('Adapter found')
     expect(screen.getByTestId('projection-waiting-status-pills')).toHaveTextContent(
       'Searching for iPhone'
     )
@@ -2218,7 +2212,11 @@ describe('Projection page', () => {
 
   test('hidden system monitor opens on two-finger hold and polls only while open', async () => {
     jest.useFakeTimers()
-    const dispatchPointer = (type: string, pointerId: number, target: EventTarget = window): void => {
+    const dispatchPointer = (
+      type: string,
+      pointerId: number,
+      target: EventTarget = window
+    ): void => {
       const event = new Event(type, { bubbles: true, cancelable: true })
       Object.defineProperty(event, 'pointerId', { value: pointerId })
       target.dispatchEvent(event)
@@ -2282,6 +2280,33 @@ describe('Projection page', () => {
 
     expect(systemStats).toHaveBeenCalledTimes(2)
     jest.useRealTimers()
+  })
+
+  test('hidden system monitor opens from the settings action event', async () => {
+    const systemStats = jest.fn().mockResolvedValue({
+      cpu: 31,
+      cores: [30, 32],
+      memUsedMb: 900,
+      memTotalMb: 2000,
+      memPct: 45,
+      swapUsedMb: 0,
+      tempC: 41,
+      load: [0.8, 0.4, 0.2],
+      uptime: 100
+    })
+    ;(window as any).app.systemStats = systemStats
+
+    render(<Projection {...baseProps()} />)
+    expect(screen.queryByTestId('projection-system-monitor')).not.toBeInTheDocument()
+
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent('livi:open-system-monitor'))
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(screen.getByTestId('projection-system-monitor')).toBeInTheDocument()
+    expect(systemStats).toHaveBeenCalledTimes(1)
   })
 })
 

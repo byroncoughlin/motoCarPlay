@@ -115,25 +115,31 @@ function WaitingProjectionPane({
     .toUpperCase()
   const status = !adapterFound
     ? {
-        tone: '#ef5350',
+        accentTone: '#ef5350',
+        adapterTone: '#ef5350',
+        phoneTone: '#ef5350',
         adapter: 'Adapter missing',
         phone: 'iPhone search paused',
         phoneActive: false
       }
     : videoStarting || phoneLinked
       ? {
-          tone: '#ffca28',
+          accentTone: '#66bb6a',
+          adapterTone: '#66bb6a',
+          phoneTone: '#66bb6a',
           adapter: 'Adapter found',
           phone: 'iPhone linked',
           phoneActive: true
         }
       : {
-          tone: '#4fc3f7',
+          accentTone: '#4fc3f7',
+          adapterTone: '#66bb6a',
+          phoneTone: '#4fc3f7',
           adapter: 'Adapter found',
           phone: 'Searching for iPhone',
           phoneActive: true
         }
-  const pill = (label: string, active: boolean) => (
+  const pill = (label: string, active: boolean, tone: string) => (
     <div
       style={{
         display: 'flex',
@@ -142,8 +148,8 @@ function WaitingProjectionPane({
         minHeight: 34,
         padding: '0 14px',
         borderRadius: 999,
-        border: `1px solid ${active ? `${status.tone}66` : 'rgba(255,255,255,0.16)'}`,
-        background: active ? `${status.tone}18` : 'rgba(255,255,255,0.06)',
+        border: `1px solid ${active ? `${tone}66` : 'rgba(255,255,255,0.16)'}`,
+        background: active ? `${tone}18` : 'rgba(255,255,255,0.06)',
         color: active ? '#f8fafc' : 'rgba(255,255,255,0.62)',
         fontSize: 12,
         fontWeight: 800,
@@ -158,8 +164,8 @@ function WaitingProjectionPane({
           width: 8,
           height: 8,
           borderRadius: '50%',
-          background: active ? status.tone : 'rgba(255,255,255,0.28)',
-          boxShadow: active ? `0 0 12px ${status.tone}aa` : undefined,
+          background: active ? tone : 'rgba(255,255,255,0.28)',
+          boxShadow: active ? `0 0 12px ${tone}aa` : undefined,
           flex: '0 0 auto'
         }}
       />
@@ -241,8 +247,8 @@ function WaitingProjectionPane({
             width: 88,
             height: 4,
             borderRadius: 2,
-            background: status.tone,
-            boxShadow: `0 0 18px ${status.tone}99`,
+            background: status.accentTone,
+            boxShadow: `0 0 18px ${status.accentTone}99`,
             margin: '24px 0'
           }}
         />
@@ -256,8 +262,8 @@ function WaitingProjectionPane({
             maxWidth: '100%'
           }}
         >
-          {pill(status.adapter, adapterFound)}
-          {pill(status.phone, status.phoneActive)}
+          {pill(status.adapter, adapterFound, status.adapterTone)}
+          {pill(status.phone, status.phoneActive, status.phoneTone)}
         </div>
         <div
           style={{
@@ -276,7 +282,7 @@ function WaitingProjectionPane({
                 width: index === 1 ? 28 : 8,
                 height: 8,
                 borderRadius: 999,
-                backgroundColor: index === 1 ? status.tone : 'rgba(255,255,255,0.24)'
+                backgroundColor: index === 1 ? status.accentTone : 'rgba(255,255,255,0.24)'
               }}
             />
           ))}
@@ -381,11 +387,14 @@ const CarplayComponent: React.FC<CarplayProps> = ({
     setTransportPhoneLinkedState(linked)
   }, [])
 
-  const applyTransportPhoneState = useCallback((state: unknown) => {
-    const linked = hasLinkedPhoneTransport(state)
-    setTransportPhoneLinked(linked)
-    if (reportsNoLinkedPhoneTransport(state)) setDonglePhoneLinked(false)
-  }, [setDonglePhoneLinked, setTransportPhoneLinked])
+  const applyTransportPhoneState = useCallback(
+    (state: unknown) => {
+      const linked = hasLinkedPhoneTransport(state)
+      setTransportPhoneLinked(linked)
+      if (reportsNoLinkedPhoneTransport(state)) setDonglePhoneLinked(false)
+    },
+    [setDonglePhoneLinked, setTransportPhoneLinked]
+  )
 
   const refreshTransportPhoneState = useCallback(() => {
     void window.projection.ipc

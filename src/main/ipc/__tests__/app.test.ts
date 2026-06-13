@@ -94,6 +94,7 @@ describe('registerAppIpc', () => {
       expect.arrayContaining([
         'quit',
         'app:quitApp',
+        'app:rebootSystem',
         'app:restartApp',
         'app:openExternal',
         'app:systemStats'
@@ -184,6 +185,55 @@ describe('registerAppIpc', () => {
     quitAppHandler?.()
 
     expect(app.quit).not.toHaveBeenCalled()
+  })
+
+  test('app:rebootSystem runs sudo reboot on linux', () => {
+    const unref = jest.fn()
+    mockedSpawn.mockReturnValue({ unref })
+    Object.defineProperty(process, 'platform', { value: 'linux' })
+    const beginShutdown = jest.fn()
+
+    const runtimeState = { isQuitting: false, suppressNextFsSync: false } as never
+    const services = { usbService: { beginShutdown } } as never
+
+    registerAppIpc(runtimeState, services)
+
+    const rebootHandler = getHandle('app:rebootSystem') as (() => unknown) | undefined
+    expect(rebootHandler?.()).toEqual({ ok: true })
+
+    expect(beginShutdown).toHaveBeenCalledTimes(1)
+    expect(mockedSpawn).toHaveBeenCalledWith('sudo', ['reboot'], {
+      detached: true,
+      stdio: 'ignore'
+    })
+    expect(unref).toHaveBeenCalledTimes(1)
+  })
+
+  test('app:rebootSystem refuses when not on linux or already quitting', () => {
+    Object.defineProperty(process, 'platform', { value: 'darwin' })
+    registerAppIpc(
+      { isQuitting: false, suppressNextFsSync: false } as never,
+      {
+        usbService: {}
+      } as never
+    )
+    const nonLinuxHandler = getHandle('app:rebootSystem') as (() => unknown) | undefined
+    expect(nonLinuxHandler?.()).toEqual({
+      ok: false,
+      error: 'System reboot is only supported on Linux'
+    })
+
+    jest.clearAllMocks()
+    Object.defineProperty(process, 'platform', { value: 'linux' })
+    registerAppIpc(
+      { isQuitting: true, suppressNextFsSync: false } as never,
+      {
+        usbService: {}
+      } as never
+    )
+    const quittingHandler = getHandle('app:rebootSystem') as (() => unknown) | undefined
+    expect(quittingHandler?.()).toEqual({ ok: false, error: 'App is already quitting' })
+    expect(mockedSpawn).not.toHaveBeenCalled()
   })
 
   test('app:media-key fans the command out to all renderers', () => {
