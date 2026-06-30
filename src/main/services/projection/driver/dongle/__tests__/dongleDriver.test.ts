@@ -220,6 +220,81 @@ describe('DongleDriver core behavior', () => {
     expect(d._heartbeatInterval).toBeNull()
   })
 
+  test('startResearchLoop periodically re-sends wifiConnect while no phone is connected', () => {
+    const d = new DongleDriver() as any
+    d._device = { opened: true }
+    d.send = jest.fn(async () => true)
+
+    d.startResearchLoop()
+    expect(d._researchInterval).toBeTruthy()
+
+    jest.advanceTimersByTime(8_000)
+    jest.advanceTimersByTime(8_000)
+
+    const wifiConnectCalls = d.send.mock.calls.filter(
+      (c: unknown[]) =>
+        c[0] instanceof SendCommand && (c[0] as SendCommand).value === CommandMapping.wifiConnect
+    )
+    expect(wifiConnectCalls.length).toBe(2)
+  })
+
+  test('startResearchLoop is a no-op once a phone is connected', () => {
+    const d = new DongleDriver() as any
+    d._device = { opened: true }
+    d._phoneConnected = true
+    d.send = jest.fn(async () => true)
+
+    d.startResearchLoop()
+
+    expect(d._researchInterval).toBeNull()
+    jest.advanceTimersByTime(8_000)
+    expect(d.send).not.toHaveBeenCalled()
+  })
+
+  test('research loop stops itself when the phone connects (onPlugged)', async () => {
+    const d = new DongleDriver() as any
+    d._device = { opened: true }
+    d.reconcileModes = jest.fn(async () => undefined)
+    d.send = jest.fn(async () => true)
+
+    d.startResearchLoop()
+    expect(d._researchInterval).toBeTruthy()
+
+    await d.onPlugged({ phoneType: PhoneType.CarPlay })
+
+    expect(d._phoneConnected).toBe(true)
+    expect(d._researchInterval).toBeNull()
+    d.send.mockClear()
+    jest.advanceTimersByTime(16_000)
+    const wifiConnectCalls = d.send.mock.calls.filter(
+      (c: unknown[]) =>
+        c[0] instanceof SendCommand && (c[0] as SendCommand).value === CommandMapping.wifiConnect
+    )
+    expect(wifiConnectCalls.length).toBe(0)
+  })
+
+  test('onUnplugged resumes the research loop while the box stays open', () => {
+    const d = new DongleDriver() as any
+    d._device = { opened: true }
+    d._phoneConnected = true
+    d.send = jest.fn(async () => true)
+
+    d.onUnplugged()
+
+    expect(d._phoneConnected).toBe(false)
+    expect(d._researchInterval).toBeTruthy()
+  })
+
+  test('onUnplugged does not start a research loop when the box is gone', () => {
+    const d = new DongleDriver() as any
+    d._device = null
+    d.send = jest.fn(async () => true)
+
+    d.onUnplugged()
+
+    expect(d._researchInterval).toBeNull()
+  })
+
   test('onPlugged updates last phone type, reconciles modes and emits config-changed when needed', async () => {
     const d = new DongleDriver() as any
     const emitSpy = jest.spyOn(d, 'emit')

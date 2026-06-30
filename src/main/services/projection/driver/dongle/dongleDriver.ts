@@ -44,6 +44,12 @@ const CONFIG_NUMBER = 1
 const MAX_ERROR_COUNT = 5
 const READ_TIMEOUT_MS = 1_000
 
+// While the box is open but no phone has connected ("Searching for iPhone"), the
+// app re-sends the wifiConnect command on this interval so a phone that powers
+// on / comes into range later is picked up without a manual Re-search. The timer
+// stops as soon as a phone is Plugged, or when the box is Unplugged/closed.
+const RESEARCH_INTERVAL_MS = 8_000
+
 type UnknownRecord = Record<string, unknown>
 
 function isRecord(v: unknown): v is UnknownRecord {
@@ -86,6 +92,8 @@ export class DongleDriver extends EventEmitter {
   private _postOpenConfigSent = false
 
   private _wifiConnectTimer: ReturnType<typeof setTimeout> | null = null
+  private _researchInterval: ReturnType<typeof setInterval> | null = null
+  private _phoneConnected = false
   private _pendingStartupConnectTarget: PendingStartupConnectTarget | null = null
   private _modeSwitchInFlight: Promise<void> = Promise.resolve()
   private _lastModeSwitchAt = 0
@@ -187,6 +195,28 @@ export class DongleDriver extends EventEmitter {
     this._wifiConnectTimer = setTimeout(() => {
       void this.send(new SendCommand('wifiConnect'))
     }, delayMs)
+  }
+
+  // Periodically re-issue wifiConnect while the box is open but no phone has
+  // connected, so a phone that appears later auto-connects without a manual
+  // Re-search. Idempotent; a no-op once a phone is Plugged.
+  private startResearchLoop() {
+    if (this._researchInterval || this._phoneConnected) return
+    this._researchInterval = setInterval(() => {
+      if (this._closing || this._phoneConnected || !this._device?.opened) {
+        this.stopResearchLoop()
+        return
+      }
+      if (DEBUG) console.log('[DongleDriver] auto re-search: re-sending wifiConnect')
+      void this.send(new SendCommand('wifiConnect'))
+    }, RESEARCH_INTERVAL_MS)
+  }
+
+  private stopResearchLoop() {
+    if (this._researchInterval) {
+      clearInterval(this._researchInterval)
+      this._researchInterval = null
+    }
   }
 
   public setPendingStartupConnectTarget(target: PendingStartupConnectTarget | null): void {
@@ -562,21 +592,34 @@ export class DongleDriver extends EventEmitter {
       this.scheduleWifiConnect(150)
     }
 
+    // Box is configured but no phone yet -> keep re-searching until one connects.
+    this.startResearchLoop()
+
     this._postOpenConfigSent = true
   }
 
   private onUnplugged() {
     this._lastPluggedPhoneType = null
     this._pendingModeHintFromBoxInfo = null
+    this._phoneConnected = false
 
     if (this._heartbeatInterval) {
       clearInterval(this._heartbeatInterval)
       this._heartbeatInterval = null
     }
+
+    // Phone went away but the box is still open -> resume auto re-search so it
+    // reconnects on its own when the phone comes back.
+    if (!this._closing && this._device?.opened) {
+      this.scheduleWifiConnect(150)
+      this.startResearchLoop()
+    }
   }
 
   private async onPlugged(msg: Plugged) {
     this._lastPluggedPhoneType = msg.phoneType
+    this._phoneConnected = true
+    this.stopResearchLoop()
     await this.reconcileModes('plugged')
 
     const cfg = this._cfg
@@ -698,6 +741,8 @@ export class DongleDriver extends EventEmitter {
     this._androidWorkModeRuntime = AndroidWorkMode.AndroidAuto
 
     this._postOpenConfigSent = false
+    this._phoneConnected = false
+    this.stopResearchLoop()
 
     const messages: SendableMessage[] = [
       new SendOpen(
@@ -726,6 +771,9 @@ export class DongleDriver extends EventEmitter {
         clearTimeout(this._wifiConnectTimer)
         this._wifiConnectTimer = null
       }
+
+      this.stopResearchLoop()
+      this._phoneConnected = false
 
       if (this._heartbeatInterval) {
         clearInterval(this._heartbeatInterval)
