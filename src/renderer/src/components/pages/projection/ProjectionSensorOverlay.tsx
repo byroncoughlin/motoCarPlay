@@ -66,8 +66,23 @@ type MotoTelemetry = {
   gForceX: number | null
   gForceY: number | null
   piCpuC: number | null
+  imuRecalibrating: boolean
   imuPeak: { leanL: number; leanR: number; g: number }
   chtPeak: { left: number; right: number }
+  // Dropout handling: hold the last good reading + whether the sensor is
+  // currently responding, so a gauge can show the stale value with a
+  // blinking "not responding" hint instead of going blank.
+  chtLeftLastC: number | null
+  chtRightLastC: number | null
+  chtLeftResponding: boolean
+  chtRightResponding: boolean
+  // GPS dropout handling: hold the last good speed/heading/altitude and a
+  // "responding" flag, so the cluster slowly blinks the last reading on a
+  // lost fix / lost satellites instead of dashing it out.
+  speedMphLast: number | null
+  headingDegLast: number | null
+  altitudeFtLast: number | null
+  gpsResponding: boolean
 }
 
 type MotoActions = {
@@ -86,6 +101,7 @@ type MotoSettings = Pick<
   | 'ambientFillColor'
   | 'leanOffset'
   | 'pitchOffset'
+  | 'reverseTilt'
 >
 
 type MetricZone = {
@@ -108,6 +124,14 @@ const ARC_PCT = MOTO_ARC_PCT
 const GRAPH_WINDOW_MS = 5 * 60 * 1000
 const GRAPH_MAX_AGE_MS = 8 * 60 * 60 * 1000
 const GRAPH_SAMPLE_MS = 1000
+// CHT emits every ~2s; if no good reading arrives within this window the
+// sensor service is treated as not responding (held value shown, blinking).
+const CHT_STALE_MS = 7000
+
+// If no GPS fix update arrives within this window (e.g. the gps service died or
+// the antenna dropped link entirely), treat GPS as not responding so the held
+// speed/heading/altitude slowly blink instead of freezing as if still live.
+const GPS_STALE_MS = 5000
 
 const CHT_ZONES: MetricZone[] = [
   { max: 80, color: '#4fc3f7' },
@@ -231,8 +255,17 @@ function initialTelemetry(): MotoTelemetry {
     gForceX: null,
     gForceY: null,
     piCpuC: null,
+    imuRecalibrating: false,
     imuPeak: { leanL: 0, leanR: 0, g: 0 },
-    chtPeak: { left: 0, right: 0 }
+    chtPeak: { left: 0, right: 0 },
+    chtLeftLastC: null,
+    chtRightLastC: null,
+    chtLeftResponding: true,
+    chtRightResponding: true,
+    speedMphLast: null,
+    headingDegLast: null,
+    altitudeFtLast: null,
+    gpsResponding: true
   }
 }
 
@@ -352,6 +385,8 @@ function readSensors(payload: unknown): Partial<MotoTelemetry> | null {
 
   const gForceY = finiteNumber(msg.gForceY)
   if (gForceY !== undefined) patch.gForceY = roundTo(gForceY, 0.01)
+
+  if (typeof msg.imuRecalibrating === 'boolean') patch.imuRecalibrating = msg.imuRecalibrating
 
   return Object.keys(patch).length > 0 ? patch : null
 }
@@ -498,6 +533,24 @@ function useMotoTelemetry(settings: MotoSettings | null): {
     chtLeft: { shown: null, pending: null } as StableValueState,
     chtRight: { shown: null, pending: null } as StableValueState
   })
+  // CHT dropout tracking: remember the last good (non-null) reading and the
+  // last time a real number arrived, so the gauge can show the held value
+  // with a "not responding" hint when a fault clears the value (explicit
+  // null) or the sensor service dies entirely (no events → staleness).
+  const chtTrackRef = React.useRef({
+    left: { lastGood: null as number | null, lastGoodTs: 0 },
+    right: { lastGood: null as number | null, lastGoodTs: 0 }
+  })
+  // GPS dropout tracking: remember the last good speed/heading/altitude (taken
+  // while we had a fix) and the last time a fix arrived. On a lost fix / lost
+  // satellites the cluster slowly blinks the held values instead of blanking.
+  const gpsTrackRef = React.useRef({
+    speed: null as number | null,
+    heading: null as number | null,
+    altitude: null as number | null,
+    lastFixTs: 0,
+    lastSig: ''
+  })
 
   React.useEffect(() => {
     settingsRef.current = settings
@@ -571,6 +624,15 @@ function useMotoTelemetry(settings: MotoSettings | null): {
         const next: MotoTelemetry = { ...prev, ...patch }
         const stable = stableRef.current
 
+        // Reverse-tilt: invert lean angle (and lateral G) so a physical
+        // left lean reads as left. Applied once here so every downstream
+        // consumer (gauges, peaks, graphs, calibration offsets) stays
+        // consistent. Only flip freshly-arrived values from this patch.
+        if (settingsRef.current?.reverseTilt) {
+          if (patch.leanDeg != null) next.leanDeg = -patch.leanDeg
+          if (patch.gForceX != null) next.gForceX = -patch.gForceX
+        }
+
         if (patch.speedMph !== undefined || patch.gpsFix !== undefined) {
           next.speedMph = stableSpeed(
             next.gpsFix === true ? next.speedMph : null,
@@ -583,9 +645,51 @@ function useMotoTelemetry(settings: MotoSettings | null): {
         }
         if (patch.chtLeftC !== undefined) {
           next.chtLeftC = stableValue(patch.chtLeftC, stable.chtLeft, 3, 3000, now)
+          const track = chtTrackRef.current.left
+          if (next.chtLeftC != null) {
+            track.lastGood = next.chtLeftC
+            track.lastGoodTs = now
+          }
+          next.chtLeftLastC = next.chtLeftC ?? track.lastGood
+          next.chtLeftResponding = next.chtLeftC != null
         }
         if (patch.chtRightC !== undefined) {
           next.chtRightC = stableValue(patch.chtRightC, stable.chtRight, 3, 3000, now)
+          const track = chtTrackRef.current.right
+          if (next.chtRightC != null) {
+            track.lastGood = next.chtRightC
+            track.lastGoodTs = now
+          }
+          next.chtRightLastC = next.chtRightC ?? track.lastGood
+          next.chtRightResponding = next.chtRightC != null
+        }
+
+        // GPS dropout: while we have a fix, remember the latest good
+        // speed/heading/altitude. On a lost fix keep the held values and mark
+        // GPS as not responding so the cluster slowly blinks them.
+        {
+          const track = gpsTrackRef.current
+          const hasFix = next.gpsFix === true
+          // The app relays telemetry continuously even after the gps sensor
+          // stops emitting (the last payload is held), so gpsFix alone can stay
+          // stale-true. Only treat the fix as "fresh" when a GPS field actually
+          // changes; otherwise let it age out into the stale (blinking) state.
+          const sig = `${next.speedMph ?? ''}|${next.headingDeg ?? ''}|${next.altitudeFt ?? ''}|${next.gpsSatellites ?? ''}|${String(next.gpsFix)}`
+          const gpsChanged = sig !== track.lastSig
+          track.lastSig = sig
+          if (hasFix && gpsChanged) {
+            track.lastFixTs = now
+            if (next.speedMph != null) track.speed = next.speedMph
+            if (next.headingDeg != null) track.heading = next.headingDeg
+            if (next.altitudeFt != null) track.altitude = next.altitudeFt
+          }
+          const fresh = track.lastFixTs > 0 && now - track.lastFixTs <= GPS_STALE_MS
+          const gpsLive = hasFix && fresh
+          next.speedMphLast = gpsLive && next.speedMph != null ? next.speedMph : track.speed
+          next.headingDegLast = gpsLive && next.headingDeg != null ? next.headingDeg : track.heading
+          next.altitudeFtLast =
+            gpsLive && next.altitudeFt != null ? next.altitudeFt : track.altitude
+          next.gpsResponding = gpsLive
         }
 
         if (next.leanDeg != null) {
@@ -632,6 +736,45 @@ function useMotoTelemetry(settings: MotoSettings | null): {
     }
   }, [logFromState])
 
+  // Detect a CHT service that stops emitting entirely (process died / link
+  // dropped): the value never goes null, so flag "not responding" once the
+  // last good reading is older than CHT_STALE_MS while still showing it.
+  React.useEffect(() => {
+    const isJsdom =
+      typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('jsdom')
+    if (isJsdom) return
+    const id = window.setInterval(() => {
+      const now = Date.now()
+      setTelemetry((prev) => {
+        const track = chtTrackRef.current
+        const leftStale =
+          track.left.lastGoodTs > 0 && now - track.left.lastGoodTs > CHT_STALE_MS
+        const rightStale =
+          track.right.lastGoodTs > 0 && now - track.right.lastGoodTs > CHT_STALE_MS
+        const nextLeftResponding = !leftStale && prev.chtLeftResponding
+        const nextRightResponding = !rightStale && prev.chtRightResponding
+        const gpsTrack = gpsTrackRef.current
+        const gpsStale =
+          gpsTrack.lastFixTs > 0 && now - gpsTrack.lastFixTs > GPS_STALE_MS
+        const nextGpsResponding = !gpsStale && prev.gpsResponding
+        if (
+          (leftStale && prev.chtLeftResponding) ||
+          (rightStale && prev.chtRightResponding) ||
+          (gpsStale && prev.gpsResponding)
+        ) {
+          return {
+            ...prev,
+            chtLeftResponding: nextLeftResponding,
+            chtRightResponding: nextRightResponding,
+            gpsResponding: nextGpsResponding
+          }
+        }
+        return prev
+      })
+    }, 1000)
+    return () => window.clearInterval(id)
+  }, [])
+
   const actions = React.useMemo<MotoActions>(
     () => ({
       openMetric: (key) => setActiveGraph((cur) => (cur === key ? null : key)),
@@ -660,8 +803,15 @@ function TopArc({
   actions: MotoActions
   background: string
 }) {
-  const speed = telemetry.gpsFix === true ? telemetry.speedMph : null
-  const heading = telemetry.gpsFix === true ? telemetry.headingDeg : null
+  const hasFix = telemetry.gpsFix === true
+  // GPS is "live" only when we currently have a fix and the sensor is still
+  // emitting. When the fix drops OR the sensor stops responding entirely, keep
+  // showing the last good value but slowly blinking (gpsStale) rather than
+  // dashing it out.
+  const gpsLive = hasFix && telemetry.gpsResponding
+  const speed = gpsLive ? telemetry.speedMph : telemetry.speedMphLast
+  const heading = gpsLive ? telemetry.headingDeg : telemetry.headingDegLast
+  const gpsStale = !gpsLive && (telemetry.speedMphLast != null || telemetry.headingDegLast != null)
   const cardinal = heading != null ? toCardinal(heading) : null
   const gpsLabel =
     telemetry.gpsFix == null
@@ -744,10 +894,16 @@ function TopArc({
           background: 'transparent'
         }}
       >
-        <span style={{ fontSize: 32, fontWeight: 700, color: 'white', lineHeight: 1 }}>
+        <span
+          className={gpsStale && heading != null ? 'moto-gps-stale' : undefined}
+          style={{ fontSize: 32, fontWeight: 700, color: 'white', lineHeight: 1 }}
+        >
           {cardinal ?? '--'}
         </span>
-        <span style={{ fontSize: 14, fontWeight: 800, color: 'white', marginTop: 2 }}>
+        <span
+          className={gpsStale && heading != null ? 'moto-gps-stale' : undefined}
+          style={{ fontSize: 14, fontWeight: 800, color: 'white', marginTop: 2 }}
+        >
           {heading != null ? `${heading}\u00b0` : ''}
         </span>
       </button>
@@ -766,6 +922,7 @@ function TopArc({
         }}
       >
         <span
+          className={gpsStale && speed != null ? 'moto-gps-stale' : undefined}
           style={{
             fontSize: 90,
             fontWeight: 800,
@@ -817,11 +974,15 @@ function TopArc({
 function ChtGauge({
   side,
   value,
+  lastValue,
+  responding,
   actions,
   background
 }: {
   side: 'L' | 'R'
   value: number | null
+  lastValue?: number | null
+  responding?: boolean
   actions: MotoActions
   background: string
 }) {
@@ -832,10 +993,17 @@ function ChtGauge({
   const barY = 159
   const vh = MOTO_CENTER_SQUARE_SIZE
   const metricKey = side === 'L' ? 'chtLeft' : 'chtRight'
-  const hasData = value !== null
-  const clamped = Math.max(0, Math.min(maxTemp, value ?? 0))
+  const isResponding = responding !== false
+  // When the sensor stops responding, keep showing the last good reading
+  // (dimmed) with a blinking "NO RESP" hint instead of going blank.
+  const heldValue = value ?? lastValue ?? null
+  const displayValue = isResponding ? value : heldValue
+  const hasData = displayValue !== null
+  const showStale = !isResponding && hasData
+  const clamped = Math.max(0, Math.min(maxTemp, displayValue ?? 0))
   const fill = (clamped / maxTemp) * barH
-  const color = hasData ? tempColor(clamped) : '#333'
+  const liveColor = tempColor(clamped)
+  const color = !hasData ? '#333' : showStale ? '#8a6d3b' : liveColor
   const barInset = 29
   const barX = side === 'L' ? barInset : vw - barW - barInset
   const textCX = barX + barW / 2
@@ -844,6 +1012,7 @@ function ChtGauge({
     <button
       type="button"
       aria-label={`${side} cylinder head temperature`}
+      data-responding={isResponding ? 'true' : 'false'}
       onClick={() => actions.openMetric(metricKey)}
       style={{
         width: '100%',
@@ -866,7 +1035,15 @@ function ChtGauge({
       >
         <rect x={barX} y={barY} width={barW} height={barH} fill="#141414" rx={6} />
         {hasData && fill > 0 && (
-          <rect x={barX} y={barY + barH - fill} width={barW} height={fill} fill={color} rx={6} />
+          <rect
+            x={barX}
+            y={barY + barH - fill}
+            width={barW}
+            height={fill}
+            fill={color}
+            rx={6}
+            opacity={showStale ? 0.55 : 1}
+          />
         )}
         {[100, 200].map((t) => {
           const y = barY + barH - (t / maxTemp) * barH
@@ -886,24 +1063,46 @@ function ChtGauge({
           x={textCX}
           y={barY + barH + 34}
           textAnchor="middle"
-          fill={hasData ? color : 'white'}
+          fill={!hasData ? 'white' : showStale ? '#c9a227' : color}
           fontSize={28}
           fontWeight="bold"
           fontFamily="sans-serif"
+          opacity={showStale ? 0.85 : 1}
         >
           {hasData ? Math.round(clamped) : '--'}
         </text>
-        <text
-          x={textCX}
-          y={barY + barH + 52}
-          textAnchor="middle"
-          fill="white"
-          fontSize={12}
-          fontWeight="bold"
-          fontFamily="sans-serif"
-        >
-          C
-        </text>
+        {showStale ? (
+          <text
+            x={textCX}
+            y={barY + barH + 54}
+            textAnchor="middle"
+            fill="#ffca28"
+            fontSize={12}
+            fontWeight="bold"
+            fontFamily="sans-serif"
+            letterSpacing={0.5}
+          >
+            NO RESP
+            <animate
+              attributeName="opacity"
+              values="1;0.15;1"
+              dur="1.1s"
+              repeatCount="indefinite"
+            />
+          </text>
+        ) : (
+          <text
+            x={textCX}
+            y={barY + barH + 52}
+            textAnchor="middle"
+            fill="white"
+            fontSize={12}
+            fontWeight="bold"
+            fontFamily="sans-serif"
+          >
+            C
+          </text>
+        )}
       </svg>
     </button>
   )
@@ -936,7 +1135,10 @@ function BottomArc({
   const side = leanVal > 0.5 ? 'R' : leanVal < -0.5 ? 'L' : ''
   const absPitch = Math.abs(Math.round(pitchVal))
   const pitchDir = pitchVal > 0.5 ? '\u25b2' : pitchVal < -0.5 ? '\u25bc' : ''
-  const altFt = telemetry.altitudeFt != null ? telemetry.altitudeFt.toLocaleString() : '--'
+  const gpsLive = telemetry.gpsFix === true && telemetry.gpsResponding
+  const gpsStale = !gpsLive && telemetry.altitudeFtLast != null
+  const altValue = gpsLive ? telemetry.altitudeFt : telemetry.altitudeFtLast
+  const altFt = altValue != null ? altValue.toLocaleString() : '--'
   const totalG =
     telemetry.gForceX != null && telemetry.gForceY != null
       ? Math.sqrt(telemetry.gForceX ** 2 + telemetry.gForceY ** 2)
@@ -953,7 +1155,7 @@ function BottomArc({
   }))
 
   return (
-    <div style={{ width: '100%', height: '100%', background }}>
+    <div style={{ width: '100%', height: '100%', background }} data-testid="projection-bottom-arc">
       <svg
         viewBox={`0 0 ${w} ${h}`}
         width="100%"
@@ -1092,12 +1294,20 @@ function BottomArc({
             x={154}
             y={43}
             textAnchor="middle"
-            fill={telemetry.altitudeFt != null ? '#e0e0e0' : 'white'}
+            fill={altValue != null ? '#e0e0e0' : 'white'}
             fontSize={22}
             fontWeight="bold"
             fontFamily="monospace"
           >
             {altFt}
+            {gpsStale && (
+              <animate
+                attributeName="opacity"
+                values="1;0.25;1"
+                dur="2.4s"
+                repeatCount="indefinite"
+              />
+            )}
           </text>
           <text
             x={154}
@@ -1134,6 +1344,26 @@ function BottomArc({
           >
             {hasLean ? (absLean > 0 ? `${absLean}\u00b0 ${side}` : `0\u00b0`) : '--'}
           </text>
+          {telemetry.imuRecalibrating && (
+            <text
+              x={cx}
+              y={112}
+              textAnchor="middle"
+              fill="#ffca28"
+              fontSize={11}
+              fontWeight="bold"
+              fontFamily="monospace"
+              letterSpacing={1}
+            >
+              CALIBRATING
+              <animate
+                attributeName="opacity"
+                values="1;0.2;1"
+                dur="1.1s"
+                repeatCount="indefinite"
+              />
+            </text>
+          )}
         </g>
 
         <g>
@@ -3025,6 +3255,8 @@ export function ProjectionSensorOverlay() {
         <ChtGauge
           side="L"
           value={telemetry.chtLeftC}
+          lastValue={telemetry.chtLeftLastC}
+          responding={telemetry.chtLeftResponding}
           actions={actions}
           background={arcBackground}
         />
@@ -3043,6 +3275,8 @@ export function ProjectionSensorOverlay() {
         <ChtGauge
           side="R"
           value={telemetry.chtRightC}
+          lastValue={telemetry.chtRightLastC}
+          responding={telemetry.chtRightResponding}
           actions={actions}
           background={arcBackground}
         />

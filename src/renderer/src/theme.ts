@@ -86,6 +86,14 @@ function buildTheme(mode: THEME.LIGHT | THEME.DARK, bg?: string) {
             animation: 'motoGpsAcquiringPulse var(--ui-breathe-dur, 1350ms) ease-in-out infinite',
             willChange: 'opacity'
           },
+          '@keyframes motoGpsStaleBlink': {
+            '0%, 100%': { opacity: 1 },
+            '50%': { opacity: 0.25 }
+          },
+          '.moto-gps-stale': {
+            animation: 'motoGpsStaleBlink 2400ms ease-in-out infinite',
+            willChange: 'opacity'
+          },
           '.fft-surface': {
             backgroundColor: isLight ? themeColors.fftSurfaceLight : themeColors.fftSurfaceDark,
             ...(isLight

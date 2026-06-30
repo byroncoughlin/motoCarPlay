@@ -98,6 +98,17 @@ type DevToolsUploadResult = {
 }
 
 declare global {
+  type PowerStatus = {
+    throttledRaw: number | null
+    underVoltageNow: boolean
+    underVoltageOccurred: boolean
+    throttledNow: boolean
+    throttledOccurred: boolean
+    freqCappedNow: boolean
+    coreVolts: number | null
+    inputVolts: number | null
+  }
+
   type SystemStats = {
     cpu?: number
     cores?: number[]
@@ -111,6 +122,9 @@ declare global {
     tempC?: number | null
     load?: number[] | null
     uptime?: number | null
+    power?: PowerStatus | null
+    wiredIp?: string | null
+    wirelessIp?: string | null
     error?: string
   }
 

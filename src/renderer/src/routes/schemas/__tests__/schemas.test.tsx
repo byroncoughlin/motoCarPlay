@@ -117,6 +117,7 @@ describe('settings schemas', () => {
       'ambientFillColor',
       'roundedCornerMaskEnabled',
       '',
+      'reverseTilt',
       ''
     ])
     expect(motoDisplay.children.map((child: any) => child.label)).toEqual([
@@ -126,6 +127,7 @@ describe('settings schemas', () => {
       'Fill Color',
       'Round Corners',
       'Tilt Calibration',
+      'Reverse Tilt',
       'Graph History'
     ])
     expect(motoDisplay.children[1]).toMatchObject({

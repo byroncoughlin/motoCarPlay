@@ -35,6 +35,21 @@ const formatLoad = (load: number[] | null | undefined): string => {
   return `1m ${load[0].toFixed(2)} 5m ${load[1].toFixed(2)} 15m ${load[2].toFixed(2)}`
 }
 
+const formatPower = (power: PowerStatus): string => {
+  if (power.underVoltageNow) return 'UNDERVOLT NOW'
+  if (power.throttledNow) return 'THROTTLED NOW'
+  const volts =
+    power.inputVolts != null
+      ? `${power.inputVolts.toFixed(2)}V`
+      : power.coreVolts != null
+        ? `${power.coreVolts.toFixed(2)}V core`
+        : null
+  if (power.underVoltageOccurred || power.throttledOccurred) {
+    return `${volts ? `${volts} - ` : ''}dip seen`
+  }
+  return volts ? `${volts} OK` : 'OK'
+}
+
 const statRow = (label: string, value: string, color?: string): React.ReactElement => (
   <div
     style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 }}
@@ -285,6 +300,18 @@ export function SystemMonitor(): React.ReactElement | null {
             )}
             {statRow('LOAD AVG', formatLoad(stats.load))}
             {statRow('UPTIME', stats.uptime != null ? formatUptime(stats.uptime) : '--')}
+            {statRow('WIRED', stats.wiredIp ?? '--')}
+            {statRow('WI-FI', stats.wirelessIp ?? '--')}
+            {stats.power &&
+              statRow(
+                'POWER',
+                formatPower(stats.power),
+                stats.power.underVoltageNow || stats.power.throttledNow
+                  ? '#ef5350'
+                  : stats.power.underVoltageOccurred || stats.power.throttledOccurred
+                    ? '#ffca28'
+                    : '#66bb6a'
+              )}
           </div>
         )}
 

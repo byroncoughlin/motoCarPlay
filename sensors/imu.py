@@ -30,15 +30,31 @@ Each _read/_write retries with a buffer flush, so an occasional UART desync
 costs one quick retry instead of stalling the display.
 
 Registers (page 0):
-  OPR_MODE 0x3D   (0x00 CONFIG, 0x0C NDOF fusion)
-  EUL      0x1A   6 bytes: heading, roll, pitch  (int16 LE, 16 LSB/deg)
-  LIA      0x28   6 bytes: x, y, z linear accel  (int16 LE, 100 LSB/(m/s^2))
+  OPR_MODE   0x3D   (0x00 CONFIG, 0x0C NDOF fusion)
+  CALIB_STAT 0x35   bits: sys[7:6] gyro[5:4] accel[3:2] mag[1:0]  (0..3 each)
+  EUL        0x1A   6 bytes: heading, roll, pitch  (int16 LE, 16 LSB/deg)
+  LIA        0x28   6 bytes: x, y, z linear accel  (int16 LE, 100 LSB/(m/s^2))
 
 euler roll → lean angle (positive = right); euler pitch → pitch (nose up +).
 
 BNO055 quirk: when fusion isn't ready the Euler regs read 0xFFFF (-0.0625°)
 in roll AND pitch at once; we skip those frames so the UI holds its last
 good value instead of flickering to zero.
+
+DRIFT / POWER-GLITCH HANDLING:
+  When the BNO055 browns out (e.g. the Pi dips under load) it silently leaves
+  NDOF and re-runs fusion from scratch — the absolute roll then settles to a
+  *different* zero, which showed up as the tilt being 10-30° off. We defend
+  against this three ways:
+    1. Detect the chip falling out of NDOF (mode register != 0x0C) and re-init
+       it in place, without dropping the socket, flagging "recalibrating".
+    2. Read CALIB_STAT and, while the gyro isn't calibrated (the worst drift
+       window), HOLD the last good lean/pitch instead of emitting a value that
+       is busy re-converging.
+    3. Reject physically-impossible single-tick jumps (> MAX_STEP_DEG in one
+       ~100 ms sample) — a real bike can't snap that fast, so such a frame is
+       a fusion glitch and is skipped.
+  An 'imu-status' event reports calibration + recalibrating state to the app.
 """
 
 import time
@@ -55,10 +71,12 @@ OPR_MODE    = 0x3D
 MODE_CONFIG = 0x00
 MODE_NDOF   = 0x0C
 CHIP_ID_REG = 0x00
+CALIB_STAT  = 0x35
 EUL_REG     = 0x1A
 LIA_REG     = 0x28
 
 BNO_SENTINEL = -0.0625      # 0xFFFF/16 — fusion "not ready"
+MAX_STEP_DEG = 45.0         # max believable lean/pitch change per ~100 ms tick
 
 
 class BNO055UART:
@@ -101,6 +119,29 @@ class BNO055UART:
         self._write(OPR_MODE, [MODE_CONFIG]); time.sleep(0.03)
         self._write(OPR_MODE, [MODE_NDOF]);   time.sleep(0.05)
 
+    def mode(self):
+        """Current OPR_MODE low nibble, or None if the read failed."""
+        d = self._read(OPR_MODE, 1)
+        if not d:
+            return None
+        return d[0] & 0x0F
+
+    def in_ndof(self):
+        """True only if we positively confirm NDOF; None on read failure so the
+        caller can avoid a needless re-init on a transient UART hiccup."""
+        m = self.mode()
+        if m is None:
+            return None
+        return m == MODE_NDOF
+
+    def calib(self):
+        """Returns (sys, gyro, accel, mag) each 0..3, or None on read failure."""
+        d = self._read(CALIB_STAT, 1)
+        if not d:
+            return None
+        b = d[0]
+        return ((b >> 6) & 3, (b >> 4) & 3, (b >> 2) & 3, b & 3)
+
     def euler(self):
         d = self._read(EUL_REG, 6)
         if not d:
@@ -137,14 +178,62 @@ def is_sentinel(v):
 
 def main():
     bno = None
+    # Drift-defense state, persisted across the inner loop:
+    last_lean = None        # last *emitted* lean (for jump rejection)
+    last_pitch = None
+    last_gyro_cal = None     # last reported gyro calibration level
+    recalibrating = False    # chip is re-converging fusion; hold last value
+    ndof_miss = 0            # consecutive confirmed "not in NDOF" reads
+    status_counter = 0       # throttle imu-status emits to ~1 Hz
+
+    def emit_status(extra=None):
+        cal = bno.calib() if bno is not None else None
+        payload = {
+            'recalibrating': recalibrating,
+            'sys':   cal[0] if cal else None,
+            'gyro':  cal[1] if cal else None,
+            'accel': cal[2] if cal else None,
+            'mag':   cal[3] if cal else None,
+        }
+        if extra:
+            payload.update(extra)
+        try:
+            sio.emit('imu-status', payload)
+        except Exception:
+            pass
+        return cal
+
     while True:
         try:
             bno = BNO055UART(UART_PORT, UART_BAUD)
             bno.begin()
             print('[imu] BNO055 NDOF ready (raw UART)', flush=True)
+            last_lean = last_pitch = None
+            recalibrating = False
+            ndof_miss = 0
 
             sio.connect(SERVER_URL)
             while True:
+                # 1. Detect a silent power-glitch reset: the chip drops out of
+                #    NDOF and re-runs fusion from a fresh zero. Confirm twice
+                #    (a single failed read shouldn't trigger a re-init), then
+                #    re-init in place and hold values until fusion re-converges.
+                ndof = bno.in_ndof()
+                if ndof is False:
+                    ndof_miss += 1
+                    if ndof_miss >= 2:
+                        print('[imu] chip left NDOF (power glitch?) — re-initialising in place',
+                              flush=True)
+                        bno.begin()
+                        recalibrating = True
+                        last_lean = last_pitch = None
+                        ndof_miss = 0
+                        emit_status({'event': 'reset'})
+                        time.sleep(INTERVAL)
+                        continue
+                elif ndof is True:
+                    ndof_miss = 0
+
                 e = bno.euler()
                 a = bno.lin_accel()
                 if e is None or a is None:
@@ -156,12 +245,47 @@ def main():
                     time.sleep(INTERVAL)
                     continue
 
+                # 2. While the gyro isn't calibrated the absolute angle is busy
+                #    re-converging (this is the 10-30° drift window). Hold the
+                #    last good value rather than emit a drifting one.
+                cal = bno.calib()
+                gyro_cal = cal[1] if cal else None
+                if gyro_cal is not None:
+                    if last_gyro_cal is not None and gyro_cal >= 2 and last_gyro_cal < 2:
+                        # gyro just re-calibrated — drift window is over
+                        recalibrating = False
+                    last_gyro_cal = gyro_cal
+                    if gyro_cal < 1:
+                        recalibrating = True
+                        status_counter = 0
+                        emit_status()
+                        time.sleep(INTERVAL)
+                        continue
+
+                # 3. Reject physically-impossible single-tick jumps (fusion
+                #    glitch). A real bike can't move > MAX_STEP_DEG in 100 ms.
+                if last_lean is not None and abs(lean - last_lean) > MAX_STEP_DEG:
+                    time.sleep(INTERVAL)
+                    continue
+                if last_pitch is not None and abs(pitch - last_pitch) > MAX_STEP_DEG:
+                    time.sleep(INTERVAL)
+                    continue
+
+                recalibrating = False
+                last_lean, last_pitch = lean, pitch
+
                 gx = round(a[0] / 9.81, 3)   # lateral G
                 gy = round(a[1] / 9.81, 3)   # longitudinal G
 
                 sio.emit('lean',   round(lean,  2))
                 sio.emit('pitch',  round(pitch, 2))
                 sio.emit('gforce', {'x': gx, 'y': gy})
+
+                # throttle status to ~1 Hz (every ~10 ticks)
+                status_counter += 1
+                if status_counter >= 10:
+                    status_counter = 0
+                    emit_status()
 
                 time.sleep(INTERVAL)
 

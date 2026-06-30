@@ -1,3 +1,5 @@
+import PowerSettingsNewOutlinedIcon from '@mui/icons-material/PowerSettingsNewOutlined'
+import RefreshOutlinedIcon from '@mui/icons-material/RefreshOutlined'
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined'
 import { useTheme } from '@mui/material'
 import type { Config } from '@shared/types'
@@ -29,6 +31,61 @@ const waitingClockLabel = (date: Date): string => {
   const hours = date.getHours() % 12 || 12
   const minutes = String(date.getMinutes()).padStart(2, '0')
   return `${hours}:${minutes}`
+}
+
+type WaitingPowerInfo = { text: string; tone: string } | null
+
+const describeWaitingPower = (power: PowerStatus | null | undefined): WaitingPowerInfo => {
+  if (!power) return null
+  const volts =
+    power.inputVolts != null
+      ? `${power.inputVolts.toFixed(2)}V`
+      : power.coreVolts != null
+        ? `${power.coreVolts.toFixed(2)}V`
+        : null
+  if (power.underVoltageNow) {
+    return { text: `LOW POWER${volts ? ` ${volts}` : ''}`, tone: '#ef5350' }
+  }
+  if (power.throttledNow) {
+    return { text: `THROTTLED${volts ? ` ${volts}` : ''}`, tone: '#ef5350' }
+  }
+  if (power.underVoltageOccurred || power.throttledOccurred) {
+    return { text: `POWER DIP SEEN${volts ? ` ${volts}` : ''}`, tone: '#ffca28' }
+  }
+  return { text: `POWER OK${volts ? ` ${volts}` : ''}`, tone: '#66bb6a' }
+}
+
+// Three-dot indicator that fills progressively to signal CarPlay is imminent
+// during the ~3s gap between phone-linked and the first video frame.
+function ConnectingDots({ tone }: { tone: string }) {
+  return (
+    <div
+      data-testid="projection-waiting-connecting-dots"
+      aria-label="Connecting to CarPlay"
+      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12 }}
+    >
+      {[0, 1, 2].map((i) => (
+        <span
+          key={i}
+          style={{
+            width: 16,
+            height: 16,
+            borderRadius: '50%',
+            background: tone,
+            display: 'inline-block',
+            animation: 'livi-connecting-dot 1.2s ease-in-out infinite',
+            animationDelay: `${i * 0.2}s`
+          }}
+        />
+      ))}
+      <style>
+        {`@keyframes livi-connecting-dot {
+            0%, 80%, 100% { opacity: 0.2; transform: scale(0.7); }
+            40% { opacity: 1; transform: scale(1); }
+          }`}
+      </style>
+    </div>
+  )
 }
 
 const hasLinkedPhoneTransport = (value: unknown): boolean => {
@@ -89,6 +146,9 @@ function WaitingProjectionPane({
   onOpenSettings
 }: WaitingProjectionPaneProps) {
   const [now, setNow] = useState(() => new Date())
+  const [power, setPower] = useState<WaitingPowerInfo>(null)
+  const [confirmReboot, setConfirmReboot] = useState(false)
+  const [researching, setResearching] = useState(false)
 
   useEffect(() => {
     const isJsdom =
@@ -97,6 +157,45 @@ function WaitingProjectionPane({
     const id = window.setInterval(() => setNow(new Date()), 1000)
     return () => window.clearInterval(id)
   }, [show])
+
+  useEffect(() => {
+    const isJsdom =
+      typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('jsdom')
+    if (!show || isJsdom || typeof window.app?.systemStats !== 'function') return
+    let alive = true
+    const read = async () => {
+      try {
+        const stats = await window.app.systemStats()
+        if (alive) setPower(describeWaitingPower(stats?.power))
+      } catch {
+        // keep the pane passive on a failed sample
+      }
+    }
+    void read()
+    const id = window.setInterval(read, 5000)
+    return () => {
+      alive = false
+      window.clearInterval(id)
+    }
+  }, [show])
+
+  const handleResearch = useCallback(() => {
+    if (researching) return
+    setResearching(true)
+    void (async () => {
+      try {
+        await window.projection?.usb?.detectDongle?.().catch(() => false)
+        await window.projection?.usb?.forceReset?.().catch(() => false)
+        await window.projection?.ipc?.restart?.().catch(() => {})
+      } finally {
+        window.setTimeout(() => setResearching(false), 1500)
+      }
+    })()
+  }, [researching])
+
+  const handleReboot = useCallback(() => {
+    window.app?.rebootSystem?.().catch(console.error)
+  }, [])
 
   if (!show) return null
 
@@ -310,7 +409,214 @@ function WaitingProjectionPane({
             'projection-waiting-phone-pill'
           )}
         </div>
+        {(videoStarting || phoneLinked) && (
+          <div style={{ marginTop: 22, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <ConnectingDots tone={status.accentTone} />
+            <div
+              style={{
+                color: 'rgba(255,255,255,0.7)',
+                fontSize: 12,
+                fontWeight: 800,
+                fontFamily: 'monospace',
+                letterSpacing: 2,
+                textTransform: 'uppercase'
+              }}
+            >
+              Starting CarPlay
+            </div>
+          </div>
+        )}
+        {power && (
+          <div
+            data-testid="projection-waiting-power"
+            style={{
+              marginTop: 18,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 7,
+              color: power.tone,
+              fontSize: 12,
+              fontWeight: 800,
+              fontFamily: 'monospace',
+              letterSpacing: 1.5
+            }}
+          >
+            <span
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                background: power.tone,
+                boxShadow: `0 0 10px ${power.tone}aa`
+              }}
+            />
+            {power.text}
+          </div>
+        )}
       </div>
+      <div
+        data-testid="projection-waiting-actions"
+        style={{
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          bottom: '8%',
+          display: 'flex',
+          justifyContent: 'center',
+          gap: 12,
+          pointerEvents: 'auto',
+          zIndex: 8
+        }}
+      >
+        <button
+          type="button"
+          aria-label="Re-search for dongle and phone"
+          data-testid="projection-waiting-research-button"
+          disabled={researching}
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={(event) => {
+            event.stopPropagation()
+            handleResearch()
+          }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            height: 48,
+            padding: '0 18px',
+            borderRadius: 10,
+            border: '1px solid rgba(79,195,247,0.4)',
+            background: 'rgba(79,195,247,0.12)',
+            color: researching ? 'rgba(255,255,255,0.5)' : '#bfe7fb',
+            fontSize: 13,
+            fontWeight: 800,
+            fontFamily: 'monospace',
+            letterSpacing: 1,
+            textTransform: 'uppercase',
+            cursor: researching ? 'default' : 'pointer',
+            touchAction: 'manipulation',
+            WebkitTapHighlightColor: 'transparent'
+          }}
+        >
+          <RefreshOutlinedIcon
+            style={{
+              fontSize: 22,
+              animation: researching ? 'livi-research-spin 1s linear infinite' : undefined
+            }}
+          />
+          {researching ? 'Searching' : 'Re-search'}
+        </button>
+        <button
+          type="button"
+          aria-label="Reboot Pi"
+          data-testid="projection-waiting-reboot-button"
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={(event) => {
+            event.stopPropagation()
+            setConfirmReboot(true)
+          }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            height: 48,
+            padding: '0 18px',
+            borderRadius: 10,
+            border: '1px solid rgba(255,133,133,0.4)',
+            background: 'rgba(255,85,85,0.12)',
+            color: '#ff9d9d',
+            fontSize: 13,
+            fontWeight: 800,
+            fontFamily: 'monospace',
+            letterSpacing: 1,
+            textTransform: 'uppercase',
+            cursor: 'pointer',
+            touchAction: 'manipulation',
+            WebkitTapHighlightColor: 'transparent'
+          }}
+        >
+          <PowerSettingsNewOutlinedIcon style={{ fontSize: 22 }} />
+          Reboot
+        </button>
+        <style>
+          {`@keyframes livi-research-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}
+        </style>
+      </div>
+      {confirmReboot && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Reboot Pi?"
+          data-testid="projection-waiting-reboot-confirm"
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={(event) => event.stopPropagation()}
+          style={{
+            position: 'absolute',
+            inset: 0,
+            zIndex: 12,
+            background: 'rgba(0,0,0,0.9)',
+            display: 'grid',
+            placeItems: 'center',
+            padding: 24,
+            pointerEvents: 'auto'
+          }}
+        >
+          <div
+            style={{
+              width: 'min(360px, 100%)',
+              borderRadius: 12,
+              border: '1px solid rgba(255,255,255,0.14)',
+              background: '#101316',
+              padding: 24,
+              textAlign: 'center'
+            }}
+          >
+            <div style={{ fontSize: 26, fontWeight: 900, lineHeight: 1.05 }}>Reboot Pi?</div>
+            <div style={{ marginTop: 8, color: 'rgba(255,255,255,0.62)', fontSize: 14 }}>
+              The display will go dark while the Pi restarts.
+            </div>
+            <div
+              style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 22 }}
+            >
+              <button
+                type="button"
+                onClick={() => setConfirmReboot(false)}
+                style={{
+                  minHeight: 52,
+                  borderRadius: 10,
+                  border: '1px solid rgba(255,255,255,0.2)',
+                  background: 'transparent',
+                  color: '#f8fafc',
+                  fontWeight: 900,
+                  fontSize: 15,
+                  cursor: 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirmReboot(false)
+                  handleReboot()
+                }}
+                style={{
+                  minHeight: 52,
+                  borderRadius: 10,
+                  border: '1px solid rgba(255,202,40,0.5)',
+                  background: 'transparent',
+                  color: '#ffca28',
+                  fontWeight: 900,
+                  fontSize: 15,
+                  cursor: 'pointer'
+                }}
+              >
+                Reboot
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

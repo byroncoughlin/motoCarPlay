@@ -83,6 +83,29 @@ describe('TelemetrySocket', () => {
     expect(store.snapshot().speedKph).toBe(10)
   })
 
+  test('legacy "imu-status" event decodes recalibration + calibration fields', () => {
+    const store = new TelemetryStore()
+    new TelemetrySocket(store, 4014)
+    const sock = new MockSocket()
+    lastIo.server!.emit(TelemetryEvents.Connection, sock)
+    sock.emit('imu-status', { recalibrating: true, gyro: 0, sys: 2 })
+    const snap = store.snapshot() as Record<string, unknown>
+    expect(snap.imuRecalibrating).toBe(true)
+    expect(snap.imuGyroCal).toBe(0)
+    expect(snap.imuSysCal).toBe(2)
+  })
+
+  test('legacy "cht" event preserves null when a probe drops out', () => {
+    const store = new TelemetryStore()
+    new TelemetrySocket(store, 4015)
+    const sock = new MockSocket()
+    lastIo.server!.emit(TelemetryEvents.Connection, sock)
+    sock.emit('cht', { left: 211, right: null })
+    const snap = store.snapshot() as Record<string, unknown>
+    expect(snap.chtLeftC).toBe(211)
+    expect(snap.chtRightC).toBeNull()
+  })
+
   test('store change → broadcast on io server', () => {
     const store = new TelemetryStore()
     new TelemetrySocket(store, 4005)

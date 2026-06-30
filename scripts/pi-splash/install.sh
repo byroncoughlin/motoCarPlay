@@ -16,10 +16,12 @@ if [[ $EUID -ne 0 ]]; then
   exit 1
 fi
 
-if [[ ! -f "${LOGO_SRC}" ]]; then
-  echo "Missing ${LOGO_SRC}" >&2
-  echo "Place a transparent-background PNG." >&2
-  exit 1
+# Optional logo: if a PNG exists it is installed, but the splash no longer
+# depends on it -- the theme draws three large pulsing dots programmatically
+# so the user always gets a minimal "powered on / loading" indicator.
+HAVE_LOGO=0
+if [[ -f "${LOGO_SRC}" ]]; then
+  HAVE_LOGO=1
 fi
 
 CONFIG_TXT="/boot/firmware/config.txt"
@@ -35,7 +37,9 @@ apt-get install -y plymouth plymouth-themes
 
 echo "[2/5] Writing theme to ${THEME_DIR}"
 install -d -m 0755 "${THEME_DIR}"
-install -m 0644 "${LOGO_SRC}" "${THEME_DIR}/logo.png"
+if [[ "${HAVE_LOGO}" -eq 1 ]]; then
+  install -m 0644 "${LOGO_SRC}" "${THEME_DIR}/logo.png"
+fi
 
 cat > "${THEME_DIR}/${THEME_NAME}.plymouth" <<EOF
 [Plymouth Theme]
@@ -48,21 +52,63 @@ ImageDir=${THEME_DIR}
 ScriptFile=${THEME_DIR}/${THEME_NAME}.script
 EOF
 
+# Plymouth's script language has NO per-pixel drawing API and Image.Text depends
+# on a font having the bullet glyph, so we render a real anti-aliased white dot
+# PNG with a tiny pure-Python (zlib only, no PIL) generator and load it as an
+# image. Guaranteed to render regardless of installed fonts.
+echo "      generating dot.png asset"
+python3 - "${THEME_DIR}/dot.png" <<'PYEOF'
+import sys, zlib, struct, math
+
+size = 90
+cx = cy = (size - 1) / 2.0
+radius = 40.0
+buf = bytearray()
+for y in range(size):
+    buf.append(0)  # PNG filter type 0 for this scanline
+    for x in range(size):
+        d = math.hypot(x - cx, y - cy)
+        # anti-aliased edge over 1.5px
+        a = max(0.0, min(1.0, (radius - d) / 1.5 + 0.5))
+        v = 255  # white
+        buf += bytes((v, v, v, int(a * 255)))
+
+def chunk(tag, data):
+    c = tag + data
+    return struct.pack(">I", len(data)) + c + struct.pack(">I", zlib.crc32(c) & 0xffffffff)
+
+png = b"\x89PNG\r\n\x1a\n"
+png += chunk(b"IHDR", struct.pack(">IIBBBBB", size, size, 8, 6, 0, 0, 0))
+png += chunk(b"IDAT", zlib.compress(bytes(buf), 9))
+png += chunk(b"IEND", b"")
+open(sys.argv[1], "wb").write(png)
+print("      wrote", sys.argv[1], len(png), "bytes")
+PYEOF
+
+# Minimal splash: solid black background with three large white dots in the
+# center. STATIC (no pulse/animation) -- during early boot the panel back-light
+# is off, so an animation just looks like dim flicker; a steady, fully-opaque
+# image is the clearest possible "powered on / booting" indicator at this stage.
 cat > "${THEME_DIR}/${THEME_NAME}.script" <<'EOF'
 Window.SetBackgroundTopColor(0, 0, 0);
 Window.SetBackgroundBottomColor(0, 0, 0);
 
-logo = Image("logo.png");
-sprite = Sprite(logo);
+dot_image = Image("dot.png");
+dot_w = dot_image.GetWidth();
+dot_h = dot_image.GetHeight();
+dot_gap = dot_w + 24;    # center-to-center spacing
 
-# Re-center on every refresh; window size is 0 at init on some displays
-fun refresh() {
-  sprite.SetPosition(
-    Window.GetWidth() / 2 - logo.GetWidth() / 2,
-    Window.GetHeight() / 2 - logo.GetHeight() / 2,
-    10);
+cx = Window.GetWidth() / 2;
+cy = Window.GetHeight() / 2;
+start_x = cx - dot_gap - dot_w / 2;
+top_y = cy - dot_h / 2;
+
+for (i = 0; i < 3; i++) {
+  dots[i].sprite = Sprite(dot_image);
+  dots[i].sprite.SetX(start_x + dot_gap * i);
+  dots[i].sprite.SetY(top_y);
+  dots[i].sprite.SetOpacity(1);
 }
-Plymouth.SetRefreshFunction(refresh);
 EOF
 
 echo "[3/5] Activating theme + rebuilding initramfs"
@@ -102,36 +148,13 @@ add_flag "splash"
 add_flag "plymouth.ignore-serial-consoles"
 add_flag "loglevel=0"
 
-# Auto-detect the active display mode so plymouth doesn't render at EDID
-# preferred (often 4K). Falls back to LIVI_SPLASH_VIDEO env if detection fails.
-detect_video_mode() {
-  [[ -z "${SUDO_USER:-}" ]] && return 1
-  command -v wlr-randr >/dev/null || return 1
-  local uid runtime
-  uid=$(id -u "${SUDO_USER}")
-  runtime="/run/user/${uid}"
-  [[ -S "${runtime}/wayland-0" ]] || return 1
-  local out
-  out=$(WAYLAND_DISPLAY=wayland-0 XDG_RUNTIME_DIR="${runtime}" \
-        runuser -u "${SUDO_USER}" -- wlr-randr 2>/dev/null) || return 1
-  awk '
-    /^[^[:space:]]/ { conn=$1 }
-    /current/ {
-      for (i=1;i<=NF;i++) if ($i ~ /^[0-9]+x[0-9]+/) mode=$i
-      for (i=1;i<=NF;i++) if ($i ~ /^[0-9]+\.[0-9]+/) hz=int($i+0.5)
-      if (conn && mode && hz) { printf "%s:%s@%d", conn, mode, hz; exit }
-    }
-  ' <<< "${out}"
-}
-
-VIDEO_MODE="${LIVI_SPLASH_VIDEO:-$(detect_video_mode || true)}"
-if [[ -n "${VIDEO_MODE}" ]]; then
-  echo "      video mode = ${VIDEO_MODE}"
-  LINE=$(echo "${LINE}" | sed -E 's/[[:space:]]*video=[^[:space:]]+//g')
-  LINE="${LINE} video=${VIDEO_MODE}"
-else
-  echo "      no video mode pinned (plymouth will use EDID preferred)"
-fi
+# NOTE: we intentionally do NOT pin a video= mode. The 800x800 round panel mode
+# is a non-standard (user-defined) timing the kernel rejects ("User-defined mode
+# not supported"), which made plymouth render dim/garbled until the compositor
+# took over. Letting plymouth use the EDID-preferred mode renders the splash
+# cleanly; the LIVI compositor sets the real 800x800 mode afterwards. Strip any
+# previously-pinned video= flag.
+LINE=$(echo "${LINE}" | sed -E 's/[[:space:]]*video=[^[:space:]]+//g')
 add_flag "logo.nologo"
 add_flag "vt.global_cursor_default=0"
 

@@ -231,6 +231,11 @@ export const motoSettingsSchema: SettingsNode<Config> = {
           component: TiltCalibrationControl
         },
         {
+          type: 'checkbox',
+          label: 'Reverse Tilt',
+          path: 'reverseTilt'
+        },
+        {
           type: 'custom',
           label: 'Graph History',
           path: '',

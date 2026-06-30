@@ -73,6 +73,7 @@ export const DEFAULT_CONFIG: Config = {
   roundedCornerMaskEnabled: false,
   leanOffset: 0,
   pitchOffset: 0,
+  reverseTilt: false,
   startPage: 'home',
   language: 'en',
   kiosk: { main: true, dash: false, aux: false },

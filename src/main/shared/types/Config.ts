@@ -201,6 +201,7 @@ export type Config = {
   roundedCornerMaskEnabled?: boolean
   leanOffset?: number
   pitchOffset?: number
+  reverseTilt?: boolean
 
   // Camera + dashboards + media slots
   cameraId: string

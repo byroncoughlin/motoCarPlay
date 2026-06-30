@@ -1,6 +1,8 @@
 import { PhoneWorkMode } from '@shared/types'
 import EventEmitter from 'events'
 import fs from 'fs'
+import os from 'os'
+import path from 'path'
 import {
   AudioData,
   BluetoothPairedList,
@@ -16,6 +18,13 @@ import {
   Unplugged,
   VideoData
 } from '../../messages'
+
+// Unique per jest worker so parallel suites don't race on a shared dir
+// (previously a hardcoded `/tmp/appdata` caused flaky ENOTEMPTY teardown).
+const mockAppDataDir = path.join(
+  os.tmpdir(),
+  `livi-test-appdata-${process.env.JEST_WORKER_ID ?? '0'}`
+)
 
 jest.mock('../../messages', () => {
   class MockDongleDriver extends EventEmitter {
@@ -155,7 +164,7 @@ jest.mock('@main/ipc/utils', () => ({
 
 jest.mock('electron', () => ({
   app: {
-    getPath: jest.fn(() => '/tmp/appdata')
+    getPath: jest.fn(() => mockAppDataDir)
   },
   BrowserWindow: {
     getAllWindows: jest.fn(() => [])
@@ -204,8 +213,8 @@ describe('ProjectionService', () => {
     jest.clearAllMocks()
     jest.restoreAllMocks()
     mockGstVideoInstances.length = 0
-    fs.rmSync('/tmp/appdata', { recursive: true, force: true })
-    fs.mkdirSync('/tmp/appdata', { recursive: true })
+    fs.rmSync(mockAppDataDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 20 })
+    fs.mkdirSync(mockAppDataDir, { recursive: true })
   })
 
   function getHandle<T = (...args: any[]) => any>(channel: string): T {
@@ -1068,7 +1077,7 @@ describe('ProjectionService', () => {
     const h = getHandle('projection-media-read')
     const out = await h.call(svc)
 
-    expect(readMediaFile).toHaveBeenCalledWith('/tmp/appdata/mediaData.json')
+    expect(readMediaFile).toHaveBeenCalledWith(path.join(mockAppDataDir, 'mediaData.json'))
     expect(out).toEqual({
       timestamp: 't',
       payload: {
@@ -1110,7 +1119,9 @@ describe('ProjectionService', () => {
     const h = getHandle('projection-navigation-read')
     const out = await h.call(svc)
 
-    expect(readNavigationFile).toHaveBeenCalledWith('/tmp/appdata/navigationData.json')
+    expect(readNavigationFile).toHaveBeenCalledWith(
+      path.join(mockAppDataDir, 'navigationData.json')
+    )
     expect(out).toEqual({
       timestamp: 't',
       payload: {
@@ -1421,7 +1432,7 @@ describe('ProjectionService', () => {
       opts.onProgress?.({ received: 100, total: 100, percent: 1 })
       return {
         ok: true,
-        path: '/tmp/appdata/firmware/A15W_Update.img',
+        path: path.join(mockAppDataDir, 'firmware', 'A15W_Update.img'),
         bytes: 321
       }
     })
@@ -1467,7 +1478,7 @@ describe('ProjectionService', () => {
     expect(send).toHaveBeenCalledWith('projection-event', {
       type: 'fwUpdate',
       stage: 'download:done',
-      path: '/tmp/appdata/firmware/A15W_Update.img',
+      path: path.join(mockAppDataDir, 'firmware', 'A15W_Update.img'),
       bytes: 321
     })
 
@@ -1833,7 +1844,7 @@ describe('ProjectionService', () => {
     svc.firmware.getLocalFirmwareStatus = jest.fn(async () => ({
       ok: true,
       ready: true,
-      path: '/tmp/appdata/firmware/A15W_Update.img',
+      path: path.join(mockAppDataDir, 'firmware', 'A15W_Update.img'),
       bytes: 100,
       model: 'A15W',
       latestVer: '2.0.0'
@@ -1871,7 +1882,7 @@ describe('ProjectionService', () => {
     svc.firmware.getLocalFirmwareStatus = jest.fn(async () => ({
       ok: true,
       ready: true,
-      path: '/tmp/appdata/firmware/A15W_Update.img',
+      path: path.join(mockAppDataDir, 'firmware', 'A15W_Update.img'),
       bytes: 100,
       model: 'A15W',
       latestVer: '2.0.0'
@@ -1907,7 +1918,7 @@ describe('ProjectionService', () => {
     svc.firmware.getLocalFirmwareStatus = jest.fn(async () => ({
       ok: true,
       ready: true,
-      path: '/tmp/appdata/firmware/A15W_Update.img',
+      path: path.join(mockAppDataDir, 'firmware', 'A15W_Update.img'),
       bytes: 100,
       model: 'A15W',
       latestVer: '2.0.0'

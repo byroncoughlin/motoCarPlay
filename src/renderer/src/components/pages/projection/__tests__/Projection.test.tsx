@@ -269,9 +269,44 @@ describe('Projection page', () => {
       telemetryCb?.({ gpsFix: false })
     })
 
-    expect(screen.getByLabelText('GPS speed')).toHaveTextContent('--')
+    // On lost fix the last good value is held and slowly blinks instead of
+    // being dashed out.
+    expect(screen.getByLabelText('GPS speed')).toHaveTextContent('55')
+    expect(screen.getByLabelText('GPS speed').querySelector('.moto-gps-stale')).not.toBeNull()
     expect(screen.getByText('ACQUIRING')).toBeInTheDocument()
     expect(screen.getByTestId('projection-gps-status-dot')).toHaveClass('moto-gps-acquiring-dot')
+
+    nowSpy.mockRestore()
+  })
+
+  test('holds and slowly blinks last GPS heading + altitude on a lost fix', () => {
+    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(1000)
+
+    render(<Projection {...baseProps()} />)
+
+    act(() => {
+      telemetryCb?.({
+        gpsFix: true,
+        speedKph: 50,
+        gps: { heading: 90, alt: 304.8 }
+      })
+    })
+
+    const topArc = screen.getByTestId('projection-top-arc')
+    const bottomArc = screen.getByTestId('projection-bottom-arc')
+    expect(topArc).toHaveTextContent('90\u00b0')
+    expect(bottomArc).toHaveTextContent('1,000')
+
+    act(() => {
+      telemetryCb?.({ gpsFix: false })
+    })
+
+    // Heading + altitude keep their last values rather than blanking, and pick
+    // up the slow-blink class / animation.
+    expect(topArc).toHaveTextContent('90\u00b0')
+    expect(topArc.querySelector('.moto-gps-stale')).not.toBeNull()
+    expect(bottomArc).toHaveTextContent('1,000')
+    expect(bottomArc.querySelector('animate')).not.toBeNull()
 
     nowSpy.mockRestore()
   })
@@ -621,6 +656,59 @@ describe('Projection page', () => {
     } finally {
       jest.useRealTimers()
     }
+  })
+
+  test('waiting pane Re-search button triggers detect/reset/restart and disables while running', async () => {
+    statusState.isStreaming = false
+    ;(window as any).projection.usb.detectDongle = jest.fn().mockResolvedValue(true)
+    ;(window as any).projection.usb.forceReset = jest.fn().mockResolvedValue(true)
+    ;(window as any).projection.ipc.restart = jest.fn().mockResolvedValue(undefined)
+
+    render(<Projection {...baseProps({ receivingVideo: false })} />)
+
+    const research = screen.getByTestId('projection-waiting-research-button')
+    expect(research).not.toBeDisabled()
+
+    await act(async () => {
+      fireEvent.click(research)
+    })
+
+    expect((window as any).projection.usb.detectDongle).toHaveBeenCalledTimes(1)
+    expect((window as any).projection.usb.forceReset).toHaveBeenCalledTimes(1)
+    expect((window as any).projection.ipc.restart).toHaveBeenCalledTimes(1)
+  })
+
+  test('waiting pane Reboot button asks for confirmation before rebooting', async () => {
+    statusState.isStreaming = false
+    ;(window as any).app.rebootSystem = jest.fn().mockResolvedValue(undefined)
+
+    render(<Projection {...baseProps({ receivingVideo: false })} />)
+
+    expect(screen.queryByTestId('projection-waiting-reboot-confirm')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId('projection-waiting-reboot-button'))
+
+    const dialog = screen.getByTestId('projection-waiting-reboot-confirm')
+    expect(dialog).toBeInTheDocument()
+    expect(dialog).toHaveAttribute('aria-label', 'Reboot Pi?')
+
+    fireEvent.click(within(dialog).getByText('Cancel'))
+    expect(screen.queryByTestId('projection-waiting-reboot-confirm')).not.toBeInTheDocument()
+    expect((window as any).app.rebootSystem).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByTestId('projection-waiting-reboot-button'))
+    fireEvent.click(within(screen.getByTestId('projection-waiting-reboot-confirm')).getByText('Reboot'))
+
+    expect((window as any).app.rebootSystem).toHaveBeenCalledTimes(1)
+    expect(screen.queryByTestId('projection-waiting-reboot-confirm')).not.toBeInTheDocument()
+  })
+
+  test('waiting pane shows the connecting dots and Starting CarPlay once the phone links', () => {
+    render(<Projection {...baseProps({ receivingVideo: false })} />)
+
+    const pane = screen.getByTestId('projection-waiting-pane')
+    expect(pane).toHaveTextContent('iPhone linked')
+    expect(pane).toHaveTextContent('Starting CarPlay')
   })
 
   test('renders adapter-offline standby status when the adapter is absent', () => {

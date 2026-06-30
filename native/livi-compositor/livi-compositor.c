@@ -206,6 +206,11 @@ struct livi_screen {
 	float backdrop_color[4];
 	bool has_backdrop_color;
 
+	// boot splash (cairo): three white dots centred on black, shown from output
+	// creation until the UI window first maps, so the (back-lit) panel shows a
+	// "powered on / loading" indicator instead of black during app startup.
+	struct wlr_scene_buffer *splash;
+
 	// compositor-drawn titlebar (cairo), above the UI, hidden while fullscreen
 	struct wlr_scene_buffer *titlebar;   // dark rounded-top bar, re-drawn on width change
 	struct wlr_scene_buffer *title;      // screen title text
@@ -990,6 +995,30 @@ static cairo_surface_t *livi_draw_titlebar(int w, int h) {
 	return s;
 }
 
+// The boot splash: a full-screen black surface with three white dots centred
+// horizontally, drawn once at output creation. It gives the user an immediate
+// "powered on / loading" indicator the moment the panel back-light comes up,
+// covering the gap before the Electron UI maps.
+static cairo_surface_t *livi_draw_splash(int w, int h) {
+	cairo_surface_t *s = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, w, h);
+	cairo_t *cr = cairo_create(s);
+	cairo_set_source_rgba(cr, 0, 0, 0, 1.0);
+	cairo_paint(cr);
+
+	double r = 13.0;            // dot radius
+	double gap = r * 4.0;       // centre-to-centre spacing
+	double cy = h / 2.0;
+	double cx = w / 2.0;
+	cairo_set_source_rgba(cr, 1, 1, 1, 0.9);
+	for (int i = -1; i <= 1; i++) {
+		cairo_arc(cr, cx + i * gap, cy, r, 0, 2 * M_PI);
+		cairo_fill(cr);
+	}
+	cairo_destroy(cr);
+	cairo_surface_flush(s);
+	return s;
+}
+
 // Lay out a screen's UI plane and its titlebar. Windowed: titlebar on top, UI pushed down by
 // its height. Fullscreen/kiosk: titlebar hidden, UI fills the whole output.
 static void apply_ui_layout(struct livi_screen *s) {
@@ -1208,6 +1237,17 @@ static void server_new_output(struct wl_listener *listener, void *data) {
 	s->backdrop = wlr_scene_rect_create(server->layer_bg, s->width, s->height, color);
 	wlr_scene_node_set_position(&s->backdrop->node, s->x, 0);
 
+	/* boot splash: three white dots on black, above the backdrop but below the UI
+	 * layer, shown until the UI window first maps (see xdg_toplevel_map). Placed
+	 * in the video layer (empty at boot) so the UI naturally covers it even if the
+	 * explicit disable is ever missed. */
+	s->splash = wlr_scene_buffer_create(server->layer_video, NULL);
+	if (s->splash != NULL) {
+		livi_scene_set_cairo(s->splash, livi_draw_splash(s->width, s->height));
+		wlr_scene_node_set_position(&s->splash->node, s->x, 0);
+		wlr_scene_node_raise_to_top(&s->splash->node);
+	}
+
 	/* compositor-drawn titlebar + title + round controls, cairo-rendered. Created bottom-up so
 	 * the title and buttons sit above the bar; apply_ui_layout places them and draws the bar. */
 	s->titlebar = wlr_scene_buffer_create(server->layer_deco, NULL);
@@ -1295,6 +1335,10 @@ static void xdg_toplevel_commit(struct wl_listener *listener, void *data) {
 			}
 			s->ui = toplevel;
 			toplevel->is_video = false;
+			/* UI is up -> dismiss the boot splash so the app shows through */
+			if (s->splash != NULL) {
+				wlr_scene_node_set_enabled(&s->splash->node, false);
+			}
 		} else {
 			toplevel->is_video = true;
 			if (server->n_pending_video_tags > 0) {

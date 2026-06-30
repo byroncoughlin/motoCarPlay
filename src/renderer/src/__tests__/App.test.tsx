@@ -214,7 +214,9 @@ describe('App', () => {
       swapUsedMb: 0,
       tempC: 41,
       load: [0.8, 0.4, 0.2],
-      uptime: 100
+      uptime: 100,
+      wiredIp: '192.168.4.25',
+      wirelessIp: '10.0.0.50'
     })
     ;(window as any).app = { systemStats }
 
@@ -230,6 +232,8 @@ describe('App', () => {
     expect(screen.getByTestId('projection-system-monitor')).toBeInTheDocument()
     expect(screen.getByText('16 GB / 29 GB - 55% free')).toBeInTheDocument()
     expect(screen.getByText('1m 0.80 5m 0.40 15m 0.20')).toBeInTheDocument()
+    expect(screen.getByText('192.168.4.25')).toBeInTheDocument()
+    expect(screen.getByText('10.0.0.50')).toBeInTheDocument()
     expect(systemStats).toHaveBeenCalledTimes(1)
 
     fireEvent.pointerDown(screen.getByLabelText('Close Pi monitor'))

@@ -1,4 +1,20 @@
 import { readFileSync, statfsSync } from 'node:fs'
+import { execSync } from 'node:child_process'
+import { networkInterfaces } from 'node:os'
+
+export type PowerStatus = {
+  // Raw bitmask from `vcgencmd get_throttled` (null when unavailable)
+  throttledRaw: number | null
+  underVoltageNow: boolean
+  underVoltageOccurred: boolean
+  throttledNow: boolean
+  throttledOccurred: boolean
+  freqCappedNow: boolean
+  // Core voltage (V) from `vcgencmd measure_volts`
+  coreVolts: number | null
+  // Pi 5 input rail voltage (V) from `vcgencmd pmic_read_adc EXT5V_V`
+  inputVolts: number | null
+}
 
 export type SystemStats = {
   cpu?: number
@@ -13,18 +29,109 @@ export type SystemStats = {
   tempC?: number | null
   load?: number[] | null
   uptime?: number | null
+  power?: PowerStatus | null
+  wiredIp?: string | null
+  wirelessIp?: string | null
   error?: string
 }
+
+type NetIfaceAddr = { address: string; family: string | number; internal: boolean }
+type ReadNetInterfaces = () => Record<string, NetIfaceAddr[] | undefined>
 
 type CpuSnapshot = Record<string, number[]>
 type ReadText = (path: string) => string
 type StatFsResult = { bsize: number; blocks: number; bavail: number }
 type StatFs = (path: string) => StatFsResult
+type ExecText = (cmd: string) => string
 type Sleep = (ms: number) => Promise<void>
 
 const defaultReadText: ReadText = (path) => readFileSync(path, 'utf8')
 const defaultStatFs: StatFs = (path) => statfsSync(path)
+const defaultExecText: ExecText = (cmd) =>
+  execSync(cmd, { encoding: 'utf8', timeout: 1500, stdio: ['ignore', 'pipe', 'ignore'] })
 const defaultSleep: Sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+const defaultReadNetInterfaces: ReadNetInterfaces = () =>
+  networkInterfaces() as Record<string, NetIfaceAddr[] | undefined>
+
+// `vcgencmd get_throttled` bit meanings (https://www.raspberrypi.com/documentation)
+const THROTTLE_UNDERVOLTAGE_NOW = 0x1
+const THROTTLE_FREQ_CAPPED_NOW = 0x2
+const THROTTLE_THROTTLED_NOW = 0x4
+const THROTTLE_UNDERVOLTAGE_OCCURRED = 0x10000
+const THROTTLE_THROTTLED_OCCURRED = 0x40000
+
+export function parseThrottled(text: string): number | null {
+  const match = text.match(/throttled=0x([0-9a-fA-F]+)/)
+  if (!match) return null
+  const value = Number.parseInt(match[1], 16)
+  return Number.isFinite(value) ? value : null
+}
+
+export function parseVolts(text: string): number | null {
+  const match = text.match(/volt=([0-9.]+)V/)
+  if (!match) return null
+  const value = Number.parseFloat(match[1])
+  return Number.isFinite(value) ? Math.round(value * 100) / 100 : null
+}
+
+// pmic_read_adc prints lines like "EXT5V_V volt(24)=4.95781250V"
+export function parsePmicVolts(text: string, label: string): number | null {
+  const match = text.match(new RegExp(`${label}\\s+volt\\([0-9]+\\)=([0-9.]+)V`))
+  if (!match) return null
+  const value = Number.parseFloat(match[1])
+  return Number.isFinite(value) ? Math.round(value * 100) / 100 : null
+}
+
+export function readPowerStatus(execText: ExecText): PowerStatus | null {
+  const throttledRaw = tryRead(() => parseThrottled(execText('vcgencmd get_throttled')), null)
+  const coreVolts = tryRead(() => parseVolts(execText('vcgencmd measure_volts')), null)
+  const inputVolts = tryRead(
+    () => parsePmicVolts(execText('vcgencmd pmic_read_adc EXT5V_V'), 'EXT5V_V'),
+    null
+  )
+
+  if (throttledRaw === null && coreVolts === null && inputVolts === null) return null
+
+  const bits = throttledRaw ?? 0
+  return {
+    throttledRaw,
+    underVoltageNow: (bits & THROTTLE_UNDERVOLTAGE_NOW) !== 0,
+    freqCappedNow: (bits & THROTTLE_FREQ_CAPPED_NOW) !== 0,
+    throttledNow: (bits & THROTTLE_THROTTLED_NOW) !== 0,
+    underVoltageOccurred: (bits & THROTTLE_UNDERVOLTAGE_OCCURRED) !== 0,
+    throttledOccurred: (bits & THROTTLE_THROTTLED_OCCURRED) !== 0,
+    coreVolts,
+    inputVolts
+  }
+}
+
+// Categorise the host's IPv4 addresses into wired vs wireless so the monitor can
+// show both. Skips loopback / link-local / internal interfaces. When several
+// interfaces match a category, the first non-link-local address wins.
+export function pickIpAddresses(ifaces: Record<string, NetIfaceAddr[] | undefined>): {
+  wired: string | null
+  wireless: string | null
+} {
+  let wired: string | null = null
+  let wireless: string | null = null
+  for (const [name, addrs] of Object.entries(ifaces)) {
+    if (!addrs) continue
+    for (const addr of addrs) {
+      const isV4 = addr.family === 'IPv4' || addr.family === 4
+      if (!isV4 || addr.internal) continue
+      if (addr.address.startsWith('169.254.')) continue
+      if (/^(wlan|wl)/.test(name)) {
+        if (wireless === null) wireless = addr.address
+      } else if (/^(eth|en|end)/.test(name)) {
+        if (wired === null) wired = addr.address
+      } else if (wired === null) {
+        // Unknown interface naming: treat as wired so it still surfaces.
+        wired = addr.address
+      }
+    }
+  }
+  return { wired, wireless }
+}
 
 export function parseCpuSnapshot(text: string): CpuSnapshot {
   const out: CpuSnapshot = {}
@@ -64,12 +171,16 @@ function tryRead<T>(fn: () => T, fallback: T): T {
 export async function readSystemStats({
   readText = defaultReadText,
   statfs = defaultStatFs,
+  execText = defaultExecText,
   sleep = defaultSleep,
+  readNetInterfaces = defaultReadNetInterfaces,
   sampleMs = 240
 }: {
   readText?: ReadText
   statfs?: StatFs
+  execText?: ExecText
   sleep?: Sleep
+  readNetInterfaces?: ReadNetInterfaces
   sampleMs?: number
 } = {}): Promise<SystemStats> {
   const start = parseCpuSnapshot(readText('/proc/stat'))
@@ -130,6 +241,12 @@ export async function readSystemStats({
     null as { freeMb: number | null; totalMb: number | null; pct: number | null } | null
   )
 
+  const power = tryRead(() => readPowerStatus(execText), null as PowerStatus | null)
+  const ips = tryRead(() => pickIpAddresses(readNetInterfaces()), {
+    wired: null as string | null,
+    wireless: null as string | null
+  })
+
   return {
     cpu: cpuPct(start.cpu, end.cpu),
     cores,
@@ -142,6 +259,9 @@ export async function readSystemStats({
     swapUsedMb: swapUsed != null ? Math.round(swapUsed / 1024) : null,
     tempC,
     load,
-    uptime
+    uptime,
+    power,
+    wiredIp: ips.wired,
+    wirelessIp: ips.wireless
   }
 }

@@ -59,6 +59,14 @@ function legacyTelemetryPatch(event: string, payload: unknown): TelemetryPayload
         gForceY: finiteNumber(objectPayload?.y) ?? 0
       }
     }
+    case 'imu-status': {
+      if (!objectPayload) return null
+      return {
+        imuRecalibrating: Boolean(objectPayload.recalibrating),
+        imuGyroCal: finiteNumber(objectPayload.gyro) ?? null,
+        imuSysCal: finiteNumber(objectPayload.sys) ?? null
+      }
+    }
     case 'gps-status': {
       const sats = finiteNumber(objectPayload?.sats)
       return {
@@ -127,6 +135,7 @@ export class TelemetrySocket {
         'lean',
         'pitch',
         'gforce',
+        'imu-status',
         'gps-status',
         'gps-sky',
         'gps'
