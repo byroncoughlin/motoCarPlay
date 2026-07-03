@@ -997,7 +997,7 @@ function ChtGauge({
   actions: MotoActions
   background: string
 }) {
-  const maxTemp = 300
+  const maxTemp = 200
   const barW = 72
   const vw = MOTO_ARC_STRIP_SIZE
   const barH = 268
@@ -1082,7 +1082,7 @@ function ChtGauge({
           fontFamily="sans-serif"
           opacity={showStale ? 0.85 : 1}
         >
-          {hasData ? Math.round(clamped) : '--'}
+          {hasData ? Math.round(displayValue as number) : '--'}
         </text>
         {showStale ? (
           <text
