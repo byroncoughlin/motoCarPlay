@@ -59,6 +59,39 @@ describe('TiltCalibrationControl', () => {
     })
   })
 
+  test('set level negates the lean offset when reverse tilt is on (zeroes the readout)', async () => {
+    getTelemetrySnapshot.mockResolvedValue({ leanDeg: 12.34, pitchDeg: -3.21 })
+    renderControl({ reverseTilt: true })
+
+    fireEvent.click(screen.getByRole('button', { name: 'SET LEVEL' }))
+
+    await waitFor(() => {
+      expect(saveSettings).toHaveBeenCalledWith({ leanOffset: -12.34, pitchOffset: -3.21 })
+    })
+  })
+
+  test('set level negates the pitch offset when reverse front/back is on', async () => {
+    getTelemetrySnapshot.mockResolvedValue({ leanDeg: 12.34, pitchDeg: -3.21 })
+    renderControl({ reversePitch: true })
+
+    fireEvent.click(screen.getByRole('button', { name: 'SET LEVEL' }))
+
+    await waitFor(() => {
+      expect(saveSettings).toHaveBeenCalledWith({ leanOffset: 12.34, pitchOffset: 3.21 })
+    })
+  })
+
+  test('set level negates both offsets when both reverses are on', async () => {
+    getTelemetrySnapshot.mockResolvedValue({ leanDeg: 12.34, pitchDeg: -3.21 })
+    renderControl({ reverseTilt: true, reversePitch: true })
+
+    fireEvent.click(screen.getByRole('button', { name: 'SET LEVEL' }))
+
+    await waitFor(() => {
+      expect(saveSettings).toHaveBeenCalledWith({ leanOffset: -12.34, pitchOffset: 3.21 })
+    })
+  })
+
   test('set level falls back to zero when no tilt snapshot is available', async () => {
     getTelemetrySnapshot.mockResolvedValue(null)
     renderControl()

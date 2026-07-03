@@ -202,6 +202,7 @@ export type Config = {
   leanOffset?: number
   pitchOffset?: number
   reverseTilt?: boolean
+  reversePitch?: boolean
 
   // Camera + dashboards + media slots
   cameraId: string

@@ -236,6 +236,11 @@ export const motoSettingsSchema: SettingsNode<Config> = {
           path: 'reverseTilt'
         },
         {
+          type: 'checkbox',
+          label: 'Reverse Front/Back',
+          path: 'reversePitch'
+        },
+        {
           type: 'custom',
           label: 'Graph History',
           path: '',

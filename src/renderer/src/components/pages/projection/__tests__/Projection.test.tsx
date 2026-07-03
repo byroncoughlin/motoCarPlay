@@ -522,8 +522,8 @@ describe('Projection page', () => {
     expect(graph).toHaveTextContent('\u25c4 BOXER \u25ba')
     expect(graph).toHaveTextContent('\u0394T')
     expect(graph).toHaveTextContent('12\u00b0')
-    expect(graph).toHaveTextContent('NORMAL')
     expect(graph).toHaveTextContent('WARM')
+    expect(graph).toHaveTextContent('HOT')
     expect(graph).toHaveTextContent('RESET MAX')
     expect(graph).toHaveTextContent('CHT LEFT')
     expect(graph).toHaveTextContent('\u25cf LIVE')
@@ -531,6 +531,45 @@ describe('Projection page', () => {
     expect(graph).toHaveTextContent('MAX 151')
     expect(graph).toHaveTextContent('MIN 151')
     expect(graph).not.toHaveTextContent('2 pts \u00b7 drag \u2190 \u2192')
+
+    nowSpy.mockRestore()
+  })
+
+  test('cylinder-head zone labels follow blue/green/yellow/red thresholds', async () => {
+    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(1000)
+
+    render(<Projection {...baseProps()} />)
+
+    const graph = () => screen.getByTestId('projection-metric-graph')
+    let t = 1000
+    const feed = (c: number) => {
+      // stableValue commits a large jump only after ~3s of consistency: the
+      // first reading sets a pending value, a later matching reading (>3s on)
+      // commits it. Send twice, >3s apart, before asserting.
+      t += 1000
+      nowSpy.mockReturnValue(t)
+      act(() => {
+        telemetryCb?.({ chtLeftC: c, chtRightC: c })
+      })
+      t += 3100
+      nowSpy.mockReturnValue(t)
+      act(() => {
+        telemetryCb?.({ chtLeftC: c, chtRightC: c })
+      })
+    }
+
+    feed(60)
+    fireEvent.click(screen.getByLabelText('L cylinder head temperature'))
+    expect(graph()).toHaveTextContent('COLD') // < 80 → blue
+
+    feed(120)
+    expect(graph()).toHaveTextContent('NORMAL') // 80–139 → green
+
+    feed(145)
+    expect(graph()).toHaveTextContent('WARM') // 140–150 → yellow
+
+    feed(155)
+    expect(graph()).toHaveTextContent('HOT') // > 150 → red
 
     nowSpy.mockRestore()
   })

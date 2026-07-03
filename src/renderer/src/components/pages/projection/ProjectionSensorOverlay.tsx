@@ -102,6 +102,7 @@ type MotoSettings = Pick<
   | 'leanOffset'
   | 'pitchOffset'
   | 'reverseTilt'
+  | 'reversePitch'
 >
 
 type MetricZone = {
@@ -133,10 +134,12 @@ const CHT_STALE_MS = 7000
 // speed/heading/altitude slowly blink instead of freezing as if still live.
 const GPS_STALE_MS = 5000
 
+// CHT color thresholds (°C): blue < 80 (cold), green 80–140 (normal),
+// yellow 140–150 (warm), red > 150 (hot).
 const CHT_ZONES: MetricZone[] = [
   { max: 80, color: '#4fc3f7' },
-  { max: 160, color: '#66bb6a' },
-  { max: 220, color: '#ffca28', label: 'WARM' },
+  { max: 140, color: '#66bb6a' },
+  { max: 150, color: '#ffca28', label: 'WARM' },
   { max: Infinity, color: '#ef5350', label: 'HOT' }
 ]
 
@@ -403,15 +406,15 @@ function toCardinal(deg: number): string {
 function tempColor(temp: number | null): string {
   if (temp == null) return '#333'
   if (temp < 80) return '#4fc3f7'
-  if (temp < 160) return '#66bb6a'
-  if (temp < 220) return '#ffca28'
+  if (temp < 140) return '#66bb6a'
+  if (temp <= 150) return '#ffca28'
   return '#ef5350'
 }
 
 function chtZone(temp: number): { label: string; color: string } {
   if (temp < 80) return { label: 'COLD', color: '#4fc3f7' }
-  if (temp < 160) return { label: 'NORMAL', color: '#66bb6a' }
-  if (temp < 220) return { label: 'WARM', color: '#ffca28' }
+  if (temp < 140) return { label: 'NORMAL', color: '#66bb6a' }
+  if (temp <= 150) return { label: 'WARM', color: '#ffca28' }
   return { label: 'HOT', color: '#ef5350' }
 }
 
@@ -625,12 +628,17 @@ function useMotoTelemetry(settings: MotoSettings | null): {
         const stable = stableRef.current
 
         // Reverse-tilt: invert lean angle (and lateral G) so a physical
-        // left lean reads as left. Applied once here so every downstream
-        // consumer (gauges, peaks, graphs, calibration offsets) stays
-        // consistent. Only flip freshly-arrived values from this patch.
+        // left lean reads as left. Reverse-pitch independently inverts pitch
+        // (and longitudinal G) for a flipped fore/aft mount. Applied once here
+        // so every downstream consumer (gauges, peaks, graphs, calibration
+        // offsets) stays consistent. Only flip freshly-arrived patch values.
         if (settingsRef.current?.reverseTilt) {
           if (patch.leanDeg != null) next.leanDeg = -patch.leanDeg
           if (patch.gForceX != null) next.gForceX = -patch.gForceX
+        }
+        if (settingsRef.current?.reversePitch) {
+          if (patch.pitchDeg != null) next.pitchDeg = -patch.pitchDeg
+          if (patch.gForceY != null) next.gForceY = -patch.gForceY
         }
 
         if (patch.speedMph !== undefined || patch.gpsFix !== undefined) {

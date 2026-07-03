@@ -15,13 +15,23 @@ const formatDegrees = (value: unknown): string => {
   return n.toFixed(1)
 }
 
-const readTiltSnapshot = async (): Promise<{ leanOffset: number; pitchOffset: number }> => {
+const readTiltSnapshot = async (
+  reverseTilt: boolean,
+  reversePitch: boolean
+): Promise<{ leanOffset: number; pitchOffset: number }> => {
   const snapshot = await window.projection?.ipc?.getTelemetrySnapshot?.()
   const msg = snapshot && typeof snapshot === 'object' ? (snapshot as Record<string, unknown>) : {}
 
+  // The projection overlay displays `signedLean - leanOffset`, where signedLean
+  // is negated when reverse-tilt/pitch is on. The IPC snapshot carries the raw
+  // (un-reversed) angle, so we must apply the same sign here; otherwise SET
+  // LEVEL stores the wrong-signed offset and the readout jumps to ~2× instead
+  // of zeroing.
+  const rawLean = finiteNumber(msg.leanDeg) ?? 0
+  const rawPitch = finiteNumber(msg.pitchDeg) ?? 0
   return {
-    leanOffset: finiteNumber(msg.leanDeg) ?? 0,
-    pitchOffset: finiteNumber(msg.pitchDeg) ?? 0
+    leanOffset: reverseTilt ? -rawLean : rawLean,
+    pitchOffset: reversePitch ? -rawPitch : rawPitch
   }
 }
 
@@ -31,12 +41,14 @@ export function TiltCalibrationControl({ state }: SettingsCustomPageProps<Config
 
   const leanOffset = finiteNumber(state?.leanOffset) ?? 0
   const pitchOffset = finiteNumber(state?.pitchOffset) ?? 0
+  const reverseTilt = state?.reverseTilt ?? false
+  const reversePitch = state?.reversePitch ?? false
 
   const setLevel = async () => {
     if (busy) return
     setBusy(true)
     try {
-      await saveSettings(await readTiltSnapshot())
+      await saveSettings(await readTiltSnapshot(reverseTilt, reversePitch))
     } catch (err) {
       console.warn('[MotoDisplay] tilt calibration failed', err)
     } finally {
