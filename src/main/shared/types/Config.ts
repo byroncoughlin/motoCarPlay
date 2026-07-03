@@ -79,7 +79,7 @@ export type LastKnownGps = {
   ts: number
 }
 
-export type AppearanceMode = 'auto' | 'night' | 'day'
+export type AppearanceMode = 'scheduled' | 'night' | 'day'
 export type BackdropMode = 'color' | 'blur'
 
 export type WindowBounds = {
@@ -194,6 +194,10 @@ export type Config = {
   kiosk: WindowAssignment
   uiZoomPercent: number
   appearanceMode: AppearanceMode
+  /** For appearanceMode 'scheduled': local hour (0-23) day/light begins. Default 6. */
+  appearanceDayStartHour?: number
+  /** For appearanceMode 'scheduled': local hour (0-23) night/dark begins. Default 18. */
+  appearanceNightStartHour?: number
   backdropEnabled?: boolean
   backdropMode?: BackdropMode
   ambientFillEnabled?: boolean

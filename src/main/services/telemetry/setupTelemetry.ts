@@ -55,7 +55,7 @@ export function setupTelemetry({
 
   // ── Initial seed: appearanceMode + persisted GPS ────────────────────────
 
-  applyAppearanceMode(store, initialConfig?.appearanceMode)
+  applyAppearanceMode(store, initialConfig)
 
   const gpsPersist = attachGpsPersist({
     store,
@@ -63,15 +63,21 @@ export function setupTelemetry({
   })
 
   let currentConfig: Config | undefined = initialConfig
-  let lastAppearanceMode: string | undefined = initialConfig?.appearanceMode
   const onConfigChanged = (merged: Config): void => {
     currentConfig = merged
-    if (merged.appearanceMode !== lastAppearanceMode) {
-      lastAppearanceMode = merged.appearanceMode
-      applyAppearanceMode(store, merged.appearanceMode)
-    }
+    // Re-derive every config change: mode or the scheduled hours may have moved.
+    applyAppearanceMode(store, merged)
   }
   configEvents.on('changed', onConfigChanged)
+
+  // 'scheduled' flips day↔night at the configured hours without any user action
+  // or phone reconnect. A 1-minute poll is plenty (nightMode is diff-suppressed
+  // downstream, so re-applying the same value is a no-op).
+  const appearanceTimer = setInterval(() => {
+    applyAppearanceMode(store, currentConfig)
+  }, 60_000)
+  // Never let this keep the process (or a jest run) alive on its own.
+  ;(appearanceTimer as unknown as { unref?: () => void }).unref?.()
 
   // ── Adapters ────────────────────────────────────────────────────────────
 
@@ -121,6 +127,7 @@ export function setupTelemetry({
     dispose: (): void => {
       ipcMain.removeAllListeners('telemetry:push')
       ipcMain.removeHandler('telemetry:snapshot')
+      clearInterval(appearanceTimer)
       configEvents.off('changed', onConfigChanged)
       gpsPersist.off()
       offDash()
@@ -132,7 +139,30 @@ export function setupTelemetry({
   }
 }
 
-function applyAppearanceMode(store: TelemetryStore, mode: string | undefined): void {
-  if (mode === 'night') store.merge({ nightMode: true })
-  else if (mode === 'day') store.merge({ nightMode: false })
+/**
+ * For 'scheduled' appearance: is the given local hour in the day/light window?
+ * dayStart/nightStart are hours 0-23. The day window is [dayStart, nightStart)
+ * computed modulo 24, so it also handles a window that wraps midnight.
+ */
+export function isDaytime(hour: number, dayStartHour: number, nightStartHour: number): boolean {
+  const h = ((hour % 24) + 24) % 24
+  const d = ((dayStartHour % 24) + 24) % 24
+  const n = ((nightStartHour % 24) + 24) % 24
+  if (d === n) return true // degenerate: treat as always day
+  if (d < n) return h >= d && h < n // e.g. 6..18 → day
+  return h >= d || h < n // day window wraps midnight (e.g. 18..6)
+}
+
+function applyAppearanceMode(store: TelemetryStore, config: Config | undefined): void {
+  const mode = config?.appearanceMode
+  if (mode === 'night') {
+    store.merge({ nightMode: true })
+  } else if (mode === 'day') {
+    store.merge({ nightMode: false })
+  } else if (mode === 'scheduled') {
+    const dayStart = config?.appearanceDayStartHour ?? 6
+    const nightStart = config?.appearanceNightStartHour ?? 18
+    const day = isDaytime(new Date().getHours(), dayStart, nightStart)
+    store.merge({ nightMode: !day })
+  }
 }

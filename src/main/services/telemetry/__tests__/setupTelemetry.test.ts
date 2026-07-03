@@ -31,7 +31,7 @@ jest.mock('electron', () => ({
 
 import type { ProjectionService } from '@main/services/projection/services/ProjectionService'
 import type { Config } from '@shared/types'
-import { setupTelemetry } from '../setupTelemetry'
+import { isDaytime, setupTelemetry } from '../setupTelemetry'
 import { TelemetryStore } from '../TelemetryStore'
 
 function fakeProjection(): ProjectionService {
@@ -101,6 +101,48 @@ describe('setupTelemetry', () => {
     ) => void
     onChange({ appearanceMode: 'night' } as Config)
     expect(store.snapshot().nightMode).toBe(true)
+  })
+
+  test('isDaytime: default 6..18 window', () => {
+    expect(isDaytime(5, 6, 18)).toBe(false) // before day
+    expect(isDaytime(6, 6, 18)).toBe(true) // day starts (inclusive)
+    expect(isDaytime(12, 6, 18)).toBe(true)
+    expect(isDaytime(17, 6, 18)).toBe(true)
+    expect(isDaytime(18, 6, 18)).toBe(false) // night starts (exclusive)
+    expect(isDaytime(23, 6, 18)).toBe(false)
+    expect(isDaytime(0, 6, 18)).toBe(false)
+  })
+
+  test('isDaytime: day window that wraps midnight (18..6)', () => {
+    expect(isDaytime(20, 18, 6)).toBe(true)
+    expect(isDaytime(3, 18, 6)).toBe(true)
+    expect(isDaytime(6, 18, 6)).toBe(false)
+    expect(isDaytime(12, 18, 6)).toBe(false)
+  })
+
+  test('appearanceMode "scheduled" seeds nightMode from the clock', () => {
+    const store = new TelemetryStore()
+    const spy = jest.spyOn(Date.prototype, 'getHours').mockReturnValue(2) // 2am → night
+    setupTelemetry({
+      store,
+      initialConfig: {
+        appearanceMode: 'scheduled',
+        appearanceDayStartHour: 6,
+        appearanceNightStartHour: 18
+      } as Config
+    })
+    expect(store.snapshot().nightMode).toBe(true)
+    spy.mockReturnValue(10) // 10am → day
+    const onChange = configEvents.on.mock.calls.find((c) => c[0] === 'changed')![1] as (
+      cfg: Config
+    ) => void
+    onChange({
+      appearanceMode: 'scheduled',
+      appearanceDayStartHour: 6,
+      appearanceNightStartHour: 18
+    } as Config)
+    expect(store.snapshot().nightMode).toBe(false)
+    spy.mockRestore()
   })
 
   test('initialConfig.lastKnownGps hydrates the store', () => {

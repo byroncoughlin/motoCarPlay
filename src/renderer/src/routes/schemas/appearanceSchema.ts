@@ -2,6 +2,12 @@ import type { Config } from '@shared/types'
 import { IconUploader } from '../../components/pages/settings/pages/system/iconUploader/IconUploader'
 import { SettingsNode } from '../types'
 
+const HOUR_OPTIONS = Array.from({ length: 24 }, (_, h) => {
+  const period = h < 12 ? 'AM' : 'PM'
+  const display = h % 12 === 0 ? 12 : h % 12
+  return { label: `${display}:00 ${period}`, value: h }
+})
+
 export const appearanceSchema: SettingsNode<Config> = {
   type: 'route',
   route: 'appearance',
@@ -22,7 +28,7 @@ export const appearanceSchema: SettingsNode<Config> = {
       path: 'appearanceMode',
       displayValue: true,
       options: [
-        { label: 'Auto', labelKey: 'settings.phoneAppearanceAuto', value: 'auto' },
+        { label: 'Scheduled', labelKey: 'settings.phoneAppearanceScheduled', value: 'scheduled' },
         { label: 'Day', labelKey: 'settings.phoneAppearanceDay', value: 'day' },
         { label: 'Night', labelKey: 'settings.phoneAppearanceNight', value: 'night' }
       ],
@@ -30,9 +36,25 @@ export const appearanceSchema: SettingsNode<Config> = {
         title: 'Phone Appearance',
         labelTitle: 'settings.phoneAppearance',
         description:
-          'Light / dark appearance for the connected phone (Android Auto / CarPlay). Auto follows vehicle data (CAN, ambient sensor, dongle hint). Day or Night force the corresponding appearance on the phone when it connects.',
+          'Light / dark appearance for the connected phone (Android Auto / CarPlay). Scheduled follows the local clock — light during the day window, dark otherwise. Day or Night force the corresponding appearance whenever the phone is connected.',
         labelDescription: 'settings.phoneAppearanceDescription'
       }
+    },
+    {
+      type: 'select',
+      label: 'Day Starts (Scheduled)',
+      labelKey: 'settings.appearanceDayStart',
+      path: 'appearanceDayStartHour',
+      displayValue: true,
+      options: HOUR_OPTIONS
+    },
+    {
+      type: 'select',
+      label: 'Night Starts (Scheduled)',
+      labelKey: 'settings.appearanceNightStart',
+      path: 'appearanceNightStartHour',
+      displayValue: true,
+      options: HOUR_OPTIONS
     },
     {
       type: 'color',

@@ -104,10 +104,19 @@ function isPhoneLikeCod(cod: number | undefined): boolean {
   return ((cod >> 8) & 0x1f) !== 0x04
 }
 
-/** appearanceMode → initial NIGHT_DATA bit for AA. 'auto' = no override (undefined). */
-function deriveInitialNightMode(mode: string | undefined): boolean | undefined {
+/** appearanceMode → initial NIGHT_DATA bit for AA. 'day'/'night' force the bit;
+ *  'scheduled' derives it from the local clock and the configured hours. */
+function deriveInitialNightMode(config: Config | undefined): boolean | undefined {
+  const mode = config?.appearanceMode
   if (mode === 'night') return true
   if (mode === 'day') return false
+  if (mode === 'scheduled') {
+    const d = config?.appearanceDayStartHour ?? 6
+    const n = config?.appearanceNightStartHour ?? 18
+    const h = new Date().getHours()
+    const day = d === n ? true : d < n ? h >= d && h < n : h >= d || h < n
+    return !day
+  }
   return undefined
 }
 
@@ -282,7 +291,7 @@ export class ProjectionService {
 
     // Seed AA's initial NIGHT_MODE
     if (next.appearanceMode !== prev?.appearanceMode) {
-      this.aaDriver?.setInitialNightMode(deriveInitialNightMode(next.appearanceMode))
+      this.aaDriver?.setInitialNightMode(deriveInitialNightMode(next))
     }
 
     const prefChanged =
@@ -1099,7 +1108,7 @@ export class ProjectionService {
         hevcSupported: this.hevcSupported,
         vp9Supported: this.vp9Supported,
         av1Supported: this.av1Supported,
-        initialNightMode: deriveInitialNightMode(this.config.appearanceMode)
+        initialNightMode: deriveInitialNightMode(this.config)
       }),
       onPhoneReenumerate: (ms) => this.expectPhoneReenumeration(ms),
       // macOS: ptpcamerad holds the phone's MTP interface, so node-usb cannot claim one to route
