@@ -143,6 +143,9 @@ const CHT_ZONES: MetricZone[] = [
   { max: Infinity, color: '#ef5350', label: 'HOT' }
 ]
 
+// The zone boundaries, for drawing threshold divider lines on the L/R gauges.
+const CHT_THRESHOLDS = [80, 140, 150]
+
 const METRIC_CONFIG: Record<MetricKey, MetricConfig> = {
   speed: {
     label: 'SPEED',
@@ -1053,7 +1056,7 @@ function ChtGauge({
             opacity={showStale ? 0.55 : 1}
           />
         )}
-        {[100, 200].map((t) => {
+        {CHT_THRESHOLDS.map((t) => {
           const y = barY + barH - (t / maxTemp) * barH
           return (
             <line
@@ -1062,8 +1065,10 @@ function ChtGauge({
               y1={y}
               x2={barX + barW}
               y2={y}
-              stroke="#1e1e1e"
+              stroke={tempColor(t + 0.1)}
               strokeWidth={1.5}
+              strokeDasharray="4 4"
+              opacity={0.7}
             />
           )
         })}
