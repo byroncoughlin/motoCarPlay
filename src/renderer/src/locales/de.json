@@ -203,6 +203,8 @@
     "reverseCamera": "Rückfahrkamera",
     "appearance": "Aussehen",
     "darkMode": "Dark Mode",
+    "diagnosticMode": "Diagnosemodus",
+    "diagnosticModeDescription": "Speichert Diagramm-Verlauf, Sensordiagnose und Roh-Telemetrie zur späteren Analyse auf der Festplatte. Größenbegrenzt; älteste Daten werden automatisch entfernt.",
     "phoneAppearance": "Erscheinungsbild Telefon",
     "phoneAppearanceDescription": "Hell-/Dunkel-Modus des Telefons.",
     "phoneAppearanceAuto": "Auto",

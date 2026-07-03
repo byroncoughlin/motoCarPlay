@@ -203,6 +203,8 @@
     "reverseCamera": "Reverse Camera",
     "appearance": "Appearance",
     "darkMode": "Dark Mode",
+    "diagnosticMode": "Diagnostic Mode",
+    "diagnosticModeDescription": "Save graph history, sensor diagnostics, and raw telemetry to disk for later analysis. Size-capped; auto-prunes oldest data.",
     "phoneAppearance": "Phone Appearance",
     "phoneAppearanceDescription": "Phone light/dark appearance.",
     "phoneAppearanceAuto": "Auto",

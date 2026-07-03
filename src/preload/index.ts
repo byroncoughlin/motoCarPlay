@@ -237,7 +237,10 @@ const api = {
     offTelemetry: (handler: (payload: unknown) => void): void => {
       telemetryHandlers = telemetryHandlers.filter((h) => h !== handler)
     },
-    getTelemetrySnapshot: (): Promise<unknown> => ipcRenderer.invoke('telemetry:snapshot')
+    getTelemetrySnapshot: (): Promise<unknown> => ipcRenderer.invoke('telemetry:snapshot'),
+    sendDiagnosticSnapshot: (snapshot: unknown): void =>
+      ipcRenderer.send('diagnostics:snapshot', snapshot),
+    clearDiagnostics: (): Promise<{ ok: true }> => ipcRenderer.invoke('diagnostics:clear')
   }
 }
 

@@ -103,6 +103,7 @@ type MotoSettings = Pick<
   | 'pitchOffset'
   | 'reverseTilt'
   | 'reversePitch'
+  | 'diagnosticMode'
 >
 
 type MetricZone = {
@@ -125,6 +126,10 @@ const ARC_PCT = MOTO_ARC_PCT
 const GRAPH_WINDOW_MS = 5 * 60 * 1000
 const GRAPH_MAX_AGE_MS = 8 * 60 * 60 * 1000
 const GRAPH_SAMPLE_MS = 1000
+// Diagnostic Mode: how often to persist a snapshot, and how many raw telemetry
+// payloads to retain between flushes (bounded so the buffer can't grow forever).
+const DIAG_FLUSH_MS = 30 * 1000
+const DIAG_RAW_BUFFER_MAX = 2000
 // CHT emits every ~2s; if no good reading arrives within this window the
 // sensor service is treated as not responding (held value shown, blinking).
 const CHT_STALE_MS = 7000
@@ -557,6 +562,15 @@ function useMotoTelemetry(settings: MotoSettings | null): {
     lastFixTs: 0,
     lastSig: ''
   })
+  // Diagnostic Mode: rolling buffer of the most recent raw telemetry payloads,
+  // only populated while diagnosticMode is on (see the flush effect below).
+  const rawBufRef = React.useRef<unknown[]>([])
+  // Mirror of the latest telemetry so the diagnostic flush can read current
+  // sensor state without resubscribing the interval on every update.
+  const telemetryRef = React.useRef<MotoTelemetry>(telemetry)
+  React.useEffect(() => {
+    telemetryRef.current = telemetry
+  }, [telemetry])
 
   React.useEffect(() => {
     settingsRef.current = settings
@@ -618,6 +632,50 @@ function useMotoTelemetry(settings: MotoSettings | null): {
     return () => window.removeEventListener(MOTO_CLEAR_GRAPH_HISTORY_EVENT, clearAll)
   }, [])
 
+  // Diagnostic Mode: persist a snapshot (graph history + sensor diagnostics +
+  // recent raw telemetry) to disk every DIAG_FLUSH_MS and once on unmount/close.
+  // Entirely gated on the setting — when off, no interval, no listener, no push.
+  React.useEffect(() => {
+    if (!settings?.diagnosticMode) return
+    const isJsdom =
+      typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('jsdom')
+    if (isJsdom) return
+
+    const flush = () => {
+      const send = window.projection?.ipc?.sendDiagnosticSnapshot
+      if (typeof send !== 'function') return
+      const graphs: Record<string, DataPoint[]> = {}
+      for (const [key, series] of Object.entries(dataRef.current)) {
+        if (series.length > 0) graphs[key] = series
+      }
+      const t = telemetryRef.current
+      const sensors = {
+        imuRecalibrating: t.imuRecalibrating,
+        imuPeak: t.imuPeak,
+        chtPeak: t.chtPeak,
+        chtLeftResponding: t.chtLeftResponding,
+        chtRightResponding: t.chtRightResponding,
+        gpsResponding: t.gpsResponding,
+        gpsSatellites: t.gpsSatellites
+      }
+      const rawTelemetry = rawBufRef.current.slice()
+      rawBufRef.current = []
+      try {
+        send({ ts: Date.now(), graphs, sensors, rawTelemetry })
+      } catch (e) {
+        console.warn('[diagnostics] flush failed (ignored)', e)
+      }
+    }
+
+    const id = window.setInterval(flush, DIAG_FLUSH_MS)
+    window.addEventListener('beforeunload', flush)
+    return () => {
+      window.clearInterval(id)
+      window.removeEventListener('beforeunload', flush)
+      flush() // final snapshot when the setting turns off or the view unmounts
+    }
+  }, [settings?.diagnosticMode])
+
   React.useEffect(() => {
     let disposed = false
 
@@ -625,6 +683,16 @@ function useMotoTelemetry(settings: MotoSettings | null): {
       const patch = readSensors(payload)
       if (!patch || disposed) return
       const now = Date.now()
+
+      // Diagnostic Mode: keep a bounded rolling buffer of raw payloads. Bounded
+      // so the buffer can't grow without limit between 30s flushes.
+      if (settingsRef.current?.diagnosticMode) {
+        const buf = rawBufRef.current
+        buf.push({ ts: now, payload })
+        if (buf.length > DIAG_RAW_BUFFER_MAX) buf.splice(0, buf.length - DIAG_RAW_BUFFER_MAX)
+      } else if (rawBufRef.current.length > 0) {
+        rawBufRef.current = []
+      }
 
       setTelemetry((prev) => {
         const next: MotoTelemetry = { ...prev, ...patch }

@@ -1,4 +1,5 @@
 import type { Config } from '@shared/types'
+import { ClearDiagnosticsControl } from '../../components/pages/settings/components/ClearDiagnosticsControl'
 import { ClearGraphHistoryControl } from '../../components/pages/settings/components/ClearGraphHistoryControl'
 import { TiltCalibrationControl } from '../../components/pages/settings/components/TiltCalibrationControl'
 import {
@@ -245,6 +246,25 @@ export const motoSettingsSchema: SettingsNode<Config> = {
           label: 'Graph History',
           path: '',
           component: ClearGraphHistoryControl
+        },
+        {
+          type: 'checkbox',
+          label: 'Diagnostic Mode',
+          labelKey: 'settings.diagnosticMode',
+          path: 'diagnosticMode',
+          page: {
+            title: 'Diagnostic Mode',
+            labelTitle: 'settings.diagnosticMode',
+            description:
+              'When on, LIVI saves graph history, sensor diagnostics, and raw telemetry to disk (~/.config/LIVI/diagnostics/) for later analysis. The folder is size-capped and prunes the oldest data automatically. Leave off for normal riding — logging has a small performance cost.',
+            labelDescription: 'settings.diagnosticModeDescription'
+          }
+        },
+        {
+          type: 'custom',
+          label: 'Diagnostic Data',
+          path: '',
+          component: ClearDiagnosticsControl
         }
       ]
     }

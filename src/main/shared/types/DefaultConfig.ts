@@ -77,6 +77,7 @@ export const DEFAULT_CONFIG: Config = {
   pitchOffset: 0,
   reverseTilt: true,
   reversePitch: false,
+  diagnosticMode: false,
   startPage: 'home',
   language: 'en',
   kiosk: { main: true, dash: false, aux: false },

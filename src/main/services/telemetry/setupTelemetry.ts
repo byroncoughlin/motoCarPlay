@@ -17,6 +17,7 @@
 
 import { registerIpcHandle, registerIpcOn } from '@main/ipc/register'
 import { configEvents } from '@main/ipc/utils'
+import { DiagnosticLogger, type DiagnosticSnapshot } from '@main/services/diagnostics/DiagnosticLogger'
 import type { ProjectionService } from '@main/services/projection/services/ProjectionService'
 import { getAllRendererWebContents } from '@main/window/broadcast'
 import type { Config } from '@shared/types'
@@ -52,6 +53,20 @@ export function setupTelemetry({
 
   // Snapshot fetch — used by dashes on mount to hydrate
   registerIpcHandle('telemetry:snapshot', (): TelemetryPayload => store.snapshot())
+
+  // ── Diagnostic Mode — persist run data ONLY while the setting is on ───────
+  // The renderer decides when to push (30s cadence + on unload) and only pushes
+  // when diagnosticMode is on; we double-gate here so a stale/rogue push while
+  // the mode is off never touches disk. Disabled = no folder, no writes.
+  const diagnosticLogger = new DiagnosticLogger()
+  registerIpcOn<[DiagnosticSnapshot | undefined]>('diagnostics:snapshot', (_evt, snapshot) => {
+    if (!currentConfig?.diagnosticMode || !snapshot) return
+    diagnosticLogger.write(snapshot)
+  })
+  registerIpcHandle('diagnostics:clear', (): { ok: true } => {
+    diagnosticLogger.clear()
+    return { ok: true }
+  })
 
   // ── Initial seed: appearanceMode + persisted GPS ────────────────────────
 
@@ -127,6 +142,8 @@ export function setupTelemetry({
     dispose: (): void => {
       ipcMain.removeAllListeners('telemetry:push')
       ipcMain.removeHandler('telemetry:snapshot')
+      ipcMain.removeAllListeners('diagnostics:snapshot')
+      ipcMain.removeHandler('diagnostics:clear')
       clearInterval(appearanceTimer)
       configEvents.off('changed', onConfigChanged)
       gpsPersist.off()

@@ -203,6 +203,8 @@
     "reverseCamera": "Caméra de recul",
     "appearance": "Apparence",
     "darkMode": "Mode Sombre",
+    "diagnosticMode": "Mode Diagnostic",
+    "diagnosticModeDescription": "Enregistre l'historique des graphiques, le diagnostic des capteurs et la télémétrie brute sur le disque pour analyse. Taille limitée ; purge automatiquement les données les plus anciennes.",
     "phoneAppearance": "Apparence du Téléphone",
     "phoneAppearanceDescription": "Apparence Sombre/Clair du téléphone.",
     "phoneAppearanceAuto": "Auto",

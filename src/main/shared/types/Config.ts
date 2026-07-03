@@ -207,6 +207,9 @@ export type Config = {
   pitchOffset?: number
   reverseTilt?: boolean
   reversePitch?: boolean
+  /** When true, LIVI persists graph history + sensor diagnostics + raw telemetry
+   *  to ~/.config/LIVI/diagnostics/ (size-capped). Off = zero logging overhead. */
+  diagnosticMode?: boolean
 
   // Camera + dashboards + media slots
   cameraId: string

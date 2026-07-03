@@ -20,6 +20,15 @@ jest.mock('@main/window/broadcast', () => ({
   getAllRendererWebContents: () => getAllRendererWebContentsMock()
 }))
 
+const diagnosticWriteMock = jest.fn()
+const diagnosticClearMock = jest.fn()
+jest.mock('@main/services/diagnostics/DiagnosticLogger', () => ({
+  DiagnosticLogger: jest.fn().mockImplementation(() => ({
+    write: (...a: unknown[]) => diagnosticWriteMock(...a),
+    clear: (...a: unknown[]) => diagnosticClearMock(...a)
+  }))
+}))
+
 const removeAllListenersMock = jest.fn()
 const removeHandlerMock = jest.fn()
 jest.mock('electron', () => ({
@@ -49,6 +58,8 @@ beforeEach(() => {
   configEvents.off.mockReset()
   removeAllListenersMock.mockReset()
   removeHandlerMock.mockReset()
+  diagnosticWriteMock.mockReset()
+  diagnosticClearMock.mockReset()
   getAllRendererWebContentsMock.mockReturnValue([])
   jest.spyOn(console, 'warn').mockImplementation(() => {})
 })
@@ -143,6 +154,53 @@ describe('setupTelemetry', () => {
     } as Config)
     expect(store.snapshot().nightMode).toBe(false)
     spy.mockRestore()
+  })
+
+  test('diagnostics:snapshot is dropped when diagnosticMode is off', () => {
+    const store = new TelemetryStore()
+    setupTelemetry({ store, initialConfig: { diagnosticMode: false } as Config })
+    const handler = registerIpcOnMock.mock.calls.find(
+      (c) => c[0] === 'diagnostics:snapshot'
+    )![1] as (evt: unknown, snap: unknown) => void
+    handler({}, { ts: 1, graphs: {} })
+    expect(diagnosticWriteMock).not.toHaveBeenCalled()
+  })
+
+  test('diagnostics:snapshot is written when diagnosticMode is on', () => {
+    const store = new TelemetryStore()
+    setupTelemetry({ store, initialConfig: { diagnosticMode: true } as Config })
+    const handler = registerIpcOnMock.mock.calls.find(
+      (c) => c[0] === 'diagnostics:snapshot'
+    )![1] as (evt: unknown, snap: unknown) => void
+    handler({}, { ts: 1, graphs: {} })
+    expect(diagnosticWriteMock).toHaveBeenCalledWith({ ts: 1, graphs: {} })
+  })
+
+  test('diagnostics:snapshot follows a live config change', () => {
+    const store = new TelemetryStore()
+    setupTelemetry({ store, initialConfig: { diagnosticMode: false } as Config })
+    const onChange = configEvents.on.mock.calls.find((c) => c[0] === 'changed')![1] as (
+      cfg: Config
+    ) => void
+    const handler = registerIpcOnMock.mock.calls.find(
+      (c) => c[0] === 'diagnostics:snapshot'
+    )![1] as (evt: unknown, snap: unknown) => void
+    handler({}, { ts: 1 })
+    expect(diagnosticWriteMock).not.toHaveBeenCalled()
+    onChange({ diagnosticMode: true } as Config)
+    handler({}, { ts: 2 })
+    expect(diagnosticWriteMock).toHaveBeenCalledTimes(1)
+  })
+
+  test('diagnostics:clear invokes the logger clear', () => {
+    const store = new TelemetryStore()
+    setupTelemetry({ store, initialConfig: {} as Config })
+    const handler = registerIpcHandleMock.mock.calls.find(
+      (c) => c[0] === 'diagnostics:clear'
+    )![1] as () => unknown
+    const res = handler()
+    expect(diagnosticClearMock).toHaveBeenCalled()
+    expect(res).toEqual({ ok: true })
   })
 
   test('initialConfig.lastKnownGps hydrates the store', () => {

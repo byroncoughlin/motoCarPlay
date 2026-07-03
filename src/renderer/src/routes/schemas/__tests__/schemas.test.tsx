@@ -119,6 +119,8 @@ describe('settings schemas', () => {
       '',
       'reverseTilt',
       'reversePitch',
+      '',
+      'diagnosticMode',
       ''
     ])
     expect(motoDisplay.children.map((child: any) => child.label)).toEqual([
@@ -130,7 +132,9 @@ describe('settings schemas', () => {
       'Tilt Calibration',
       'Reverse Tilt',
       'Reverse Front/Back',
-      'Graph History'
+      'Graph History',
+      'Diagnostic Mode',
+      'Diagnostic Data'
     ])
     expect(motoDisplay.children[1]).toMatchObject({
       type: 'select',
