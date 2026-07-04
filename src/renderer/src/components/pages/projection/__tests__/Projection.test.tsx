@@ -1,7 +1,7 @@
 import { PhoneType } from '@shared/types/Config'
 import { AudioCommand, CommandMapping } from '@shared/types/ProjectionEnums'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { Projection } from '../Projection'
+import { describeWaitingUsbPower, Projection } from '../Projection'
 import { motoGraphPaneGeometry } from '../ProjectionSensorOverlay'
 
 const navigateMock = jest.fn()
@@ -312,7 +312,7 @@ describe('Projection page', () => {
     nowSpy.mockRestore()
   })
 
-  test('opens graph in a rounded center pane and closes on short close press', async () => {
+  test('opens graph in a square center pane (no rounded corners) and closes on short close press', async () => {
     render(<Projection {...baseProps()} />)
 
     act(() => {
@@ -324,12 +324,14 @@ describe('Projection page', () => {
     const graph = screen.getByTestId('projection-metric-graph')
     expect(graph).toHaveStyle({
       top: '13.375%',
-      left: '13.375%',
-      width: '73.25%',
       height: '73.25%',
-      borderRadius: '38px',
       overflow: 'hidden'
     })
+    // The pane is square (corners removed) and over-covers the left/right seam a
+    // couple of pixels so no CarPlay wallpaper peeks past its edges.
+    expect(graph).toHaveStyle({ left: 'calc(13.375% - 2px)' })
+    expect(graph).toHaveStyle({ width: 'calc(73.25% + 4px)' })
+    expect(graph.style.borderRadius).toBe('')
     expect(graph.style.boxShadow).toBe('')
 
     const close = screen.getByLabelText('Close graph')
@@ -2593,3 +2595,48 @@ function baseProps(overrides: any = {}) {
     ...overrides
   }
 }
+
+describe('describeWaitingUsbPower', () => {
+  const base = {
+    throttledRaw: 0,
+    underVoltageNow: false,
+    underVoltageOccurred: false,
+    throttledNow: false,
+    throttledOccurred: false,
+    freqCappedNow: false,
+    coreVolts: null,
+    inputVolts: 5.1
+  }
+
+  test('returns null without power data', () => {
+    expect(describeWaitingUsbPower(null)).toBeNull()
+    expect(describeWaitingUsbPower(undefined)).toBeNull()
+  })
+
+  test('reports full USB budget when the firmware unlocked high current', () => {
+    expect(describeWaitingUsbPower({ ...base, usbHighCurrent: true })).toEqual({
+      text: 'USB POWER FULL (1.6A)',
+      tone: '#66bb6a'
+    })
+  })
+
+  test('warns when the USB budget is capped to 600mA', () => {
+    expect(describeWaitingUsbPower({ ...base, usbHighCurrent: false })).toEqual({
+      text: 'USB POWER LIMITED (600mA)',
+      tone: '#ffca28'
+    })
+  })
+
+  test('reports low USB power while the input rail is under-voltage', () => {
+    expect(
+      describeWaitingUsbPower({ ...base, underVoltageNow: true, usbHighCurrent: true })
+    ).toEqual({ text: 'USB POWER LOW', tone: '#ef5350' })
+  })
+
+  test('falls back to OK when the USB budget is unknown and the rail is healthy', () => {
+    expect(describeWaitingUsbPower({ ...base, usbHighCurrent: null })).toEqual({
+      text: 'USB POWER OK',
+      tone: '#66bb6a'
+    })
+  })
+})

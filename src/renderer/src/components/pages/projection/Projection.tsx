@@ -67,6 +67,30 @@ const describeWaitingPower = (power: PowerStatus | null | undefined): WaitingPow
   return { text: `POWER OK${volts ? ` ${volts}` : ''}`, tone: '#66bb6a' }
 }
 
+// USB power budget for the connected devices (dongle etc.). On the Pi 5 the
+// firmware only unlocks the full 1.6A USB budget when it trusts a 5A supply;
+// otherwise the ports are capped to 600mA which can starve a CarPlay dongle.
+// Under-voltage on the input rail also means the ports can't deliver full power.
+export const describeWaitingUsbPower = (
+  power: PowerStatus | null | undefined
+): WaitingPowerInfo => {
+  if (!power) return null
+  if (power.underVoltageNow) {
+    return { text: 'USB POWER LOW', tone: '#ef5350' }
+  }
+  if (power.usbHighCurrent === false) {
+    return { text: 'USB POWER LIMITED (600mA)', tone: '#ffca28' }
+  }
+  if (power.usbHighCurrent === true) {
+    return { text: 'USB POWER FULL (1.6A)', tone: '#66bb6a' }
+  }
+  // usbHighCurrent unknown: fall back to the input-rail health as a proxy.
+  if (power.underVoltageOccurred) {
+    return { text: 'USB POWER DIP SEEN', tone: '#ffca28' }
+  }
+  return { text: 'USB POWER OK', tone: '#66bb6a' }
+}
+
 // Three-dot indicator that fills progressively to signal CarPlay is imminent
 // during the ~3s gap between phone-linked and the first video frame.
 function ConnectingDots({ tone }: { tone: string }) {
@@ -161,6 +185,7 @@ function WaitingProjectionPane({
 }: WaitingProjectionPaneProps) {
   const [now, setNow] = useState(() => new Date())
   const [power, setPower] = useState<WaitingPowerInfo>(null)
+  const [usbPower, setUsbPower] = useState<WaitingPowerInfo>(null)
   const [confirmReboot, setConfirmReboot] = useState(false)
   const [researching, setResearching] = useState(false)
 
@@ -180,7 +205,10 @@ function WaitingProjectionPane({
     const read = async () => {
       try {
         const stats = await window.app.systemStats()
-        if (alive) setPower(describeWaitingPower(stats?.power))
+        if (alive) {
+          setPower(describeWaitingPower(stats?.power))
+          setUsbPower(describeWaitingUsbPower(stats?.power))
+        }
       } catch {
         // keep the pane passive on a failed sample
       }
@@ -548,6 +576,34 @@ function WaitingProjectionPane({
               }}
             />
             {power.text}
+          </div>
+        )}
+        {usbPower && (
+          <div
+            data-testid="projection-waiting-usb-power"
+            data-tone={usbPower.tone}
+            style={{
+              marginTop: 6,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 7,
+              color: usbPower.tone,
+              fontSize: 13,
+              fontWeight: 600,
+              fontFamily: 'sans-serif',
+              letterSpacing: 0.2
+            }}
+          >
+            <span
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                background: usbPower.tone,
+                flex: '0 0 auto'
+              }}
+            />
+            {usbPower.text}
           </div>
         )}
         <div

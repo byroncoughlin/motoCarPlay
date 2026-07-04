@@ -8,7 +8,6 @@ import { MOTO_CLEAR_GRAPH_HISTORY_EVENT } from './motoGraphEvents'
 import {
   MOTO_ARC_PCT,
   MOTO_ARC_STRIP_SIZE,
-  MOTO_CENTER_CORNER_RADIUS_PX,
   MOTO_CENTER_SQUARE_SIZE,
   MOTO_SQUARE_PCT
 } from './motoLayout'
@@ -1651,9 +1650,6 @@ function BottomArc({
                 fontFamily="monospace"
               >
                 {hasG ? gVal.toFixed(1) : '--'}
-                <tspan fontSize={13} fill="rgba(255,255,255,0.7)" dx={4}>
-                  G
-                </tspan>
               </text>
             </>
           ) : (
@@ -2855,14 +2851,13 @@ function MetricGraph({
       style={{
         position: 'absolute',
         top: ARC_PCT,
-        left: ARC_PCT,
-        width: SQUARE_PCT,
+        left: `calc(${ARC_PCT} - 2px)`,
+        width: `calc(${SQUARE_PCT} + 4px)`,
         height: SQUARE_PCT,
         background: '#000',
         zIndex: 20,
         display: 'flex',
         flexDirection: 'column',
-        borderRadius: MOTO_CENTER_CORNER_RADIUS_PX,
         overflow: 'hidden',
         userSelect: 'none',
         pointerEvents: 'auto'
