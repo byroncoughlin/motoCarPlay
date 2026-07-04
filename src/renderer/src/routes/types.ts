@@ -26,6 +26,11 @@ export type NodeMeta = {
     description?: string
     labelDescription?: string
   }
+  // iOS-style grouped-list section this node belongs to on the settings
+  // landing. Consecutive landing children sharing the same `section` are
+  // rendered together inside one rounded card under a small section header.
+  section?: string
+  sectionKey?: string
   displayValue?: boolean
   displayValueUnit?: string
   valueTransform?: ValueTransform<unknown, unknown>

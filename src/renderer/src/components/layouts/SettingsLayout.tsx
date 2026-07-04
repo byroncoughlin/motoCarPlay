@@ -425,52 +425,15 @@ export const SettingsLayout = ({
           WebkitOverflowScrolling: 'touch',
           touchAction: 'pan-y',
           pr: '2px',
-          pb: '6px',
-          '& .settings-content-stack': isSettingsRoot
-            ? {
-                display: 'grid',
-                gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-                gap: '10px',
-                alignContent: 'start',
-                gridAutoRows: '112px',
-                height: 'auto',
-                minHeight: 0
-              }
-            : {
-                display: 'flex',
-                flexDirection: 'column',
-                minHeight: '100%'
-              },
-          '& .settings-content-stack > .MuiPaper-root': isSettingsRoot
-            ? {
-                minHeight: '112px',
-                borderRadius: '8px',
-                border: '1px solid rgba(255,255,255,0.12)',
-                borderBottom: '1px solid rgba(255,255,255,0.12)',
-                background: 'rgba(255,255,255,0.05)',
-                display: 'grid',
-                gridTemplateColumns: '1fr',
-                justifyItems: 'center',
-                alignItems: 'center',
-                p: '14px',
-                gap: '8px',
-                '& > p': {
-                  width: '100%',
-                  p: 0,
-                  justifyContent: 'center',
-                  textAlign: 'center',
-                  color: '#f8fafc',
-                  fontSize: '22px',
-                  fontWeight: 900,
-                  lineHeight: 1.05
-                },
-                '& > svg': {
-                  position: 'static',
-                  color: 'rgba(255,255,255,0.58)',
-                  fontSize: '28px'
-                }
-              }
-            : undefined
+          pb: '10px',
+          // Apple-style: a single vertical column of grouped sections. The
+          // grouping cards + section headers are rendered by SettingsPage.
+          '& .settings-content-stack': {
+            display: 'flex',
+            flexDirection: 'column',
+            gap: isSettingsRoot ? '22px' : '0px',
+            minHeight: isSettingsRoot ? 0 : '100%'
+          }
         }}
       >
         <Stack className="settings-content-stack" spacing={0}>

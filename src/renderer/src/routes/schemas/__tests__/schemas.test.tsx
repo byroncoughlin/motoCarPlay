@@ -99,19 +99,10 @@ describe('settings schemas', () => {
     expect(appearance.options.map((o: any) => o.value)).toEqual(['scheduled', 'day', 'night'])
     expect(children.some((c) => c.path === 'appearanceDayStartHour')).toBe(true)
     expect(children.some((c) => c.path === 'appearanceNightStartHour')).toBe(true)
-    // The light/dark color pickers are grouped in their own sub-route.
-    const colors = children.find((c) => c.route === 'appearanceColors')
-    expect(colors).toBeTruthy()
-    expect(colors.children.map((c: any) => c.path)).toEqual([
-      'primaryColorDark',
-      'highlightColorDark',
-      'backgroundColorDark',
-      'primaryColorLight',
-      'highlightColorLight',
-      'backgroundColorLight'
-    ])
-    // Dark Mode (LIVI UI theme) is on the landing.
-    expect(children.some((c) => c.path === 'darkMode')).toBe(true)
+    // The light/dark menu color pickers and the menu color-mode toggle live in
+    // Advanced now (they only affect the settings menu theme, adjusted rarely).
+    expect(children.some((c) => c.route === 'appearanceColors')).toBe(false)
+    expect(children.some((c) => c.path === 'darkMode')).toBe(false)
   })
 
   test('Advanced route keeps the LIVI/CarPlay system pages', () => {
@@ -120,6 +111,8 @@ describe('settings schemas', () => {
     }
     const advanced = (settingsSchema.children as any[]).find((c) => c.route === 'advanced')
     expect(advanced.children.map((child: any) => child.label)).toEqual([
+      'Settings Color Mode',
+      'Settings Menu Colors',
       'Wi-Fi Frequency',
       'Auto Connect',
       'Preferred Connection',
@@ -130,6 +123,7 @@ describe('settings schemas', () => {
       'About'
     ])
     expect(advanced.children.map((child: any) => child.route).filter(Boolean)).toEqual([
+      'appearanceColors',
       'viewArea',
       'usbDongle',
       'about'

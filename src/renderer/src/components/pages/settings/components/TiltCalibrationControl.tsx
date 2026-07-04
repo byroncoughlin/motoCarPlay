@@ -4,6 +4,7 @@ import type { Config } from '@shared/types'
 import { useLiviStore } from '@store/store'
 import { useState } from 'react'
 import { SettingsItemRow } from './settingsItemRow'
+import { settingsActionButtonSx, settingsRowValueSx } from './settingsStyle'
 
 const finiteNumber = (value: unknown): number | null => {
   if (typeof value !== 'number' || !Number.isFinite(value)) return null
@@ -72,62 +73,38 @@ export function TiltCalibrationControl({ state }: SettingsCustomPageProps<Config
     <SettingsItemRow label="Tilt Calibration">
       <Stack
         direction="row"
-        spacing={0.75}
+        spacing={1}
         useFlexGap
         sx={{
           alignItems: 'center',
-          flexWrap: 'wrap',
+          flexWrap: 'nowrap',
           flex: '0 0 auto',
           justifyContent: 'flex-end',
-          minWidth: 0,
-          py: 0.5
+          minWidth: 0
         }}
       >
-        <Button
-          size="small"
-          variant="outlined"
-          disabled={busy}
-          onClick={setLevel}
-          sx={{
-            minWidth: 0,
-            px: 1,
-            py: 0.35,
-            fontSize: 'clamp(0.62rem, 1.4svh, 0.78rem)',
-            lineHeight: 1.1,
-            whiteSpace: 'nowrap'
-          }}
-        >
-          SET LEVEL
-        </Button>
-        <Button
-          size="small"
-          variant="outlined"
-          color="warning"
-          disabled={busy}
-          onClick={reset}
-          sx={{
-            minWidth: 0,
-            px: 1,
-            py: 0.35,
-            fontSize: 'clamp(0.62rem, 1.4svh, 0.78rem)',
-            lineHeight: 1.1,
-            whiteSpace: 'nowrap'
-          }}
-        >
-          RESET
-        </Button>
-        <Typography
-          sx={{
-            color: 'text.secondary',
-            fontSize: 'clamp(0.62rem, 1.35svh, 0.76rem)',
-            lineHeight: 1.1,
-            whiteSpace: 'nowrap'
-          }}
-        >
+        <Typography sx={{ ...settingsRowValueSx, mr: 0.5 }}>
           L {formatDegrees(leanOffset)}
           {'\u00b0'} P {formatDegrees(pitchOffset)}
           {'\u00b0'}
         </Typography>
+        <Button
+          variant="outlined"
+          disabled={busy}
+          onClick={setLevel}
+          sx={settingsActionButtonSx}
+        >
+          SET LEVEL
+        </Button>
+        <Button
+          variant="outlined"
+          color="warning"
+          disabled={busy}
+          onClick={reset}
+          sx={settingsActionButtonSx}
+        >
+          RESET
+        </Button>
       </Stack>
     </SettingsItemRow>
   )

@@ -119,6 +119,18 @@ export const SettingsFieldControl = <T,>({
           checked={Boolean(value)}
           disabled={node.disabled === true}
           onChange={(_, v) => onChange(v as T)}
+          sx={{
+            // Larger iOS-style toggle, comfortable tap target.
+            width: 62,
+            height: 38,
+            padding: 0,
+            '& .MuiSwitch-switchBase': {
+              padding: '4px',
+              '&.Mui-checked': { transform: 'translateX(24px)' }
+            },
+            '& .MuiSwitch-thumb': { width: 30, height: 30 },
+            '& .MuiSwitch-track': { borderRadius: 19, opacity: 1 }
+          }}
         />
       )
 
@@ -327,7 +339,10 @@ function DynamicSelect({ node, value, onChange, savedLabel, onLabelChange }: Dyn
       displayEmpty
       renderValue={() => (selectedOption ? labelFor(selectedOption) : '')}
       sx={{
-        minWidth: 'min(170px, 44vw)',
+        minWidth: 'min(190px, 48vw)',
+        height: 44,
+        borderRadius: '12px',
+        fontSize: '15px',
         '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
           borderColor: 'primary.main',
           borderWidth: '1px'

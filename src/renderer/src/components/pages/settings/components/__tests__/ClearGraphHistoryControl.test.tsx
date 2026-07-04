@@ -1,5 +1,5 @@
-import { fireEvent, render, screen } from '@testing-library/react'
 import { MOTO_CLEAR_GRAPH_HISTORY_EVENT } from '@renderer/components/pages/projection/motoGraphEvents'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { ClearGraphHistoryControl } from '../ClearGraphHistoryControl'
 
 jest.mock('react-i18next', () => ({
@@ -21,38 +21,54 @@ const renderControl = () =>
   )
 
 describe('ClearGraphHistoryControl', () => {
-  test('confirms before dispatching graph history clear event', () => {
+  beforeEach(() => {
+    jest.useFakeTimers()
+  })
+
+  afterEach(() => {
+    jest.runOnlyPendingTimers()
+    jest.useRealTimers()
+  })
+
+  test('arms then dispatches graph history clear on second tap', () => {
     const handler = jest.fn()
     window.addEventListener(MOTO_CLEAR_GRAPH_HISTORY_EVENT, handler)
 
     try {
       renderControl()
 
-      fireEvent.click(screen.getByRole('button', { name: 'CLEAR LOG' }))
-      expect(handler).not.toHaveBeenCalled()
-      expect(screen.getByRole('button', { name: 'CANCEL' })).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: 'CONFIRM' })).toBeInTheDocument()
+      const button = screen.getByRole('button')
+      expect(button).toHaveTextContent('CLEAR LOG')
 
-      fireEvent.click(screen.getByRole('button', { name: 'CONFIRM' }))
+      fireEvent.click(button)
+      expect(handler).not.toHaveBeenCalled()
+      expect(button).toHaveTextContent('TAP TO CONFIRM')
+
+      fireEvent.click(button)
       expect(handler).toHaveBeenCalledTimes(1)
-      expect(screen.getByRole('button', { name: 'CLEAR LOG' })).toBeInTheDocument()
+      expect(button).toHaveTextContent('CLEAR LOG')
     } finally {
       window.removeEventListener(MOTO_CLEAR_GRAPH_HISTORY_EVENT, handler)
     }
   })
 
-  test('cancel returns to the clear button without dispatching', () => {
+  test('arming reverts after timeout without dispatching', () => {
     const handler = jest.fn()
     window.addEventListener(MOTO_CLEAR_GRAPH_HISTORY_EVENT, handler)
 
     try {
       renderControl()
 
-      fireEvent.click(screen.getByRole('button', { name: 'CLEAR LOG' }))
-      fireEvent.click(screen.getByRole('button', { name: 'CANCEL' }))
+      const button = screen.getByRole('button')
+      fireEvent.click(button)
+      expect(button).toHaveTextContent('TAP TO CONFIRM')
+
+      act(() => {
+        jest.advanceTimersByTime(3000)
+      })
 
       expect(handler).not.toHaveBeenCalled()
-      expect(screen.getByRole('button', { name: 'CLEAR LOG' })).toBeInTheDocument()
+      expect(button).toHaveTextContent('CLEAR LOG')
     } finally {
       window.removeEventListener(MOTO_CLEAR_GRAPH_HISTORY_EVENT, handler)
     }

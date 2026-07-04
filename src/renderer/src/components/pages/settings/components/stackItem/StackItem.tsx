@@ -1,5 +1,5 @@
-import ArrowForwardIosOutlinedIcon from '@mui/icons-material/ArrowForwardIosOutlined'
-import Paper from '@mui/material/Paper'
+import ChevronRightRoundedIcon from '@mui/icons-material/ChevronRightRounded'
+import Box from '@mui/material/Box'
 import { styled } from '@mui/material/styles'
 import { useLiviStore } from '@renderer/store/store'
 import React, { useEffect, useState } from 'react'
@@ -8,104 +8,59 @@ import type { SelectNode } from '../../../../../routes/types'
 import { StackItemProps } from '../../type'
 import { findOptionForValue, withGhostOption } from '../ghostOption'
 import { getCachedOptions, resolveOptions } from '../selectOptionsCache'
+import { SETTINGS_ROW_HEIGHT, settingsRowLabelSx } from '../settingsStyle'
 
-const Item = styled(Paper)(({ theme }) => {
+// iOS Settings–style list row: fixed height (never reflows the list), label on
+// the left, control/value/chevron on the right, hairline separator between
+// rows within a group (drawn by the parent group; we only draw an inset
+// bottom border which the last row hides).
+const Row = styled(Box, {
+  shouldForwardProp: (prop) => prop !== 'interactive'
+})<{ interactive?: boolean }>(({ theme, interactive }) => {
   const activeColor = theme.palette.primary.main
-
-  const rowPad = 'clamp(6px, 1.35svh, 12px)'
-  const rowFont = 'clamp(0.82rem, 1.75svh, 0.95rem)'
-  const rowGap = 'clamp(0.45rem, 1.7svh, 1.5rem)'
-
-  const activeRowStyles = {
-    borderBottom: `2px solid ${activeColor}`,
-    a: { color: activeColor },
-    svg: { right: '3px', color: activeColor }
-  } as const
 
   return {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-    flexDirection: 'row',
-    gap: rowGap,
-    paddingRight: rowPad,
-    borderBottom: `2px solid ${theme.palette.divider}`,
-    fontSize: rowFont,
-    minHeight: 'clamp(38px, 6svh, 52px)',
+    gap: 'clamp(8px, 2vw, 16px)',
+    minHeight: SETTINGS_ROW_HEIGHT,
+    paddingLeft: '16px',
+    paddingRight: '12px',
+    boxSizing: 'border-box',
+    position: 'relative',
+    cursor: interactive ? 'pointer' : 'default',
+    outline: 'none',
+    WebkitTapHighlightColor: 'transparent',
+    userSelect: 'none',
 
-    '& svg': {
-      position: 'relative',
+    // Inset hairline separator (hidden on the last row by the group).
+    '&:not(:last-of-type)::after': {
+      content: '""',
+      position: 'absolute',
+      left: '16px',
       right: 0,
-      transition: 'all 0.3s ease-in-out'
+      bottom: 0,
+      height: '1px',
+      backgroundColor: 'rgba(255,255,255,0.09)'
+    },
+    'html[data-mui-color-scheme="light"] &:not(:last-of-type)::after': {
+      backgroundColor: 'rgba(0,0,0,0.1)'
     },
 
-    // Hover ONLY for real mouse (prevents sticky hover after touch)
-    'html[data-input="mouse"] &': {
-      '&:hover': activeRowStyles
-    },
-
-    // Press feedback (mouse + touch) - same as keyboard highlight
-    '&:active': activeRowStyles,
-
-    // Keyboard/D-pad highlight
-    '&:focus-visible': {
-      outline: 'none',
-      ...activeRowStyles
-    },
-
-    // IMPORTANT: do not use :focus styling (can stick on touch/click)
-    '&:focus': { outline: 'none' },
-
-    ...theme.applyStyles('dark', {
-      backgroundColor: 'transparent'
-    }),
-
-    '& > p': {
-      display: 'flex',
-      alignItems: 'center',
-      width: '100%',
-      padding: rowPad,
-      textDecoration: 'none',
-      fontSize: rowFont,
-      lineHeight: 1.15,
-      outline: 'none',
-      color: theme.palette.text.secondary,
-      margin: 0
-    },
-
-    '& > a': {
-      display: 'flex',
-      alignItems: 'center',
-      width: '100%',
-      padding: rowPad,
-      textDecoration: 'none',
-      fontSize: rowFont,
-      lineHeight: 1.15,
-      outline: 'none',
-      color: theme.palette.text.secondary,
-
-      // Hover ONLY for real mouse
-      'html[data-input="mouse"] &': {
-        '&:hover': {
-          color: activeColor,
-          '+ svg': { right: '3px', color: activeColor }
+    // Press feedback only for interactive rows (mouse + touch + keyboard).
+    ...(interactive
+      ? {
+          'html[data-input="mouse"] &:hover': {
+            backgroundColor: 'rgba(255,255,255,0.06)'
+          },
+          '&:active': { backgroundColor: 'rgba(255,255,255,0.1)' },
+          '&:focus-visible': {
+            backgroundColor: 'rgba(255,255,255,0.1)',
+            boxShadow: `inset 3px 0 0 ${activeColor}`
+          }
         }
-      },
-
-      // Press feedback (mouse + touch) - same as keyboard highlight
-      '&:active': {
-        color: activeColor,
-        '+ svg': { right: '3px', color: activeColor }
-      },
-
-      // Keyboard highlight
-      '&:focus-visible': {
-        color: activeColor,
-        '+ svg': { right: '3px', color: activeColor }
-      },
-
-      '&:focus': { outline: 'none' }
-    }
+      : {})
   }
 })
 
@@ -185,23 +140,39 @@ export const StackItem = ({
   }
 
   return (
-    <Item
+    <Row
+      interactive={Boolean(onClick)}
       onClick={onClick}
       onKeyDown={handleKeyDown}
       tabIndex={onClick ? 0 : -1}
       role={onClick ? 'button' : undefined}
+      sx={{
+        // First child is the label (<p> or <Typography>); style it as the
+        // iOS row label. Trailing control keeps its own styling.
+        '& > p': { ...settingsRowLabelSx, flex: '1 1 auto', margin: 0 }
+      }}
     >
       {children}
       {showValue && value != null && (
-        <div style={{ whiteSpace: 'nowrap', fontSize: 'clamp(0.78rem, 1.7svh, 0.9rem)' }}>
+        <Box
+          component="span"
+          sx={{
+            whiteSpace: 'nowrap',
+            fontSize: '16px',
+            color: 'text.secondary',
+            maxWidth: '55%',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis'
+          }}
+        >
           {displayValue}
-        </div>
+        </Box>
       )}
       {withForwardIcon && (
-        <ArrowForwardIosOutlinedIcon
-          sx={{ color: 'inherit', fontSize: 'clamp(16px, 2.6svh, 22px)' }}
+        <ChevronRightRoundedIcon
+          sx={{ color: 'text.secondary', opacity: 0.55, fontSize: 26, flexShrink: 0 }}
         />
       )}
-    </Item>
+    </Row>
   )
 }

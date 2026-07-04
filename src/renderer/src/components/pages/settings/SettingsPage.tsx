@@ -2,7 +2,7 @@ import { Box, Button, Typography } from '@mui/material'
 import type { SettingsNode } from '@renderer/routes/types'
 import type { Config } from '@shared/types'
 import { useLiviStore, useStatusStore } from '@store/store'
-import type { Key } from 'react'
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router'
 import { ROUTES } from '../../../constants'
@@ -11,6 +11,7 @@ import { SettingsLayout } from '../../layouts'
 import { KeyBindingRow, StackItem } from './components'
 import { SettingsFieldPage } from './components/SettingsFieldPage'
 import { SettingsFieldRow } from './components/SettingsFieldRow'
+import { settingsGroupSx, settingsSectionHeaderSx } from './components/settingsStyle'
 import { useSmartSettingsFromSchema } from './hooks/useSmartSettingsFromSchema'
 import { getNodeByPath, getValueByPath } from './utils'
 
@@ -82,6 +83,16 @@ function BackdropRestartDialog({
           </Button>
         </Box>
       </Box>
+    </Box>
+  )
+}
+
+/** One iOS-style grouped section: optional header + a rounded card of rows. */
+function SettingsGroup({ header, children }: { header?: string; children: ReactNode }) {
+  return (
+    <Box>
+      {header ? <Typography sx={settingsSectionHeaderSx}>{header}</Typography> : null}
+      <Box sx={settingsGroupSx}>{children}</Box>
     </Box>
   )
 }
@@ -179,63 +190,89 @@ export function SettingsPage() {
   // eslint-disable-next-line @typescript-eslint/ban-ts-comment
   const children = 'children' in node ? (node.children ?? []) : []
 
+  const renderChild = (child: SettingsNode<Config>): ReactNode => {
+    const _path = child.path as string
+
+    if (child.type === 'route') {
+      if (child.hidden) return null
+      return (
+        <StackItem
+          key={`route:${child.route}`}
+          withForwardIcon
+          node={child}
+          onClick={() => navigate(child.route)}
+        >
+          <Typography>{child.labelKey ? t(child.labelKey) : child.label}</Typography>
+        </StackItem>
+      )
+    }
+
+    if (child.type === 'custom') {
+      return (
+        <child.component
+          key={`custom:${child.label}`}
+          state={settings}
+          node={child}
+          onChange={(v) => handleFieldChange(_path, v)}
+          requestRestart={requestRestart}
+        />
+      )
+    }
+
+    if (child.type === 'keybinding') {
+      return <KeyBindingRow key={`kb:${_path}:${child.label}`} node={child} />
+    }
+
+    const childLabelPath = child.type === 'select' ? child.labelPath : undefined
+    const childSavedLabel = childLabelPath
+      ? (getValueByPath(state, childLabelPath) as string | undefined)
+      : undefined
+    const childOnLabelChange = childLabelPath
+      ? (label: string) => handleFieldChange(childLabelPath, label)
+      : undefined
+
+    return (
+      <SettingsFieldRow
+        key={`field:${_path}`}
+        node={child}
+        state={state}
+        value={getValueByPath(state, _path)}
+        onChange={(v) => handleFieldChange(_path, v)}
+        onClick={child.page ? () => navigate(_path) : undefined}
+        onItemNavigate={(segment) => navigate(segment)}
+        savedLabel={childSavedLabel}
+        onLabelChange={childOnLabelChange}
+      />
+    )
+  }
+
+  // Group consecutive landing children that share the same `section` into one
+  // iOS-style grouped card. Children with no section fall into an unheaded
+  // group so nothing is orphaned. Order is preserved exactly (no jumping).
+  const groups: Array<{ key: string; header?: string; nodes: SettingsNode<Config>[] }> = []
+  for (const child of children as SettingsNode<Config>[]) {
+    const sectionKey = child.sectionKey
+    const header = child.section
+    const last = groups[groups.length - 1]
+    const groupId = sectionKey ?? header ?? '__ungrouped__'
+    if (last && last.key === groupId) {
+      last.nodes.push(child)
+    } else {
+      groups.push({
+        key: groupId,
+        header: header ? t(sectionKey ?? header, header) : undefined,
+        nodes: [child]
+      })
+    }
+  }
+
   return (
     <SettingsLayout title={title} showRestart={showRestart} onRestart={handleRestart}>
-      {children.map((child: SettingsNode<Config>, index: Key | null | undefined) => {
-        const _path = child.path as string
-
-        if (child.type === 'route') {
-          if (child.hidden) return null
-          return (
-            <StackItem
-              key={index}
-              withForwardIcon
-              node={child}
-              onClick={() => navigate(child.route)}
-            >
-              <Typography>{child.labelKey ? t(child.labelKey) : child.label}</Typography>
-            </StackItem>
-          )
-        }
-
-        if (child.type === 'custom') {
-          return (
-            <child.component
-              key={child.label}
-              state={settings}
-              node={child}
-              onChange={(v) => handleFieldChange(_path, v)}
-              requestRestart={requestRestart}
-            />
-          )
-        }
-
-        if (child.type === 'keybinding') {
-          return <KeyBindingRow key={`${_path}:${child.label}`} node={child} />
-        }
-
-        const childLabelPath = child.type === 'select' ? child.labelPath : undefined
-        const childSavedLabel = childLabelPath
-          ? (getValueByPath(state, childLabelPath) as string | undefined)
-          : undefined
-        const childOnLabelChange = childLabelPath
-          ? (label: string) => handleFieldChange(childLabelPath, label)
-          : undefined
-
-        return (
-          <SettingsFieldRow
-            key={_path}
-            node={child}
-            state={state}
-            value={getValueByPath(state, _path)}
-            onChange={(v) => handleFieldChange(_path, v)}
-            onClick={child.page ? () => navigate(_path) : undefined}
-            onItemNavigate={(segment) => navigate(segment)}
-            savedLabel={childSavedLabel}
-            onLabelChange={childOnLabelChange}
-          />
-        )
-      })}
+      {groups.map((group, gi) => (
+        <SettingsGroup key={`${group.key}:${gi}`} header={group.header}>
+          {group.nodes.map((child) => renderChild(child))}
+        </SettingsGroup>
+      ))}
       {restartDialog}
     </SettingsLayout>
   )

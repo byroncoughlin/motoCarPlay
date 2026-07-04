@@ -33,6 +33,27 @@ const advancedSchema: SettingsNode<Config> = {
   path: '',
   children: [
     {
+      type: 'checkbox',
+      label: 'Settings Color Mode',
+      labelKey: 'settings.settingsColorMode',
+      path: 'darkMode'
+    },
+    {
+      type: 'route',
+      label: 'Settings Menu Colors',
+      labelKey: 'settings.appearanceColors',
+      route: 'appearanceColors',
+      path: '',
+      children: [
+        { type: 'color', label: 'Primary Color Dark', path: 'primaryColorDark' },
+        { type: 'color', label: 'Highlight Color Dark', path: 'highlightColorDark' },
+        { type: 'color', label: 'Background Color Dark', path: 'backgroundColorDark' },
+        { type: 'color', label: 'Primary Color Light', path: 'primaryColorLight' },
+        { type: 'color', label: 'Highlight Color Light', path: 'highlightColorLight' },
+        { type: 'color', label: 'Background Color Light', path: 'backgroundColorLight' }
+      ]
+    },
+    {
       type: 'select',
       label: 'Wi-Fi Frequency',
       labelKey: 'settings.wifiFrequency',
@@ -198,12 +219,16 @@ export const motoSettingsSchema: SettingsNode<Config> = {
     {
       type: 'custom',
       label: 'Background',
+      section: 'Background',
+      sectionKey: 'settings.sectionBackground',
       path: '',
       component: BackgroundModeControl
     },
     {
       type: 'checkbox',
       label: 'Round Corners',
+      section: 'Background',
+      sectionKey: 'settings.sectionBackground',
       path: 'roundedCornerMaskEnabled'
     },
     // ── Phone Appearance (light / dark) ──────────────────────────────────────
@@ -211,6 +236,8 @@ export const motoSettingsSchema: SettingsNode<Config> = {
       type: 'select',
       label: 'Phone Appearance',
       labelKey: 'settings.phoneAppearance',
+      section: 'Phone Display',
+      sectionKey: 'settings.sectionPhoneDisplay',
       path: 'appearanceMode',
       displayValue: true,
       options: [
@@ -230,6 +257,8 @@ export const motoSettingsSchema: SettingsNode<Config> = {
       type: 'select',
       label: 'Day Starts (Scheduled)',
       labelKey: 'settings.appearanceDayStart',
+      section: 'Phone Display',
+      sectionKey: 'settings.sectionPhoneDisplay',
       path: 'appearanceDayStartHour',
       displayValue: true,
       options: HOUR_OPTIONS
@@ -238,52 +267,41 @@ export const motoSettingsSchema: SettingsNode<Config> = {
       type: 'select',
       label: 'Night Starts (Scheduled)',
       labelKey: 'settings.appearanceNightStart',
+      section: 'Phone Display',
+      sectionKey: 'settings.sectionPhoneDisplay',
       path: 'appearanceNightStartHour',
       displayValue: true,
       options: HOUR_OPTIONS
-    },
-    {
-      type: 'route',
-      label: 'Light / Dark Colors',
-      labelKey: 'settings.appearanceColors',
-      route: 'appearanceColors',
-      path: '',
-      children: [
-        { type: 'color', label: 'Primary Color Dark', path: 'primaryColorDark' },
-        { type: 'color', label: 'Highlight Color Dark', path: 'highlightColorDark' },
-        { type: 'color', label: 'Background Color Dark', path: 'backgroundColorDark' },
-        { type: 'color', label: 'Primary Color Light', path: 'primaryColorLight' },
-        { type: 'color', label: 'Highlight Color Light', path: 'highlightColorLight' },
-        { type: 'color', label: 'Background Color Light', path: 'backgroundColorLight' }
-      ]
-    },
-    {
-      type: 'checkbox',
-      label: 'Dark Mode (LIVI UI)',
-      labelKey: 'settings.darkMode',
-      path: 'darkMode'
     },
     // ── Tilt / orientation ───────────────────────────────────────────────────
     {
       type: 'custom',
       label: 'Tilt Calibration',
+      section: 'Orientation',
+      sectionKey: 'settings.sectionOrientation',
       path: '',
       component: TiltCalibrationControl
     },
     {
       type: 'checkbox',
       label: 'Reverse Tilt',
+      section: 'Orientation',
+      sectionKey: 'settings.sectionOrientation',
       path: 'reverseTilt'
     },
     {
       type: 'checkbox',
       label: 'Reverse Front/Back',
+      section: 'Orientation',
+      sectionKey: 'settings.sectionOrientation',
       path: 'reversePitch'
     },
     // ── Diagnostics ──────────────────────────────────────────────────────────
     {
       type: 'custom',
       label: 'Graph History',
+      section: 'Diagnostics',
+      sectionKey: 'settings.sectionDiagnostics',
       path: '',
       component: ClearGraphHistoryControl
     },
@@ -291,6 +309,8 @@ export const motoSettingsSchema: SettingsNode<Config> = {
       type: 'checkbox',
       label: 'Diagnostic Mode',
       labelKey: 'settings.diagnosticMode',
+      section: 'Diagnostics',
+      sectionKey: 'settings.sectionDiagnostics',
       path: 'diagnosticMode',
       page: {
         title: 'Diagnostic Mode',
@@ -303,6 +323,8 @@ export const motoSettingsSchema: SettingsNode<Config> = {
     {
       type: 'custom',
       label: 'Diagnostic Data',
+      section: 'Diagnostics',
+      sectionKey: 'settings.sectionDiagnostics',
       path: '',
       component: ClearDiagnosticsControl
     },

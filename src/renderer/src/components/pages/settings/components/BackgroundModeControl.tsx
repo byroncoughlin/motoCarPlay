@@ -5,6 +5,7 @@ import { useLiviStore } from '@store/store'
 import { useMemo, useState } from 'react'
 import { AMBIENT_FILL_SWATCHES } from './SettingsFieldControl'
 import { SettingsItemRow } from './settingsItemRow'
+import { settingsRowValueSx } from './settingsStyle'
 
 type BgMode = 'solid' | 'average' | 'blur'
 
@@ -185,7 +186,13 @@ export function BackgroundModeControl({ state }: SettingsCustomPageProps<Config,
           size="small"
           value={shownMode}
           onChange={(e) => onSelectMode(e.target.value as BgMode)}
-          sx={{ minWidth: 190, color: '#fff', '& .MuiSelect-icon': { color: '#fff' } }}
+          sx={{
+            minWidth: 210,
+            height: 44,
+            borderRadius: '12px',
+            fontSize: '15px',
+            '& .MuiSelect-icon': { color: 'text.secondary' }
+          }}
         >
           {OPTIONS.map((o) => (
             <MenuItem key={o.value} value={o.value}>
@@ -195,9 +202,12 @@ export function BackgroundModeControl({ state }: SettingsCustomPageProps<Config,
         </Select>
       </SettingsItemRow>
 
-      {shownMode === 'solid' && (
-        <SettingsItemRow label="Color">
-          <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', alignItems: 'center' }}>
+      {/* Color row is ALWAYS rendered so the list never jumps when switching
+          modes. Swatches are interactive only in Solid mode; otherwise the row
+          shows where the colour comes from. */}
+      <SettingsItemRow label="Color">
+        {shownMode === 'solid' ? (
+          <Stack direction="row" spacing={1} sx={{ flexWrap: 'nowrap', alignItems: 'center' }}>
             {AMBIENT_FILL_SWATCHES.map((swatch) => {
               const isSelected =
                 savedMode === 'solid' && savedFill.toLowerCase() === swatch.toLowerCase()
@@ -209,10 +219,10 @@ export function BackgroundModeControl({ state }: SettingsCustomPageProps<Config,
                   aria-pressed={isSelected}
                   onClick={() => onPickColor(swatch)}
                   style={{
-                    width: 30,
-                    height: 30,
+                    width: 36,
+                    height: 36,
                     padding: 0,
-                    borderRadius: 8,
+                    borderRadius: 10,
                     border: `2px solid ${
                       isSelected ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.22)'
                     }`,
@@ -226,8 +236,10 @@ export function BackgroundModeControl({ state }: SettingsCustomPageProps<Config,
               )
             })}
           </Stack>
-        </SettingsItemRow>
-      )}
+        ) : (
+          <Typography sx={settingsRowValueSx}>Auto from video</Typography>
+        )}
+      </SettingsItemRow>
 
       {pendingRestart && (
         <RestartDialog
