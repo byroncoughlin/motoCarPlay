@@ -14,6 +14,10 @@ export type PowerStatus = {
   coreVolts: number | null
   // Pi 5 input rail voltage (V) from `vcgencmd pmic_read_adc EXT5V_V`
   inputVolts: number | null
+  // Pi 5 USB power budget: true when the firmware unlocked full 1.6A
+  // (detected/trusted 5A supply), false when capped to 600mA, null if unknown.
+  // From `vcgencmd get_config usb_max_current_enable`.
+  usbHighCurrent: boolean | null
 }
 
 export type SystemStats = {
@@ -82,6 +86,14 @@ export function parsePmicVolts(text: string, label: string): number | null {
   return Number.isFinite(value) ? Math.round(value * 100) / 100 : null
 }
 
+// `vcgencmd get_config usb_max_current_enable` prints "usb_max_current_enable=1".
+// 1 => USB unlocked to full 1.6A (5A supply trusted); 0 => capped to 600mA.
+export function parseUsbMaxCurrent(text: string): boolean | null {
+  const match = text.match(/usb_max_current_enable=(-?\d+)/)
+  if (!match) return null
+  return Number.parseInt(match[1], 10) === 1
+}
+
 export function readPowerStatus(execText: ExecText): PowerStatus | null {
   const throttledRaw = tryRead(() => parseThrottled(execText('vcgencmd get_throttled')), null)
   const coreVolts = tryRead(() => parseVolts(execText('vcgencmd measure_volts')), null)
@@ -89,8 +101,19 @@ export function readPowerStatus(execText: ExecText): PowerStatus | null {
     () => parsePmicVolts(execText('vcgencmd pmic_read_adc EXT5V_V'), 'EXT5V_V'),
     null
   )
+  const usbHighCurrent = tryRead(
+    () => parseUsbMaxCurrent(execText('vcgencmd get_config usb_max_current_enable')),
+    null as boolean | null
+  )
 
-  if (throttledRaw === null && coreVolts === null && inputVolts === null) return null
+  if (
+    throttledRaw === null &&
+    coreVolts === null &&
+    inputVolts === null &&
+    usbHighCurrent === null
+  ) {
+    return null
+  }
 
   const bits = throttledRaw ?? 0
   return {
@@ -101,7 +124,8 @@ export function readPowerStatus(execText: ExecText): PowerStatus | null {
     underVoltageOccurred: (bits & THROTTLE_UNDERVOLTAGE_OCCURRED) !== 0,
     throttledOccurred: (bits & THROTTLE_THROTTLED_OCCURRED) !== 0,
     coreVolts,
-    inputVolts
+    inputVolts,
+    usbHighCurrent
   }
 }
 

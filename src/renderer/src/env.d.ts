@@ -107,6 +107,7 @@ declare global {
     freqCappedNow: boolean
     coreVolts: number | null
     inputVolts: number | null
+    usbHighCurrent: boolean | null
   }
 
   type SystemStats = {

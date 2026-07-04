@@ -3,6 +3,7 @@ import {
   parseCpuSnapshot,
   parsePmicVolts,
   parseThrottled,
+  parseUsbMaxCurrent,
   parseVolts,
   pickIpAddresses,
   readPowerStatus,
@@ -41,11 +42,18 @@ describe('systemStats', () => {
     expect(parsePmicVolts('OTHER volt(1)=5.0V', 'EXT5V_V')).toBeNull()
   })
 
+  test('parseUsbMaxCurrent detects the Pi 5 USB power budget', () => {
+    expect(parseUsbMaxCurrent('usb_max_current_enable=1')).toBe(true)
+    expect(parseUsbMaxCurrent('usb_max_current_enable=0')).toBe(false)
+    expect(parseUsbMaxCurrent('garbage')).toBeNull()
+  })
+
   test('readPowerStatus decodes throttle bits and voltages', () => {
     const execText = jest.fn((cmd: string) => {
       if (cmd === 'vcgencmd get_throttled') return 'throttled=0x50005'
       if (cmd === 'vcgencmd measure_volts') return 'volt=0.8500V'
       if (cmd === 'vcgencmd pmic_read_adc EXT5V_V') return 'EXT5V_V volt(24)=4.80V'
+      if (cmd === 'vcgencmd get_config usb_max_current_enable') return 'usb_max_current_enable=1'
       throw new Error(`unexpected ${cmd}`)
     })
     expect(readPowerStatus(execText)).toEqual({
@@ -56,7 +64,8 @@ describe('systemStats', () => {
       underVoltageOccurred: true,
       throttledOccurred: true,
       coreVolts: 0.85,
-      inputVolts: 4.8
+      inputVolts: 4.8,
+      usbHighCurrent: true
     })
   })
 

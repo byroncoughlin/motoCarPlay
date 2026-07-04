@@ -30,14 +30,60 @@ const formatDisk = (stats: SystemStats): string => {
   return `${formatStorage(stats.diskFreeMb)} / ${formatStorage(stats.diskTotalMb)} - ${freePct}% free`
 }
 
-const formatLoad = (load: number[] | null | undefined): string => {
-  if (!load || load.length < 3) return '--'
-  return `1m ${load[0].toFixed(2)} 5m ${load[1].toFixed(2)} 15m ${load[2].toFixed(2)}`
+// Colour a load-average sample by how hard it works the available cores:
+// green under ~70% of cores busy, amber up to fully busy, red oversubscribed.
+const loadHeat = (value: number, cores: number): string => {
+  const n = cores > 0 ? cores : 4
+  if (value >= n) return '#ef5350'
+  if (value >= n * 0.7) return '#ffca28'
+  return '#66bb6a'
+}
+
+const loadRow = (
+  load: number[] | null | undefined,
+  cores: number
+): React.ReactElement => {
+  const periods = ['1m', '5m', '15m']
+  return (
+    <div
+      style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 }}
+    >
+      <span style={{ color: '#9aa0a6', fontSize: 15, letterSpacing: 1, fontWeight: 600 }}>
+        LOAD AVG
+      </span>
+      <span style={{ display: 'flex', gap: 14, alignItems: 'baseline' }}>
+        {!load || load.length < 3
+          ? '--'
+          : periods.map((period, index) => (
+              <span key={period} style={{ display: 'inline-flex', gap: 4, alignItems: 'baseline' }}>
+                <span style={{ color: '#8b9096', fontSize: 13, fontWeight: 600 }}>{period}</span>
+                <span
+                  style={{
+                    color: loadHeat(load[index], cores),
+                    fontFamily: 'monospace',
+                    fontSize: 24,
+                    fontWeight: 800
+                  }}
+                >
+                  {load[index].toFixed(2)}
+                </span>
+              </span>
+            ))}
+      </span>
+    </div>
+  )
 }
 
 const formatPower = (power: PowerStatus): string => {
-  if (power.underVoltageNow) return 'UNDERVOLT NOW'
-  if (power.throttledNow) return 'THROTTLED NOW'
+  const usb =
+    power.usbHighCurrent === true
+      ? 'FULL USB'
+      : power.usbHighCurrent === false
+        ? 'USB 600mA'
+        : null
+  const suffix = usb ? ` - ${usb}` : ''
+  if (power.underVoltageNow) return `UNDERVOLT NOW${suffix}`
+  if (power.throttledNow) return `THROTTLED NOW${suffix}`
   const volts =
     power.inputVolts != null
       ? `${power.inputVolts.toFixed(2)}V`
@@ -45,9 +91,9 @@ const formatPower = (power: PowerStatus): string => {
         ? `${power.coreVolts.toFixed(2)}V core`
         : null
   if (power.underVoltageOccurred || power.throttledOccurred) {
-    return `${volts ? `${volts} - ` : ''}dip seen`
+    return `${volts ? `${volts} - ` : ''}dip seen${suffix}`
   }
-  return volts ? `${volts} OK` : 'OK'
+  return `${volts ? `${volts} OK` : 'OK'}${suffix}`
 }
 
 const statRow = (label: string, value: string, color?: string): React.ReactElement => (
@@ -298,7 +344,7 @@ export function SystemMonitor(): React.ReactElement | null {
               stats.tempC != null ? `${stats.tempC.toFixed(1)}\u00b0C` : '--',
               stats.tempC != null ? heat(stats.tempC, 70, 80) : undefined
             )}
-            {statRow('LOAD AVG', formatLoad(stats.load))}
+            {loadRow(stats.load, stats.cores?.length ?? 0)}
             {statRow('UPTIME', stats.uptime != null ? formatUptime(stats.uptime) : '--')}
             {statRow('WIRED', stats.wiredIp ?? '--')}
             {statRow('WI-FI', stats.wirelessIp ?? '--')}
@@ -308,7 +354,9 @@ export function SystemMonitor(): React.ReactElement | null {
                 formatPower(stats.power),
                 stats.power.underVoltageNow || stats.power.throttledNow
                   ? '#ef5350'
-                  : stats.power.underVoltageOccurred || stats.power.throttledOccurred
+                  : stats.power.underVoltageOccurred ||
+                      stats.power.throttledOccurred ||
+                      stats.power.usbHighCurrent === false
                     ? '#ffca28'
                     : '#66bb6a'
               )}
