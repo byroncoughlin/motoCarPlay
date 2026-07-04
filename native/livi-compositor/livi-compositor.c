@@ -71,6 +71,12 @@ struct livi_video_cfg {
 	char screen[32];
 	bool has_crop;
 	double crop_l, crop_t, vis_w, vis_h, tier_w, tier_h;
+	// Optional destination inset (fraction 0..0.5 of the output): when >0, the
+	// visible content is fit into the inner rect (output minus these insets,
+	// centred) instead of filling the whole output. Used to contain a small
+	// CarPlay stream to the round display's centre square. 0 = fill output
+	// (default / legacy behaviour).
+	double dst_inset_x, dst_inset_y;
 	bool has_visible;
 	bool visible;
 };
@@ -165,6 +171,7 @@ struct tinywl_toplevel {
 	char tag[64];
 	bool has_crop;
 	double crop_l, crop_t, vis_w, vis_h, tier_w, tier_h;
+	double dst_inset_x, dst_inset_y;  // see livi_video_cfg
 	struct wl_list video_link;   // in server->videos
 	struct wl_listener map;
 	struct wl_listener unmap;
@@ -302,6 +309,8 @@ static void apply_cfg_to_video(struct tinywl_server *server, struct livi_video_c
 		v->vis_h = cfg->vis_h;
 		v->tier_w = cfg->tier_w;
 		v->tier_h = cfg->tier_h;
+		v->dst_inset_x = cfg->dst_inset_x;
+		v->dst_inset_y = cfg->dst_inset_y;
 		apply_video_layout(v);
 	}
 	if (cfg->has_visible) {
@@ -853,12 +862,26 @@ static void apply_video_layout(struct tinywl_toplevel *video) {
 		wlr_scene_node_set_position(&video->scene_tree->node, s->x, top);
 		return;
 	}
-	/* contain the content into the output (uniform scale, bars only on AR mismatch) */
-	double scx = (double)ow / video->vis_w;
-	double scy = (double)oh / video->vis_h;
+	/* Destination rect: the whole output, or (when dst insets are set) an inner
+	 * rect centred in the output. The inner rect confines a small stream to the
+	 * round display's centre square instead of letting it fill the panel.
+	 * dst_inset_{x,y} are fractions (0..0.5) of the output. */
+	double dixf = video->dst_inset_x > 0 ? video->dst_inset_x : 0;
+	double diyf = video->dst_inset_y > 0 ? video->dst_inset_y : 0;
+	if (dixf > 0.5) dixf = 0.5;
+	if (diyf > 0.5) diyf = 0.5;
+	double dix = ow * dixf;
+	double diy = oh * diyf;
+	double dst_w = ow - 2 * dix;
+	double dst_h = oh - 2 * diy;
+	if (dst_w <= 0) { dst_w = ow; dix = 0; }
+	if (dst_h <= 0) { dst_h = oh; diy = 0; }
+	/* contain the content into the destination rect (uniform scale, bars only on AR mismatch) */
+	double scx = dst_w / video->vis_w;
+	double scy = dst_h / video->vis_h;
 	double scale = scx < scy ? scx : scy;
-	double off_x = (ow - video->vis_w * scale) / 2.0;
-	double off_y = (oh - video->vis_h * scale) / 2.0;
+	double off_x = dix + (dst_w - video->vis_w * scale) / 2.0;
+	double off_y = diy + (dst_h - video->vis_h * scale) / 2.0;
 	int tw = (int)lround(video->tier_w * scale);
 	int th = (int)lround(video->tier_h * scale);
 	int px = (int)lround(s->x + off_x - video->crop_l * scale);
@@ -1645,24 +1668,30 @@ static void ctrl_handle_line(struct tinywl_server *server, const char *line) {
 		return;
 	}
 	// cached per tag, applied now or when the tagged toplevel first appears
-	if (sscanf(line, "videocfg %63s %31s %lf %lf %lf %lf %lf %lf",
-			tag, srole, &cl, &ct, &vw, &vh, &tw, &th) == 8) {
-		struct livi_video_cfg *cfg = cfg_for_tag(server, tag, true);
-		if (cfg != NULL) {
-			snprintf(cfg->screen, sizeof(cfg->screen), "%s", srole);
-			cfg->has_crop = vw > 0 && vh > 0;
-			cfg->crop_l = cl;
-			cfg->crop_t = ct;
-			cfg->vis_w = vw;
-			cfg->vis_h = vh;
-			cfg->tier_w = tw;
-			cfg->tier_h = th;
-			struct tinywl_toplevel *v = find_video_by_tag(server, tag);
-			if (v != NULL) {
-				apply_cfg_to_video(server, cfg, v);
+	{
+		double dix = 0, diy = 0;
+		int nf = sscanf(line, "videocfg %63s %31s %lf %lf %lf %lf %lf %lf %lf %lf",
+			tag, srole, &cl, &ct, &vw, &vh, &tw, &th, &dix, &diy);
+		if (nf == 8 || nf == 10) {
+			struct livi_video_cfg *cfg = cfg_for_tag(server, tag, true);
+			if (cfg != NULL) {
+				snprintf(cfg->screen, sizeof(cfg->screen), "%s", srole);
+				cfg->has_crop = vw > 0 && vh > 0;
+				cfg->crop_l = cl;
+				cfg->crop_t = ct;
+				cfg->vis_w = vw;
+				cfg->vis_h = vh;
+				cfg->tier_w = tw;
+				cfg->tier_h = th;
+				cfg->dst_inset_x = nf == 10 ? dix : 0;
+				cfg->dst_inset_y = nf == 10 ? diy : 0;
+				struct tinywl_toplevel *v = find_video_by_tag(server, tag);
+				if (v != NULL) {
+					apply_cfg_to_video(server, cfg, v);
+				}
 			}
+			return;
 		}
-		return;
 	}
 	if (sscanf(line, "videoshow %63s %d", tag, &onoff) == 2) {
 		struct livi_video_cfg *cfg = cfg_for_tag(server, tag, true);
