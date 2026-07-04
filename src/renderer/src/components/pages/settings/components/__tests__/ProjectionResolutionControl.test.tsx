@@ -42,9 +42,9 @@ describe('ProjectionResolutionControl', () => {
     saveSettings.mockResolvedValue(undefined)
   })
 
-  test('reflects the current 800×800 default', () => {
+  test('maps a legacy 800×800 config to the closest (586) preset', () => {
     renderControl({ projectionWidth: 800, projectionHeight: 800, projectionViewAreaLeft: 107 })
-    expect(screen.getByRole('combobox')).toHaveTextContent('800×800')
+    expect(screen.getByRole('combobox')).toHaveTextContent('586×586')
   })
 
   test('reflects a configured 320×320 stream', () => {
@@ -52,20 +52,21 @@ describe('ProjectionResolutionControl', () => {
     expect(screen.getByRole('combobox')).toHaveTextContent('320×320')
   })
 
-  test('offers all five presets', () => {
-    renderControl({ projectionWidth: 800 })
+  test('offers all four contained presets', () => {
+    renderControl({ projectionWidth: 586 })
     fireEvent.mouseDown(screen.getByRole('combobox'))
     const listbox = within(screen.getByRole('listbox'))
-    for (const label of ['800×800', '586×586', '480×480', '320×320', '300×300']) {
+    for (const label of ['586×586', '480×480', '320×320', '300×300']) {
       expect(listbox.getByText(label)).toBeInTheDocument()
     }
+    expect(listbox.queryByText('800×800')).not.toBeInTheDocument()
   })
 
   test('selecting a small preset writes width/height and zeroed view area, then requests restart', () => {
     const { requestRestart } = renderControl({
-      projectionWidth: 800,
-      projectionHeight: 800,
-      projectionViewAreaLeft: 107
+      projectionWidth: 586,
+      projectionHeight: 586,
+      projectionViewAreaLeft: 0
     })
 
     openAndPick('300×300')
@@ -82,22 +83,22 @@ describe('ProjectionResolutionControl', () => {
     expect(requestRestart).toHaveBeenCalledTimes(1)
   })
 
-  test('selecting the full preset restores the 107px view-area insets', () => {
+  test('every preset writes zeroed view-area insets (compositor handles containment)', () => {
     const { requestRestart } = renderControl({
       projectionWidth: 320,
       projectionHeight: 320,
       projectionViewAreaLeft: 0
     })
 
-    openAndPick('800×800')
+    openAndPick('480×480')
 
     expect(saveSettings).toHaveBeenCalledWith({
-      projectionWidth: 800,
-      projectionHeight: 800,
-      projectionViewAreaTop: 107,
-      projectionViewAreaBottom: 107,
-      projectionViewAreaLeft: 107,
-      projectionViewAreaRight: 107
+      projectionWidth: 480,
+      projectionHeight: 480,
+      projectionViewAreaTop: 0,
+      projectionViewAreaBottom: 0,
+      projectionViewAreaLeft: 0,
+      projectionViewAreaRight: 0
     })
     expect(requestRestart).toHaveBeenCalledTimes(1)
   })

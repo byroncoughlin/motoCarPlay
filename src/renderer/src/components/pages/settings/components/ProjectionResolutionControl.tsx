@@ -11,21 +11,18 @@ import { SettingsItemRow } from './settingsItemRow'
 // makes the phone lay its whole UI out for a small display, so buttons/text end up
 // much larger. LIVI then scales that frame to fill the visible round centre square.
 //
-// - 800: the full stream, placed 1:1 on the output. LIVI masks 107px on every edge
-//   (via the phone's view area) so CarPlay's chrome is confined to the inner square.
-//   Original default (most content, smallest buttons).
-// - 586/480/320/300: the phone renders edge-to-edge (view area 0); the compositor
-//   contains the frame to the centre square and LIVI masks the surrounding margin.
-//   Progressively larger buttons; 300 is the practical floor before it gets soft.
-const FULL_INSET = 107
-
+// Every preset renders edge-to-edge on the phone (view area 0); the compositor
+// contains the frame to the 586 centre square and LIVI masks the surrounding
+// margin. Larger stream = more content / smaller buttons; 300 is the practical
+// floor before it gets soft. (The old 800 preset relied on a 107px phone-side
+// view area to fake containment; the compositor now does it natively, so 800 —
+// which was effectively 586 — is redundant and has been removed.)
 type ResolutionPreset = {
   size: number
   inset: number
 }
 
 const PRESETS: ResolutionPreset[] = [
-  { size: 800, inset: FULL_INSET },
   { size: 586, inset: 0 },
   { size: 480, inset: 0 },
   { size: 320, inset: 0 },

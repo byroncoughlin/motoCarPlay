@@ -3,14 +3,14 @@ import { DEFAULT_BINDINGS } from '@shared/types'
 import { CarType, HandDriveType, MicType, PhoneWorkMode } from '@shared/types/Config'
 
 export const DEFAULT_CONFIG: Config = {
-  projectionWidth: 800,
-  projectionHeight: 800,
+  projectionWidth: 586,
+  projectionHeight: 586,
   projectionFps: 45,
   projectionDpi: 140,
-  projectionViewAreaTop: 107,
-  projectionViewAreaBottom: 107,
-  projectionViewAreaLeft: 107,
-  projectionViewAreaRight: 107,
+  projectionViewAreaTop: 0,
+  projectionViewAreaBottom: 0,
+  projectionViewAreaLeft: 0,
+  projectionViewAreaRight: 0,
   projectionSafeAreaTop: 0,
   projectionSafeAreaBottom: 0,
   projectionSafeAreaLeft: 0,

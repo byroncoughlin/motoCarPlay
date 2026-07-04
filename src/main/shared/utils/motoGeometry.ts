@@ -10,10 +10,11 @@ export const MOTO_CENTER_SQUARE_SIZE = 586
 export const MOTO_SQUARE_INSET_FRAC =
   (MOTO_DISPLAY_SIZE - MOTO_CENTER_SQUARE_SIZE) / 2 / MOTO_DISPLAY_SIZE
 
-// A projection stream smaller than the full display is "square-contained": the
-// phone renders it edge-to-edge (bigger buttons) and LIVI scales/masks it into the
-// centre square. The full-size stream (800) uses view-area insets instead and is
-// placed 1:1, so it is not square-contained.
+// A projection stream smaller than the full 800×800 display is "square-contained":
+// the phone renders it edge-to-edge (bigger buttons) and the compositor scales/masks
+// it into the 586 centre square. All shipping CarPlay presets (586/480/320/300) are
+// smaller than 800, so they are all contained; an exact-800 stream would be placed
+// 1:1 and is not contained.
 export function isSquareContainedProjection(width: number, height: number): boolean {
   return (
     width > 0 &&
