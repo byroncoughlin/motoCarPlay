@@ -251,6 +251,9 @@ export function SettingsPage() {
   // group so nothing is orphaned. Order is preserved exactly (no jumping).
   const groups: Array<{ key: string; header?: string; nodes: SettingsNode<Config>[] }> = []
   for (const child of children as SettingsNode<Config>[]) {
+    // Reactive per-node visibility (e.g. scheduled hours only when Scheduled).
+    if (typeof child.hiddenWhen === 'function' && child.hiddenWhen(settings)) continue
+    if (child.type === 'route' && child.hidden) continue
     const sectionKey = child.sectionKey
     const header = child.section
     const last = groups[groups.length - 1]

@@ -37,7 +37,7 @@ import {
 import type { Config } from '@shared/types'
 import { InputCommand, MicType, PhoneWorkMode } from '@shared/types'
 import type { CommandValue } from '@shared/types/ProjectionEnums'
-import { isClusterDisplayed, matchFittingAAResolution } from '@shared/utils'
+import { isClusterDisplayed, matchFittingAAResolution, resolveNightMode } from '@shared/utils'
 import EventEmitter from 'events'
 
 const CONFIG_NUMBER = 1
@@ -554,7 +554,7 @@ export class DongleDriver extends EventEmitter {
       new SendBoxSettings(cfg),
       ...clusterAreaMessages,
       new SendString(label, FileAddress.BOX_NAME),
-      new SendBoolean(cfg.nightMode, FileAddress.NIGHT_MODE),
+      new SendBoolean(resolveNightMode(cfg) ?? cfg.nightMode, FileAddress.NIGHT_MODE),
       new SendAndroidAutoDpi(aaResolution.width, aaResolution.height),
       new SendNumber(this._androidWorkModeRuntime, FileAddress.ANDROID_WORK_MODE),
       new SendBoolean(true, FileAddress.CHARGE_MODE),

@@ -206,7 +206,7 @@
     "diagnosticMode": "Diagnosemodus",
     "diagnosticModeDescription": "Speichert Diagramm-Verlauf, Sensordiagnose und Roh-Telemetrie zur späteren Analyse auf der Festplatte. Größenbegrenzt; älteste Daten werden automatisch entfernt.",
     "phoneAppearance": "Erscheinungsbild Telefon",
-    "phoneAppearanceDescription": "Hell-/Dunkel-Modus des Telefons.",
+    "phoneAppearanceDescription": "Hell-/Dunkel-Modus des verbundenen Telefons. Zeitplan folgt der Ortszeit. Android Auto wechselt live; CarPlay liest dies nur beim Verbinden und manche iPhones folgen ihrer eigenen CarPlay-Darstellung (auf Automatisch stellen und neu verbinden).",
     "phoneAppearanceAuto": "Auto",
     "phoneAppearanceScheduled": "Zeitplan",
     "appearanceDayStart": "Tag beginnt (Zeitplan)",

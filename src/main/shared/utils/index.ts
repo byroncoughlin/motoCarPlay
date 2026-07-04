@@ -1,4 +1,5 @@
 export * from './androidAuto'
+export * from './appearance'
 export * from './cluster'
 export * from './motoFill'
 export * from './translateNavigation'

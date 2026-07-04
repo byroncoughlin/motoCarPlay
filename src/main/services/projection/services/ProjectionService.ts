@@ -11,6 +11,7 @@ import {
   aaContentArea,
   clusterTargetScreens,
   isClusterDisplayed,
+  resolveNightMode,
   translateNavigation
 } from '@shared/utils'
 import { app, BrowserWindow, WebContents } from 'electron'
@@ -105,19 +106,10 @@ function isPhoneLikeCod(cod: number | undefined): boolean {
 }
 
 /** appearanceMode → initial NIGHT_DATA bit for AA. 'day'/'night' force the bit;
- *  'scheduled' derives it from the local clock and the configured hours. */
+ *  'scheduled' derives it from the local clock and the configured hours.
+ *  Delegates to the shared resolver so AA, CarPlay and telemetry agree. */
 function deriveInitialNightMode(config: Config | undefined): boolean | undefined {
-  const mode = config?.appearanceMode
-  if (mode === 'night') return true
-  if (mode === 'day') return false
-  if (mode === 'scheduled') {
-    const d = config?.appearanceDayStartHour ?? 6
-    const n = config?.appearanceNightStartHour ?? 18
-    const h = new Date().getHours()
-    const day = d === n ? true : d < n ? h >= d && h < n : h >= d || h < n
-    return !day
-  }
-  return undefined
+  return resolveNightMode(config)
 }
 
 // Capped exponential backoff for a failed session bring-up (transient USB busy, phone locked).
@@ -289,7 +281,10 @@ export class ProjectionService {
       this.clearSampledBackdropColor()
     }
 
-    // Seed AA's initial NIGHT_MODE
+    // Seed AA's initial NIGHT_MODE. CarPlay's day/night is driven separately by
+    // the night_mode file (written at handshake) + the runtime night command;
+    // note the connected iPhone honours neither reliably (see notes below), so
+    // we deliberately do NOT tear down/reconnect the CarPlay session here.
     if (next.appearanceMode !== prev?.appearanceMode) {
       this.aaDriver?.setInitialNightMode(deriveInitialNightMode(next))
     }

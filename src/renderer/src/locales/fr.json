@@ -206,7 +206,7 @@
     "diagnosticMode": "Mode Diagnostic",
     "diagnosticModeDescription": "Enregistre l'historique des graphiques, le diagnostic des capteurs et la télémétrie brute sur le disque pour analyse. Taille limitée ; purge automatiquement les données les plus anciennes.",
     "phoneAppearance": "Apparence du Téléphone",
-    "phoneAppearanceDescription": "Apparence Sombre/Clair du téléphone.",
+    "phoneAppearanceDescription": "Apparence claire/sombre du téléphone connecté. Programmé suit l'heure locale. Android Auto change en direct ; CarPlay ne la lit qu'à la connexion et certains iPhones suivent leur propre réglage d'apparence CarPlay (le mettre sur Automatique et reconnecter).",
     "phoneAppearanceAuto": "Auto",
     "phoneAppearanceScheduled": "Programmé",
     "appearanceDayStart": "Début du jour (Programmé)",

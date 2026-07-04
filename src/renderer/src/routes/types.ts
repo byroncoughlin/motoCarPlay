@@ -31,6 +31,10 @@ export type NodeMeta = {
   // rendered together inside one rounded card under a small section header.
   section?: string
   sectionKey?: string
+  // Hide this node on the landing when the predicate returns true, evaluated
+  // against the current settings state (e.g. the scheduled day/night hours only
+  // apply when Phone Appearance = Scheduled). Rendered/skipped reactively.
+  hiddenWhen?: (state: unknown) => boolean
   displayValue?: boolean
   displayValueUnit?: string
   valueTransform?: ValueTransform<unknown, unknown>

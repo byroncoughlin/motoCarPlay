@@ -249,7 +249,7 @@ export const motoSettingsSchema: SettingsNode<Config> = {
         title: 'Phone Appearance',
         labelTitle: 'settings.phoneAppearance',
         description:
-          'Light / dark appearance for the connected phone (Android Auto / CarPlay). Scheduled follows the local clock — light during the day window, dark otherwise. Day or Night force the corresponding appearance whenever the phone is connected.',
+          'Light / dark appearance for the connected phone. Scheduled follows the local clock — light during the day window, dark otherwise. Android Auto switches live. CarPlay only reads this when the phone connects, and some iPhones follow their own CarPlay Appearance setting instead — set that to Automatic and reconnect if it does not match.',
         labelDescription: 'settings.phoneAppearanceDescription'
       }
     },
@@ -259,6 +259,7 @@ export const motoSettingsSchema: SettingsNode<Config> = {
       labelKey: 'settings.appearanceDayStart',
       section: 'Phone Display',
       sectionKey: 'settings.sectionPhoneDisplay',
+      hiddenWhen: (s) => (s as Config)?.appearanceMode !== 'scheduled',
       path: 'appearanceDayStartHour',
       displayValue: true,
       options: HOUR_OPTIONS
@@ -269,6 +270,7 @@ export const motoSettingsSchema: SettingsNode<Config> = {
       labelKey: 'settings.appearanceNightStart',
       section: 'Phone Display',
       sectionKey: 'settings.sectionPhoneDisplay',
+      hiddenWhen: (s) => (s as Config)?.appearanceMode !== 'scheduled',
       path: 'appearanceNightStartHour',
       displayValue: true,
       options: HOUR_OPTIONS

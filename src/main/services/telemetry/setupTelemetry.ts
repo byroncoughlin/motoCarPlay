@@ -22,6 +22,7 @@ import type { ProjectionService } from '@main/services/projection/services/Proje
 import { getAllRendererWebContents } from '@main/window/broadcast'
 import type { Config } from '@shared/types'
 import type { TelemetryPayload } from '@shared/types/Telemetry'
+import { resolveNightMode } from '@shared/utils'
 import { ipcMain } from 'electron'
 import { attachAaAdapter } from './adapters/aaAdapter'
 import { attachBlinkerSound } from './adapters/blinkerSoundAdapter'
@@ -158,28 +159,13 @@ export function setupTelemetry({
 
 /**
  * For 'scheduled' appearance: is the given local hour in the day/light window?
- * dayStart/nightStart are hours 0-23. The day window is [dayStart, nightStart)
- * computed modulo 24, so it also handles a window that wraps midnight.
+ * Re-exported from the shared appearance util so existing imports keep working.
  */
-export function isDaytime(hour: number, dayStartHour: number, nightStartHour: number): boolean {
-  const h = ((hour % 24) + 24) % 24
-  const d = ((dayStartHour % 24) + 24) % 24
-  const n = ((nightStartHour % 24) + 24) % 24
-  if (d === n) return true // degenerate: treat as always day
-  if (d < n) return h >= d && h < n // e.g. 6..18 → day
-  return h >= d || h < n // day window wraps midnight (e.g. 18..6)
-}
+export { isDaytime } from '@shared/utils'
 
 function applyAppearanceMode(store: TelemetryStore, config: Config | undefined): void {
-  const mode = config?.appearanceMode
-  if (mode === 'night') {
-    store.merge({ nightMode: true })
-  } else if (mode === 'day') {
-    store.merge({ nightMode: false })
-  } else if (mode === 'scheduled') {
-    const dayStart = config?.appearanceDayStartHour ?? 6
-    const nightStart = config?.appearanceNightStartHour ?? 18
-    const day = isDaytime(new Date().getHours(), dayStart, nightStart)
-    store.merge({ nightMode: !day })
+  const nightMode = resolveNightMode(config)
+  if (typeof nightMode === 'boolean') {
+    store.merge({ nightMode })
   }
 }

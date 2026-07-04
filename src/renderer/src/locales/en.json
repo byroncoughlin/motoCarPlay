@@ -206,7 +206,7 @@
     "diagnosticMode": "Diagnostic Mode",
     "diagnosticModeDescription": "Save graph history, sensor diagnostics, and raw telemetry to disk for later analysis. Size-capped; auto-prunes oldest data.",
     "phoneAppearance": "Phone Appearance",
-    "phoneAppearanceDescription": "Phone light/dark appearance.",
+    "phoneAppearanceDescription": "Light/dark appearance for the connected phone. Scheduled follows the local clock. Android Auto switches live; CarPlay only reads this at connect and some iPhones follow their own CarPlay Appearance setting (set it to Automatic and reconnect).",
     "phoneAppearanceAuto": "Auto",
     "phoneAppearanceScheduled": "Scheduled",
     "appearanceDayStart": "Day Starts (Scheduled)",
