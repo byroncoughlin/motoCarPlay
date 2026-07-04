@@ -932,6 +932,32 @@ describe('Projection page', () => {
     liviState.settings = undefined
   })
 
+  test('extend-background mode shows the G pill with its unit and a held MAX peak', () => {
+    liviState.settings = {
+      projectionSafeAreaDrawOutside: true
+    }
+
+    render(<Projection {...baseProps({ receivingVideo: true })} />)
+
+    // A lateral+longitudinal load registers a current G value (with unit) and
+    // latches the MAX peak, which the extend-mode G pill surfaces inline.
+    act(() => {
+      telemetryCb?.({ gForceX: 0.6, gForceY: 0.8 })
+    })
+
+    const bottomArc = screen.getByTestId('projection-bottom-arc')
+    // Current G is sqrt(0.36 + 0.64) = 1.0, rendered with its "G" unit.
+    expect(bottomArc).toHaveTextContent('1.0')
+    expect(bottomArc.textContent ?? '').toMatch(/G/)
+    // The peak is latched and shown with the triangle marker.
+    act(() => {
+      telemetryCb?.({ gForceX: 0, gForceY: 0 })
+    })
+    expect(bottomArc.textContent ?? '').toContain('\u25b2')
+
+    liviState.settings = undefined
+  })
+
   test('hides waiting pane when video frames are present', () => {
     render(<Projection {...baseProps()} receivingVideo />)
 

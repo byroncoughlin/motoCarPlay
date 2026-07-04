@@ -213,21 +213,6 @@ export const motoSettingsSchema: SettingsNode<Config> = {
       sectionKey: 'settings.sectionBackground',
       path: 'roundedCornerMaskEnabled'
     },
-    {
-      type: 'checkbox',
-      label: 'Extend CarPlay Background',
-      labelKey: 'settings.extendCarPlayBackground',
-      section: 'Background',
-      sectionKey: 'settings.sectionBackground',
-      path: 'projectionSafeAreaDrawOutside',
-      page: {
-        title: 'Extend CarPlay Background',
-        labelTitle: 'settings.extendCarPlayBackground',
-        description:
-          "When on, CarPlay draws its wallpaper across the whole round display while keeping icons and controls inside the center safe area — instead of leaving a black border. Uses Apple's drawUIOutsideSafeArea (main display only); requires reconnecting the phone to take effect. Some older iPhones may ignore it and keep the border black.",
-        labelDescription: 'settings.extendCarPlayBackgroundDescription'
-      }
-    },
     // ── Phone Appearance (light / dark) ──────────────────────────────────────
     {
       type: 'select',

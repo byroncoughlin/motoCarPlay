@@ -169,9 +169,15 @@ describe('settings schemas', () => {
     )
   })
 
-  test('Background section exposes the extend-background (draw outside) toggle', () => {
+  test('Background section is driven by the custom BackgroundModeControl (no standalone draw-outside checkbox)', () => {
     const children = (settingsSchema as any).children as any[]
-    const toggle = children.find((c) => c.path === 'projectionSafeAreaDrawOutside')
-    expect(toggle).toMatchObject({ type: 'checkbox', section: 'Background' })
+    // Extend/draw-outside is now one of the mutually-exclusive Background modes
+    // inside the custom control, not a separate checkbox field.
+    const standaloneToggle = children.find(
+      (c) => c.path === 'projectionSafeAreaDrawOutside' && c.section === 'Background'
+    )
+    expect(standaloneToggle).toBeUndefined()
+    const custom = children.find((c) => c.section === 'Background' && c.type === 'custom')
+    expect(custom).toBeDefined()
   })
 })

@@ -1019,9 +1019,9 @@ function TopArc({
         onClick={() => actions.openMetric('heading')}
         style={{
           ...bandBase,
-          left: 78,
-          width: '22%',
-          paddingBottom: 14,
+          left: 70,
+          width: '24%',
+          paddingBottom: 16,
           border: 0,
           background: 'transparent'
         }}
@@ -1032,14 +1032,14 @@ function TopArc({
             ...pill,
             display: 'flex',
             alignItems: 'baseline',
-            gap: 5,
+            gap: 6,
             textShadow: numShadow
           }}
         >
-          <span style={{ fontSize: 28, fontWeight: 800, color: 'white', lineHeight: 1 }}>
+          <span style={{ fontSize: 34, fontWeight: 800, color: 'white', lineHeight: 1 }}>
             {cardinal ?? '--'}
           </span>
-          <span style={{ fontSize: 15, fontWeight: 800, color: 'rgba(255,255,255,0.75)' }}>
+          <span style={{ fontSize: 18, fontWeight: 800, color: 'rgba(255,255,255,0.78)' }}>
             {heading != null ? `${heading}\u00b0` : ''}
           </span>
         </span>
@@ -1051,9 +1051,9 @@ function TopArc({
         onClick={() => actions.openMetric('speed')}
         style={{
           ...bandBase,
-          left: '32%',
-          right: '32%',
-          paddingBottom: telemetry.gpsFix === true ? 4 : 0,
+          left: '30%',
+          right: '30%',
+          paddingBottom: 12,
           border: 0,
           background: 'transparent'
         }}
@@ -1061,29 +1061,37 @@ function TopArc({
         <span
           className={gpsStale && speed != null ? 'moto-gps-stale' : undefined}
           style={{
-            fontSize: 90,
-            fontWeight: 800,
-            color: 'white',
-            lineHeight: 1,
-            letterSpacing: 0,
-            marginBottom: -7,
-            fontVariantNumeric: 'tabular-nums',
+            ...pill,
+            padding: extend ? '2px 18px' : 0,
+            display: 'flex',
+            alignItems: 'baseline',
+            gap: extend ? 8 : 4,
             textShadow: numShadow
           }}
         >
-          {speed != null ? speed : '--'}
-        </span>
-        <span
-          style={{
-            fontSize: 13,
-            fontWeight: 800,
-            color: 'white',
-            letterSpacing: 3,
-            textTransform: 'uppercase',
-            textShadow: numShadow
-          }}
-        >
-          mph
+          <span
+            style={{
+              fontSize: extend ? 64 : 90,
+              fontWeight: 800,
+              color: 'white',
+              lineHeight: 1,
+              letterSpacing: 0,
+              fontVariantNumeric: 'tabular-nums'
+            }}
+          >
+            {speed != null ? speed : '--'}
+          </span>
+          <span
+            style={{
+              fontSize: extend ? 16 : 13,
+              fontWeight: 800,
+              color: extend ? 'rgba(255,255,255,0.78)' : 'white',
+              letterSpacing: extend ? 2 : 3,
+              textTransform: 'uppercase'
+            }}
+          >
+            mph
+          </span>
         </span>
       </button>
 
@@ -1092,9 +1100,9 @@ function TopArc({
         onClick={() => actions.openMetric('ambientTemp')}
         style={{
           ...bandBase,
-          right: 78,
-          width: '22%',
-          paddingBottom: 14,
+          right: 70,
+          width: '24%',
+          paddingBottom: 16,
           border: 0,
           background: 'transparent'
         }}
@@ -1104,14 +1112,14 @@ function TopArc({
             ...pill,
             display: 'flex',
             alignItems: 'baseline',
-            gap: 5,
+            gap: 6,
             textShadow: numShadow
           }}
         >
-          <span style={{ fontSize: 28, fontWeight: 800, color: 'white', lineHeight: 1 }}>
+          <span style={{ fontSize: 34, fontWeight: 800, color: 'white', lineHeight: 1 }}>
             {telemetry.ambientF != null ? `${telemetry.ambientF}\u00b0` : '--'}
           </span>
-          <span style={{ fontSize: 15, fontWeight: 800, color: 'rgba(255,255,255,0.75)' }}>
+          <span style={{ fontSize: 18, fontWeight: 800, color: 'rgba(255,255,255,0.78)' }}>
             {telemetry.ambientF != null ? 'F' : ''}
           </span>
         </span>
@@ -1161,7 +1169,7 @@ function ChtGauge({
   // Extend mode: transparent strip; only the temperature number sits in a pill
   // whose width matches the thermometer bar, centered on the bar (mirror-safe).
   const numPillCY = barY + barH + 25
-  const numPillW = barW
+  const numPillW = barW + 12
 
   return (
     <button
@@ -1236,6 +1244,11 @@ function ChtGauge({
           style={extend ? { filter: SVG_TEXT_SHADOW } : undefined}
         >
           {hasData ? Math.round(displayValue as number) : '--'}
+          {extend && (
+            <tspan fontSize={14} fill="rgba(255,255,255,0.7)" dx={3}>
+              C
+            </tspan>
+          )}
         </text>
         {showStale ? (
           <text
@@ -1257,17 +1270,19 @@ function ChtGauge({
             />
           </text>
         ) : (
-          <text
-            x={textCX}
-            y={barY + barH + 52}
-            textAnchor="middle"
-            fill="white"
-            fontSize={12}
-            fontWeight="bold"
-            fontFamily="sans-serif"
-          >
-            C
-          </text>
+          !extend && (
+            <text
+              x={textCX}
+              y={barY + barH + 52}
+              textAnchor="middle"
+              fill="white"
+              fontSize={12}
+              fontWeight="bold"
+              fontFamily="sans-serif"
+            >
+              C
+            </text>
+          )
         )}
       </svg>
     </button>
@@ -1324,12 +1339,16 @@ function BottomArc({
   // Extend mode: every readout is a uniform capsule on shared baselines.
   // ALT (left) and G (right) mirror each other on the same top row; lean sits
   // in a matching capsule centered under the horizon. Same height + radius.
-  const altG = 70 // width of the mirrored ALT / G capsules
-  const altGcy = 24 // shared vertical center of the top-row capsules
-  const altCX = 154 // ALT capsule center (left)
+  // Extend mode: readouts are uniform two-line capsules (label+unit line over a
+  // big value) placed in the widest part of the bottom band so nothing is
+  // clipped by the round display. ALT (left) and G (right) mirror exactly.
+  const rowCY = 26 // vertical center of the ALT / G row
+  const rowH = 42 // capsule height
+  const rowW = 122 // capsule width
+  const altCX = 152 // ALT capsule center (left)
   const gCX = w - altCX // G capsule center (right) — exact mirror of ALT
-  const leanW = 92
-  const leanCY = 88
+  const leanW = 104
+  const leanCY = 86
 
   return (
     <div
@@ -1445,16 +1464,16 @@ function BottomArc({
           strokeLinecap="round"
         />
         {extend ? (
-          <GaugePill cx={cx} cy={20} width={54} height={28} />
+          <GaugePill cx={cx} cy={18} width={64} height={26} />
         ) : (
           <rect x={cx - 27} y={34} width={54} height={24} fill="rgba(0,0,0,0.88)" rx={8} />
         )}
         <text
           x={cx}
-          y={extend ? 25 : 52}
+          y={extend ? 23 : 52}
           textAnchor="middle"
           fill={telemetry.pitchDeg != null ? ref : 'white'}
-          fontSize={extend ? 15 : 18}
+          fontSize={extend ? 16 : 18}
           fontWeight="bold"
           fontFamily="monospace"
         >
@@ -1468,59 +1487,95 @@ function BottomArc({
 
         <g>
           {extend ? (
-            <GaugePill cx={154} cy={altGcy} width={altG} />
+            <>
+              <GaugePill cx={altCX} cy={rowCY} width={rowW} height={rowH} />
+              <text
+                x={altCX}
+                y={rowCY - 8}
+                textAnchor="middle"
+                fill="rgba(255,255,255,0.75)"
+                fontSize={13}
+                fontWeight="bold"
+                fontFamily="monospace"
+                letterSpacing={2}
+              >
+                ALT
+              </text>
+              <text
+                x={altCX}
+                y={rowCY + 14}
+                textAnchor="middle"
+                fill={altValue != null ? '#f0f0f0' : 'white'}
+                fontSize={22}
+                fontWeight="bold"
+                fontFamily="monospace"
+              >
+                {altFt}
+                <tspan fontSize={13} fill="rgba(255,255,255,0.7)" dx={4}>
+                  FT
+                </tspan>
+                {gpsStale && (
+                  <animate
+                    attributeName="opacity"
+                    values="1;0.25;1"
+                    dur="2.4s"
+                    repeatCount="indefinite"
+                  />
+                )}
+              </text>
+            </>
           ) : (
-            <rect x={110} y={5} width={88} height={53} fill="rgba(0,0,0,0.72)" rx={5} />
-          )}
-          <text
-            x={154}
-            y={extend ? altGcy - 21 : 20}
-            textAnchor="middle"
-            fill="rgba(255,255,255,0.7)"
-            fontSize={extend ? 10 : 12}
-            fontWeight="bold"
-            fontFamily="monospace"
-            letterSpacing={2}
-          >
-            ALT
-          </text>
-          <text
-            x={154}
-            y={extend ? altGcy + 5 : 43}
-            textAnchor="middle"
-            fill={altValue != null ? '#e0e0e0' : 'white'}
-            fontSize={extend ? 18 : 22}
-            fontWeight="bold"
-            fontFamily="monospace"
-          >
-            {altFt}
-            {gpsStale && (
-              <animate
-                attributeName="opacity"
-                values="1;0.25;1"
-                dur="2.4s"
-                repeatCount="indefinite"
-              />
-            )}
-          </text>
-          {!extend && (
-            <text
-              x={154}
-              y={54}
-              textAnchor="middle"
-              fill="rgba(255,255,255,0.7)"
-              fontSize={11}
-              fontWeight="bold"
-              fontFamily="sans-serif"
-            >
-              ft
-            </text>
+            <>
+              <rect x={110} y={5} width={88} height={53} fill="rgba(0,0,0,0.72)" rx={5} />
+              <text
+                x={154}
+                y={20}
+                textAnchor="middle"
+                fill="rgba(255,255,255,0.7)"
+                fontSize={12}
+                fontWeight="bold"
+                fontFamily="monospace"
+                letterSpacing={2}
+              >
+                ALT
+              </text>
+              <text
+                x={154}
+                y={43}
+                textAnchor="middle"
+                fill={altValue != null ? '#e0e0e0' : 'white'}
+                fontSize={22}
+                fontWeight="bold"
+                fontFamily="monospace"
+              >
+                {altFt}
+                {gpsStale && (
+                  <animate
+                    attributeName="opacity"
+                    values="1;0.25;1"
+                    dur="2.4s"
+                    repeatCount="indefinite"
+                  />
+                )}
+              </text>
+              <text
+                x={154}
+                y={54}
+                textAnchor="middle"
+                fill="rgba(255,255,255,0.7)"
+                fontSize={11}
+                fontWeight="bold"
+                fontFamily="sans-serif"
+              >
+                ft
+              </text>
+            </>
           )}
         </g>
 
         <g>
           {extend ? (
-            <GaugePill cx={cx} cy={leanCY} width={leanW} />
+            <GaugePill cx={cx} cy={leanCY} width={leanW} height={34} />
           ) : (
             <rect
               x={cx - 40}
@@ -1535,10 +1590,10 @@ function BottomArc({
           )}
           <text
             x={cx}
-            y={extend ? leanCY + 6 : 90}
+            y={extend ? leanCY + 7 : 90}
             textAnchor="middle"
             fill="white"
-            fontSize={extend ? 18 : 21}
+            fontSize={extend ? 21 : 21}
             fontWeight="bold"
             fontFamily="sans-serif"
           >
@@ -1568,7 +1623,39 @@ function BottomArc({
 
         <g>
           {extend ? (
-            <GaugePill cx={gCX} cy={altGcy} width={altG} />
+            <>
+              <GaugePill cx={gCX} cy={rowCY} width={rowW} height={rowH} />
+              <text
+                x={gCX}
+                y={rowCY - 8}
+                textAnchor="middle"
+                fontSize={13}
+                fontWeight="bold"
+                fontFamily="monospace"
+                letterSpacing={2}
+              >
+                <tspan fill="rgba(255,255,255,0.75)">G</tspan>
+                {hasG && telemetry.imuPeak.g > 0.05 && (
+                  <tspan fill="rgba(255,170,0,0.92)" dx={8} letterSpacing={0}>
+                    {`\u25b2${telemetry.imuPeak.g.toFixed(1)}`}
+                  </tspan>
+                )}
+              </text>
+              <text
+                x={gCX}
+                y={rowCY + 14}
+                textAnchor="middle"
+                fill={hasG ? gTextColor : 'white'}
+                fontSize={22}
+                fontWeight="bold"
+                fontFamily="monospace"
+              >
+                {hasG ? gVal.toFixed(1) : '--'}
+                <tspan fontSize={13} fill="rgba(255,255,255,0.7)" dx={4}>
+                  G
+                </tspan>
+              </text>
+            </>
           ) : (
             <>
               <text
@@ -1584,60 +1671,46 @@ function BottomArc({
                 G
               </text>
               <rect x={398} y={14} width={60} height={34} fill="rgba(0,0,0,0.72)" rx={5} />
+              <text
+                x={428}
+                y={40}
+                textAnchor="middle"
+                fill={hasG ? gTextColor : 'white'}
+                fontSize={30}
+                fontWeight="bold"
+                fontFamily="monospace"
+              >
+                {hasG ? gVal.toFixed(1) : '--'}
+              </text>
+              {hasG && telemetry.imuPeak.g > 0.05 && (
+                <g>
+                  <text
+                    x={488}
+                    y={11}
+                    textAnchor="middle"
+                    fill="rgba(255,170,0,0.85)"
+                    fontSize={11}
+                    fontWeight="bold"
+                    fontFamily="monospace"
+                    letterSpacing={1}
+                  >
+                    MAX
+                  </text>
+                  <rect x={464} y={14} width={48} height={23} fill="rgba(0,0,0,0.65)" rx={5} />
+                  <text
+                    x={488}
+                    y={30}
+                    textAnchor="middle"
+                    fill="rgba(255,170,0,0.92)"
+                    fontSize={18}
+                    fontWeight="bold"
+                    fontFamily="monospace"
+                  >
+                    {telemetry.imuPeak.g.toFixed(1)}
+                  </text>
+                </g>
+              )}
             </>
-          )}
-          {extend && (
-            <text
-              x={gCX}
-              y={altGcy - 21}
-              textAnchor="middle"
-              fill="rgba(255,255,255,0.7)"
-              fontSize={10}
-              fontWeight="bold"
-              fontFamily="monospace"
-              letterSpacing={2}
-            >
-              G
-            </text>
-          )}
-          <text
-            x={extend ? gCX : 428}
-            y={extend ? altGcy + 6 : 40}
-            textAnchor="middle"
-            fill={hasG ? gTextColor : 'white'}
-            fontSize={extend ? 19 : 30}
-            fontWeight="bold"
-            fontFamily="monospace"
-          >
-            {hasG ? gVal.toFixed(1) : '--'}
-          </text>
-          {hasG && telemetry.imuPeak.g > 0.05 && !extend && (
-            <g>
-              <text
-                x={488}
-                y={11}
-                textAnchor="middle"
-                fill="rgba(255,170,0,0.85)"
-                fontSize={11}
-                fontWeight="bold"
-                fontFamily="monospace"
-                letterSpacing={1}
-              >
-                MAX
-              </text>
-              <rect x={464} y={14} width={48} height={23} fill="rgba(0,0,0,0.65)" rx={5} />
-              <text
-                x={488}
-                y={30}
-                textAnchor="middle"
-                fill="rgba(255,170,0,0.92)"
-                fontSize={18}
-                fontWeight="bold"
-                fontFamily="monospace"
-              >
-                {telemetry.imuPeak.g.toFixed(1)}
-              </text>
-            </g>
           )}
         </g>
 

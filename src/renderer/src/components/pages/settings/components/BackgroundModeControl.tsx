@@ -7,22 +7,28 @@ import { AMBIENT_FILL_SWATCHES } from './SettingsFieldControl'
 import { SettingsItemRow } from './settingsItemRow'
 import { settingsRowValueSx } from './settingsStyle'
 
-type BgMode = 'solid' | 'average' | 'blur'
+type BgMode = 'solid' | 'average' | 'blur' | 'extend'
 
 const DEFAULT_FILL = AMBIENT_FILL_SWATCHES[0]
 
-/** Derive the single effective background mode from the three linked fields. */
+/** Derive the single effective background mode from the linked fields. */
 function effectiveMode(cfg: Partial<Config> | undefined): BgMode {
+  // Extend wins: CarPlay paints its own wallpaper to the edge, so the other
+  // background fills are irrelevant while it is on.
+  if (cfg?.projectionSafeAreaDrawOutside) return 'extend'
   if (cfg?.backdropEnabled) return cfg.backdropMode === 'blur' ? 'blur' : 'average'
   // Solid is the default when no live-video backdrop is active (ambient fill or nothing).
   return 'solid'
 }
 
-/** The field combination that expresses a given mode. */
+/** The field combination that expresses a given mode. Modes are mutually
+ *  exclusive: exactly one of the four is active, so every branch sets every
+ *  linked field explicitly (including projectionSafeAreaDrawOutside). */
 function fieldsForMode(mode: BgMode, fillColor: string): Partial<Config> {
   switch (mode) {
     case 'solid':
       return {
+        projectionSafeAreaDrawOutside: false,
         backdropEnabled: false,
         ambientFillEnabled: true,
         ambientFillColor: fillColor,
@@ -30,6 +36,7 @@ function fieldsForMode(mode: BgMode, fillColor: string): Partial<Config> {
       }
     case 'average':
       return {
+        projectionSafeAreaDrawOutside: false,
         backdropEnabled: true,
         backdropMode: 'color',
         ambientFillEnabled: false,
@@ -37,35 +44,43 @@ function fieldsForMode(mode: BgMode, fillColor: string): Partial<Config> {
       }
     case 'blur':
       return {
+        projectionSafeAreaDrawOutside: false,
         backdropEnabled: true,
         backdropMode: 'blur',
         ambientFillEnabled: false,
         roundedCornerMaskEnabled: true
       }
+    case 'extend':
+      // CarPlay draws its wallpaper across the whole round display; no fill or
+      // backdrop is needed and the corner mask would clip the extended video.
+      return {
+        projectionSafeAreaDrawOutside: true,
+        backdropEnabled: false,
+        ambientFillEnabled: false,
+        roundedCornerMaskEnabled: false
+      }
   }
 }
 
-/** Whether moving between two modes touches the live native-video path (needs restart). */
+/** Whether moving between two modes touches the live native-video path or the
+ *  CarPlay handshake insets (either needs a clean restart / phone reconnect). */
 function needsRestart(from: BgMode, to: BgMode): boolean {
   if (from === to) return false
-  // Any transition that enables/disables/switches the native backdrop path.
   const usesNative = (m: BgMode) => m === 'average' || m === 'blur'
-  return usesNative(from) || usesNative(to)
+  // Extend changes the view/safe-area insets sent during the CarPlay handshake,
+  // so entering or leaving it must reconnect the phone.
+  const touchesHandshake = (m: BgMode) => m === 'extend'
+  return usesNative(from) || usesNative(to) || touchesHandshake(from) || touchesHandshake(to)
 }
 
 const OPTIONS: Array<{ value: BgMode; label: string }> = [
   { value: 'solid', label: 'Solid Color' },
   { value: 'average', label: 'Average Frame Color' },
-  { value: 'blur', label: 'Frame Capture with Blur' }
+  { value: 'blur', label: 'Frame Capture with Blur' },
+  { value: 'extend', label: 'Extend CarPlay Background' }
 ]
 
-function RestartDialog({
-  onCancel,
-  onConfirm
-}: {
-  onCancel: () => void
-  onConfirm: () => void
-}) {
+function RestartDialog({ onCancel, onConfirm }: { onCancel: () => void; onConfirm: () => void }) {
   return (
     <Box
       role="dialog"
@@ -237,7 +252,9 @@ export function BackgroundModeControl({ state }: SettingsCustomPageProps<Config,
             })}
           </Stack>
         ) : (
-          <Typography sx={settingsRowValueSx}>Auto from video</Typography>
+          <Typography sx={settingsRowValueSx}>
+            {shownMode === 'extend' ? 'CarPlay wallpaper' : 'Auto from video'}
+          </Typography>
         )}
       </SettingsItemRow>
 
