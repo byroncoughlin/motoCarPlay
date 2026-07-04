@@ -149,6 +149,7 @@
     "projectionFpsDescription": "Stream FPS.",
     "projectionDpi": "DPI",
     "projectionDpiDescription": "Stream DPI. 0 = auto (computed from resolution).",
+    "projectionResolution": "CarPlay Resolution",
     "viewArea": "View Area",
     "viewAreaTopDescription": "Top inset in px. Shrinks the image.",
     "viewAreaBottomDescription": "Bottom inset in px. Shrinks the image.",

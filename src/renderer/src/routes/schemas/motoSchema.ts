@@ -2,6 +2,7 @@ import type { Config } from '@shared/types'
 import { BackgroundModeControl } from '../../components/pages/settings/components/BackgroundModeControl'
 import { ClearDiagnosticsControl } from '../../components/pages/settings/components/ClearDiagnosticsControl'
 import { ClearGraphHistoryControl } from '../../components/pages/settings/components/ClearGraphHistoryControl'
+import { ProjectionResolutionControl } from '../../components/pages/settings/components/ProjectionResolutionControl'
 import { TiltCalibrationControl } from '../../components/pages/settings/components/TiltCalibrationControl'
 import {
   AREA_STEP,
@@ -125,6 +126,13 @@ const advancedSchema: SettingsNode<Config> = {
         description: 'Main stream DPI (0 = auto).',
         labelDescription: 'settings.projectionDpiDescription'
       }
+    },
+    {
+      type: 'custom',
+      label: 'CarPlay Resolution',
+      labelKey: 'settings.projectionResolution',
+      path: 'projectionWidth',
+      component: ProjectionResolutionControl
     },
     {
       type: 'route',

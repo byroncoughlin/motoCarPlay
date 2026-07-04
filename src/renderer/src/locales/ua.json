@@ -149,6 +149,7 @@
     "projectionFpsDescription": "Кадри в секунду потоку.",
     "projectionDpi": "DPI",
     "projectionDpiDescription": "DPI потоку. 0 = автоматично (обчислюється з роздільної здатності).",
+    "projectionResolution": "Роздільна здатність CarPlay",
     "viewArea": "Зона перегляду",
     "viewAreaTopDescription": "Верхній відступ у px. Зменшує зображення.",
     "viewAreaBottomDescription": "Нижній відступ у px. Зменшує зображення.",

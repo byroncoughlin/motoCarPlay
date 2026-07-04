@@ -118,6 +118,7 @@ describe('settings schemas', () => {
       'Preferred Connection',
       'FPS',
       'DPI',
+      'CarPlay Resolution',
       'View Area',
       'USB Dongle Info',
       'About'

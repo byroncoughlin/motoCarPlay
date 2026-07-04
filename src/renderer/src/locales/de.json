@@ -149,6 +149,7 @@
     "projectionFpsDescription": "Maximale Bilder pro Sekunde des Streams.",
     "projectionDpi": "DPI",
     "projectionDpiDescription": "DPI des Streams. 0 = automatisch (aus der Auflösung berechnet).",
+    "projectionResolution": "CarPlay-Auflösung",
     "viewArea": "View Area",
     "viewAreaTopDescription": "Oberer Abstand in px. Verkleinert das Bild.",
     "viewAreaBottomDescription": "Unterer Abstand in px. Verkleinert das Bild.",
