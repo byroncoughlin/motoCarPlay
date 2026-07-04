@@ -126,7 +126,16 @@ const applyTelemetryControls = (payload: unknown) => {
   const msg = payload as Record<string, unknown>
 
   if (typeof msg.nightMode === 'boolean') {
-    void useLiviStore.getState().saveSettings({ nightMode: msg.nightMode })
+    // Telemetry carries nightMode on every tick (the scheduled-appearance logic
+    // re-emits it continuously). Only persist when it actually changed —
+    // otherwise each tick triggers saveSettings → set({settings}) → refresh,
+    // churning the settings object dozens of times a second and pegging the
+    // renderer while the Settings page (which re-derives state from settings)
+    // is open.
+    const currentNightMode = Boolean(useLiviStore.getState().settings?.nightMode)
+    if (currentNightMode !== msg.nightMode) {
+      void useLiviStore.getState().saveSettings({ nightMode: msg.nightMode })
+    }
   }
 
   const explicitReverse =

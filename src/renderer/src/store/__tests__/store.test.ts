@@ -1552,6 +1552,36 @@ describe('store', () => {
     expect(projection.settings.save).not.toHaveBeenCalled()
   })
 
+  test('telemetry handler does not persist nightMode when it already matches settings', async () => {
+    let telemetryHandler: ((payload: unknown) => void) | undefined
+
+    const projection = makeProjectionApi({
+      settings: {
+        // baseSettings has no nightMode → effective value is false.
+        get: jest.fn().mockResolvedValue(baseSettings),
+        save: jest.fn().mockResolvedValue(undefined)
+      },
+      ipc: {
+        onTelemetry: jest.fn((handler) => {
+          telemetryHandler = handler
+        })
+      }
+    })
+
+    const { useLiviStore } = loadFreshStore(projection)
+
+    await waitForStoreSettings(useLiviStore)
+
+    // Repeated ticks carrying the already-current value must not churn saves.
+    telemetryHandler?.({ nightMode: false })
+    telemetryHandler?.({ nightMode: false })
+    telemetryHandler?.({ nightMode: false })
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(projection.settings.save).not.toHaveBeenCalled()
+  })
+
   test('forgetBluetoothPairedDevice returns false when ipc api is missing', async () => {
     const { useLiviStore } = loadFreshStore()
 
