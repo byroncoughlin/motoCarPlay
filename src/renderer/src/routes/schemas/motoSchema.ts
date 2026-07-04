@@ -6,9 +6,7 @@ import { ProjectionResolutionControl } from '../../components/pages/settings/com
 import { TiltCalibrationControl } from '../../components/pages/settings/components/TiltCalibrationControl'
 import {
   AREA_STEP,
-  MAX_DPI,
   MAX_FPS,
-  MIN_DPI,
   MIN_FPS,
   SAFE_AREA_MAX_HEIGHT,
   SAFE_AREA_MAX_WIDTH,
@@ -109,22 +107,6 @@ const advancedSchema: SettingsNode<Config> = {
         labelTitle: 'settings.projectionFps',
         description: 'Stream FPS.',
         labelDescription: 'settings.projectionFpsDescription'
-      }
-    },
-    {
-      type: 'number',
-      label: 'DPI',
-      labelKey: 'settings.projectionDpi',
-      path: 'projectionDpi',
-      min: MIN_DPI,
-      max: MAX_DPI,
-      step: 1,
-      displayValue: true,
-      page: {
-        title: 'DPI',
-        labelTitle: 'settings.projectionDpi',
-        description: 'Main stream DPI (0 = auto).',
-        labelDescription: 'settings.projectionDpiDescription'
       }
     },
     {

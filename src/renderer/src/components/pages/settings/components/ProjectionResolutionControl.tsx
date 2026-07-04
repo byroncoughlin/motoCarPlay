@@ -7,17 +7,16 @@ import { SettingsItemRow } from './settingsItemRow'
 
 // CarPlay stream resolution presets.
 //
-// The phone renders its UI at the negotiated stream resolution; the compositor
-// then scales that frame to fill the visible round square. A smaller stream makes
-// the phone lay its whole UI out for a small display, so buttons/text end up much
-// larger once scaled up.
+// The phone renders its UI at the negotiated stream resolution; a smaller stream
+// makes the phone lay its whole UI out for a small display, so buttons/text end up
+// much larger. LIVI then scales that frame to fill the visible round centre square.
 //
-// - 800: the full stream. LIVI masks 107px on every edge so CarPlay's chrome is
-//   confined to the inner view area. This is the original default (most content,
-//   smallest buttons).
-// - 586/480/320/300: the phone renders directly at that size with no masked
-//   margins (view area 0). Progressively larger buttons; 300 is the practical
-//   floor before the upscaled image gets too soft.
+// - 800: the full stream, placed 1:1 on the output. LIVI masks 107px on every edge
+//   (via the phone's view area) so CarPlay's chrome is confined to the inner square.
+//   Original default (most content, smallest buttons).
+// - 586/480/320/300: the phone renders edge-to-edge (view area 0); the compositor
+//   contains the frame to the centre square and LIVI masks the surrounding margin.
+//   Progressively larger buttons; 300 is the practical floor before it gets soft.
 const FULL_INSET = 107
 
 type ResolutionPreset = {
