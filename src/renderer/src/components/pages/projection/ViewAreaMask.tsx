@@ -7,6 +7,12 @@ export type ViewAreaInsets = { top: number; bottom: number; left: number; right:
 const CORNER_RADIUS_PX = MOTO_CENTER_CORNER_RADIUS_PX
 const BAR_Z_INDEX = 5
 const CORNER_Z_INDEX = 12
+// The video plane and the DOM mask meet exactly at the view-area boundary. On
+// the device compositor that seam leaves a 1px dark column uncovered on the
+// right edge (sub-pixel rounding between the waylandsink plane and the mask).
+// Bleed each mask bar 1px inward over the boundary so no seam shows; 1px of a
+// ~586px view area is imperceptible on content.
+const BAR_BLEED_PX = 1
 
 // Passepartout between the LIVI UI and the video plane: paints the configured view-area margins
 // with the theme background, leaving the view area itself transparent so the video shows through.
@@ -53,6 +59,11 @@ export function ViewAreaMask({
   const centerBottom = pct(insets.bottom, displayHeight)
   const centerLeft = pct(insets.left, displayWidth)
   const centerRight = pct(insets.right, displayWidth)
+  // Bar sizes bled 1px past the view-area edge to hide the compositor seam.
+  const barTop = `calc(${centerTop} + ${BAR_BLEED_PX}px)`
+  const barBottom = `calc(${centerBottom} + ${BAR_BLEED_PX}px)`
+  const barLeft = `calc(${centerLeft} + ${BAR_BLEED_PX}px)`
+  const barRight = `calc(${centerRight} + ${BAR_BLEED_PX}px)`
   const radius = Math.max(0, Math.min(CORNER_RADIUS_PX, displayWidth / 8, displayHeight / 8))
   const radiusX = pct(radius, displayWidth)
   const radiusY = pct(radius, displayHeight)
@@ -74,19 +85,19 @@ export function ViewAreaMask({
         <>
           <div
             data-testid="view-area-mask-top"
-            style={{ ...bar, top: 0, left: 0, right: 0, height: centerTop }}
+            style={{ ...bar, top: 0, left: 0, right: 0, height: barTop }}
           />
           <div
             data-testid="view-area-mask-bottom"
-            style={{ ...bar, bottom: 0, left: 0, right: 0, height: centerBottom }}
+            style={{ ...bar, bottom: 0, left: 0, right: 0, height: barBottom }}
           />
           <div
             data-testid="view-area-mask-left"
-            style={{ ...bar, top: 0, bottom: 0, left: 0, width: centerLeft }}
+            style={{ ...bar, top: 0, bottom: 0, left: 0, width: barLeft }}
           />
           <div
             data-testid="view-area-mask-right"
-            style={{ ...bar, top: 0, bottom: 0, right: 0, width: centerRight }}
+            style={{ ...bar, top: 0, bottom: 0, right: 0, width: barRight }}
           />
         </>
       )}
