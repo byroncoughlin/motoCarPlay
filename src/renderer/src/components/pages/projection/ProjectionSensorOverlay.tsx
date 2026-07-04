@@ -1166,9 +1166,17 @@ function ChtGauge({
   const barX = side === 'L' ? barInset : vw - barW - barInset
   const textCX = barX + barW / 2
   // Extend mode: transparent strip; only the temperature number sits in a pill
-  // whose width matches the thermometer bar, centered on the bar (mirror-safe).
-  const numPillCY = barY + barH + 25
-  const numPillW = barW + 12
+  // below the thermometer bar. The round screen curves inward low on the
+  // left/right strips, so the default below-bar pill (screen y~559, full bar
+  // width, centered on the bar) pokes ~10px past the glass. In extend mode we
+  // keep the pill BELOW the bar (never overlapping it) but make it narrower,
+  // shorter, sit it snug (4px) under the bar, and nudge it 7px inward toward the
+  // center — that lands its outer corner ~8px inside the circle on both sides.
+  const inwardSign = side === 'L' ? 1 : -1
+  const numPillCX = extend ? textCX + inwardSign * 7 : textCX
+  const numPillCY = extend ? barY + barH + 16 : barY + barH + 25
+  const numPillW = extend ? 66 : barW + 12
+  const numPillH = extend ? 24 : PILL_H
 
   return (
     <button
@@ -1226,17 +1234,18 @@ function ChtGauge({
         {extend && (
           <GaugePill
             data-testid={`projection-cht-pill-${side}`}
-            cx={textCX}
+            cx={numPillCX}
             cy={numPillCY}
             width={numPillW}
+            height={numPillH}
           />
         )}
         <text
-          x={textCX}
-          y={numPillCY + 10}
+          x={extend ? numPillCX : textCX}
+          y={numPillCY + (extend ? 8 : 10)}
           textAnchor="middle"
           fill={!hasData ? 'white' : showStale ? '#c9a227' : color}
-          fontSize={28}
+          fontSize={extend ? 22 : 28}
           fontWeight="bold"
           fontFamily="sans-serif"
           opacity={showStale ? 0.85 : 1}
@@ -1244,15 +1253,15 @@ function ChtGauge({
         >
           {hasData ? Math.round(displayValue as number) : '--'}
           {extend && (
-            <tspan fontSize={14} fill="rgba(255,255,255,0.7)" dx={3}>
+            <tspan fontSize={11} fill="rgba(255,255,255,0.7)" dx={2}>
               C
             </tspan>
           )}
         </text>
         {showStale ? (
           <text
-            x={textCX}
-            y={barY + barH + 54}
+            x={extend ? numPillCX : textCX}
+            y={extend ? numPillCY + 18 : barY + barH + 54}
             textAnchor="middle"
             fill="#ffca28"
             fontSize={12}
@@ -2853,10 +2862,10 @@ function MetricGraph({
       data-testid="projection-metric-graph"
       style={{
         position: 'absolute',
-        top: ARC_PCT,
+        top: `calc(${ARC_PCT} - 2px)`,
         left: `calc(${ARC_PCT} - 2px)`,
         width: `calc(${SQUARE_PCT} + 4px)`,
-        height: SQUARE_PCT,
+        height: `calc(${SQUARE_PCT} + 4px)`,
         background: '#000',
         zIndex: 20,
         display: 'flex',

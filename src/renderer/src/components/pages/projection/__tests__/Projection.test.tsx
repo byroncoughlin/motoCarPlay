@@ -323,14 +323,15 @@ describe('Projection page', () => {
 
     const graph = screen.getByTestId('projection-metric-graph')
     expect(graph).toHaveStyle({
-      top: '13.375%',
-      height: '73.25%',
       overflow: 'hidden'
     })
-    // The pane is square (corners removed) and over-covers the left/right seam a
-    // couple of pixels so no CarPlay wallpaper peeks past its edges.
+    // The pane is square (corners removed) and over-covers every seam by a
+    // couple of pixels (top/left/right/bottom) so no CarPlay wallpaper peeks
+    // past its edges.
+    expect(graph).toHaveStyle({ top: 'calc(13.375% - 2px)' })
     expect(graph).toHaveStyle({ left: 'calc(13.375% - 2px)' })
     expect(graph).toHaveStyle({ width: 'calc(73.25% + 4px)' })
+    expect(graph).toHaveStyle({ height: 'calc(73.25% + 4px)' })
     expect(graph.style.borderRadius).toBe('')
     expect(graph.style.boxShadow).toBe('')
 
