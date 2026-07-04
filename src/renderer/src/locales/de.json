@@ -230,6 +230,8 @@
     "advanced": "Erweitert",
     "settingsColorMode": "Menü-Farbmodus",
     "sectionBackground": "Hintergrund",
+    "extendCarPlayBackground": "CarPlay-Hintergrund erweitern",
+    "extendCarPlayBackgroundDescription": "Das CarPlay-Hintergrundbild über das gesamte Display zeichnen und die Symbole im mittleren Sicherheitsbereich statt eines schwarzen Rands halten.",
     "sectionPhoneDisplay": "Telefonanzeige",
     "sectionOrientation": "Ausrichtung",
     "sectionDiagnostics": "Diagnose",

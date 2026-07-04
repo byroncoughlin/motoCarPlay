@@ -27,7 +27,8 @@ import {
   SendGnssData,
   SendOpen,
   SendSafeArea,
-  SendString
+  SendString,
+  SendViewArea
 } from '@main/services/projection/messages/sendable'
 import { CommandMapping, MicType, PhoneWorkMode } from '@shared/types'
 
@@ -954,6 +955,62 @@ describe('DongleDriver core behavior', () => {
     // safe size = screen - additive insets (800-36-48, 480-12-24)
     expect(body.readUInt32LE(0)).toBe(716)
     expect(body.readUInt32LE(4)).toBe(444)
+  })
+
+  test('sendPostOpenConfig with drawOutside moves margins into the safe area and zeros the view area', async () => {
+    const d = new DongleDriver() as any
+    d._cfg = {
+      projectionWidth: 800,
+      projectionHeight: 480,
+      projectionFps: 60,
+      carName: 'Car',
+      oemName: 'OEM',
+      micType: MicType.PhoneMic,
+      nightMode: false,
+      hand: 0,
+      wifiType: '2.4ghz',
+      disableAudioOutput: false,
+      projectionViewAreaTop: 10,
+      projectionViewAreaBottom: 20,
+      projectionViewAreaLeft: 30,
+      projectionViewAreaRight: 40,
+      projectionSafeAreaTop: 2,
+      projectionSafeAreaBottom: 4,
+      projectionSafeAreaLeft: 6,
+      projectionSafeAreaRight: 8,
+      projectionSafeAreaDrawOutside: true
+    }
+    d._device = { opened: true }
+    d._closing = false
+    d._androidWorkModeRuntime = AndroidWorkMode.AndroidAuto
+    d.send = jest.fn(async () => true)
+    d.sleep = jest.fn(async () => undefined)
+    d.scheduleWifiConnect = jest.fn()
+
+    await d.sendPostOpenConfig()
+
+    const sent = d.send.mock.calls.map((c: unknown[]) => c[0])
+    const view = sent.find((m: unknown) => m instanceof SendViewArea) as SendViewArea
+    const safe = sent.find((m: unknown) => m instanceof SendSafeArea) as SendSafeArea
+
+    // View area now spans the whole display (no inset → nothing is clipped black).
+    const vPayload = view.getPayload()
+    const vBody = vPayload.subarray(4 + vPayload.readUInt32LE(0) + 4)
+    // origin left/top = 0
+    expect(vBody.readUInt32LE(16)).toBe(0)
+    expect(vBody.readUInt32LE(20)).toBe(0)
+    // view size = full screen
+    expect(vBody.readUInt32LE(8)).toBe(800)
+    expect(vBody.readUInt32LE(12)).toBe(480)
+
+    // Safe area carries the margins (view inset + safe inset) and drawOutside is on.
+    const sPayload = safe.getPayload()
+    const sBody = sPayload.subarray(4 + sPayload.readUInt32LE(0) + 4)
+    expect(sBody.readUInt32LE(8)).toBe(36)
+    expect(sBody.readUInt32LE(12)).toBe(12)
+    expect(sBody.readUInt32LE(0)).toBe(716)
+    expect(sBody.readUInt32LE(4)).toBe(444)
+    expect(sBody.readUInt32LE(16)).toBe(1)
   })
 
   test('sendPostOpenConfig sends targeted auto-connect when pending target exists', async () => {

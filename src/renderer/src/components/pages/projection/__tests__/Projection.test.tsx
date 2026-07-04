@@ -736,7 +736,9 @@ describe('Projection page', () => {
     expect((window as any).app.rebootSystem).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByTestId('projection-waiting-reboot-button'))
-    fireEvent.click(within(screen.getByTestId('projection-waiting-reboot-confirm')).getByText('Reboot'))
+    fireEvent.click(
+      within(screen.getByTestId('projection-waiting-reboot-confirm')).getByText('Reboot')
+    )
 
     expect((window as any).app.rebootSystem).toHaveBeenCalledTimes(1)
     expect(screen.queryByTestId('projection-waiting-reboot-confirm')).not.toBeInTheDocument()
@@ -884,6 +886,32 @@ describe('Projection page', () => {
 
     expect(screen.queryByTestId('view-area-mask-top')).not.toBeInTheDocument()
     expect(screen.queryByTestId('view-area-corner-mask-top-left')).not.toBeInTheDocument()
+  })
+
+  test('extend-background mode drops the view-area bars so CarPlay wallpaper fills the margin', () => {
+    render(
+      <Projection
+        {...baseProps({
+          receivingVideo: true,
+          settings: {
+            ...baseProps().settings,
+            projectionWidth: 800,
+            projectionHeight: 800,
+            projectionViewAreaTop: 107,
+            projectionViewAreaBottom: 107,
+            projectionViewAreaLeft: 107,
+            projectionViewAreaRight: 107,
+            roundedCornerMaskEnabled: true,
+            projectionSafeAreaDrawOutside: true
+          }
+        })}
+      />
+    )
+
+    expect(screen.queryByTestId('view-area-mask-top')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('view-area-corner-mask-top-left')).not.toBeInTheDocument()
+    // The dashboard sensor overlay still sits on top of the extended wallpaper.
+    expect(screen.getByTestId('projection-sensor-overlay')).toBeInTheDocument()
   })
 
   test('hides waiting pane when video frames are present', () => {

@@ -230,6 +230,8 @@
     "advanced": "Avancé",
     "settingsColorMode": "Mode Couleur du Menu",
     "sectionBackground": "Arrière-plan",
+    "extendCarPlayBackground": "Étendre l'arrière-plan CarPlay",
+    "extendCarPlayBackgroundDescription": "Afficher le fond d'écran CarPlay sur tout l'écran en gardant les icônes dans la zone de sécurité centrale au lieu d'une bordure noire.",
     "sectionPhoneDisplay": "Affichage Téléphone",
     "sectionOrientation": "Orientation",
     "sectionDiagnostics": "Diagnostics",

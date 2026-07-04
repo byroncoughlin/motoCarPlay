@@ -230,6 +230,8 @@
     "advanced": "Розширені",
     "settingsColorMode": "Колірний режим меню",
     "sectionBackground": "Фон",
+    "extendCarPlayBackground": "Розширити фон CarPlay",
+    "extendCarPlayBackgroundDescription": "Малювати шпалери CarPlay на весь екран, залишаючи значки в центральній безпечній зоні замість чорної рамки.",
     "sectionPhoneDisplay": "Дисплей телефону",
     "sectionOrientation": "Орієнтація",
     "sectionDiagnostics": "Діагностика",

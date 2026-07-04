@@ -1575,6 +1575,10 @@ const CarplayComponent: React.FC<CarplayProps> = ({
       ? (backdropSampleColor ?? motoFillHex(settings))
       : motoFillHex(settings)
   const roundedCornerMask = settings.roundedCornerMaskEnabled === true && !blurBackdropActive
+  // "Extend background" mode: CarPlay paints its wallpaper into the whole display
+  // (view area = full stream, drawOutside on). The margin is live phone video, so
+  // the passepartout bars must NOT cover it — only the sensor overlay sits on top.
+  const extendBackground = settings.projectionSafeAreaDrawOutside === true
 
   const touchHandlers = useProjectionMultiTouch(
     videoContainerRef,
@@ -1650,8 +1654,8 @@ const CarplayComponent: React.FC<CarplayProps> = ({
           right: settings.projectionViewAreaRight ?? 0
         }}
         color={maskColor}
-        cornerMask={roundedCornerMask}
-        barsVisible={!blurBackdropActive}
+        cornerMask={roundedCornerMask && !extendBackground}
+        barsVisible={!blurBackdropActive && !extendBackground}
       />
 
       <ProjectionSensorOverlay />

@@ -164,9 +164,14 @@ describe('settings schemas', () => {
         'projectionSafeAreaTop',
         'projectionSafeAreaBottom',
         'projectionSafeAreaLeft',
-        'projectionSafeAreaRight',
-        'projectionSafeAreaDrawOutside'
+        'projectionSafeAreaRight'
       ])
     )
+  })
+
+  test('Background section exposes the extend-background (draw outside) toggle', () => {
+    const children = (settingsSchema as any).children as any[]
+    const toggle = children.find((c) => c.path === 'projectionSafeAreaDrawOutside')
+    expect(toggle).toMatchObject({ type: 'checkbox', section: 'Background' })
   })
 })

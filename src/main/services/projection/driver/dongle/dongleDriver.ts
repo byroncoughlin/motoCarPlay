@@ -501,25 +501,34 @@ export class DongleDriver extends EventEmitter {
       height: cfg.projectionHeight
     })
 
-    const projectionAreaMessages: SendableMessage[] = [
-      new SendViewArea(cfg.projectionWidth, cfg.projectionHeight, {
-        insets: {
+    // "Extend background" (Apple drawUIOutsideSafeArea): keep the same visible
+    // square, but move the margins from the VIEW area into the SAFE area and set
+    // drawOutside. CarPlay then keeps its icons/UI inside the safe square while
+    // painting its wallpaper out to the full display edge (instead of black).
+    // Otherwise the margins stay in the view area (hard clip → black margins).
+    const drawOutside = cfg.projectionSafeAreaDrawOutside === true
+    const viewInset = drawOutside
+      ? { top: 0, bottom: 0, left: 0, right: 0 }
+      : {
           top: cfg.projectionViewAreaTop,
           bottom: cfg.projectionViewAreaBottom,
           left: cfg.projectionViewAreaLeft,
           right: cfg.projectionViewAreaRight
         }
-      }),
+    const safeInset = {
+      top: cfg.projectionViewAreaTop + cfg.projectionSafeAreaTop,
+      bottom: cfg.projectionViewAreaBottom + cfg.projectionSafeAreaBottom,
+      left: cfg.projectionViewAreaLeft + cfg.projectionSafeAreaLeft,
+      right: cfg.projectionViewAreaRight + cfg.projectionSafeAreaRight
+    }
+
+    const projectionAreaMessages: SendableMessage[] = [
+      new SendViewArea(cfg.projectionWidth, cfg.projectionHeight, { insets: viewInset }),
       // Safe area is additive to the view area, the dongle requires safe area to
       // stay inside the view area (Safe Area is a subset of View Area).
       new SendSafeArea(cfg.projectionWidth, cfg.projectionHeight, {
-        insets: {
-          top: cfg.projectionViewAreaTop + cfg.projectionSafeAreaTop,
-          bottom: cfg.projectionViewAreaBottom + cfg.projectionSafeAreaBottom,
-          left: cfg.projectionViewAreaLeft + cfg.projectionSafeAreaLeft,
-          right: cfg.projectionViewAreaRight + cfg.projectionSafeAreaRight
-        },
-        drawOutside: cfg.projectionSafeAreaDrawOutside
+        insets: safeInset,
+        drawOutside
       })
     ]
 

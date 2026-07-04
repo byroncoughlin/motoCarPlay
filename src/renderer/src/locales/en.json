@@ -230,6 +230,8 @@
     "advanced": "Advanced",
     "settingsColorMode": "Settings Color Mode",
     "sectionBackground": "Background",
+    "extendCarPlayBackground": "Extend CarPlay Background",
+    "extendCarPlayBackgroundDescription": "Draw the CarPlay wallpaper across the whole display, keeping icons in the center safe area instead of a black border.",
     "sectionPhoneDisplay": "Phone Display",
     "sectionOrientation": "Orientation",
     "sectionDiagnostics": "Diagnostics",
