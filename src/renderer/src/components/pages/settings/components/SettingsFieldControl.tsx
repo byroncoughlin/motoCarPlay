@@ -25,7 +25,7 @@ const clampInt = (n: number, min: number, max: number, step = 1) => {
 }
 
 const DEFAULT_AMBIENT_FILL_COLOR = '#142321'
-const AMBIENT_FILL_SWATCHES = [
+export const AMBIENT_FILL_SWATCHES = [
   '#142321',
   '#083f38',
   '#1f2f44',

@@ -25,8 +25,19 @@ jest.mock('@renderer/components/pages/settings/pages/system/PowerOff', () => ({
 jest.mock('@renderer/components/pages/settings/SettingsPage', () => ({
   SettingsPage: () => null
 }))
+jest.mock('@renderer/components/pages/settings/components/BackgroundModeControl', () => ({
+  BackgroundModeControl: () => null
+}))
+jest.mock('@renderer/components/pages/settings/components/TiltCalibrationControl', () => ({
+  TiltCalibrationControl: () => null
+}))
+jest.mock('@renderer/components/pages/settings/components/ClearGraphHistoryControl', () => ({
+  ClearGraphHistoryControl: () => null
+}))
+jest.mock('@renderer/components/pages/settings/components/ClearDiagnosticsControl', () => ({
+  ClearDiagnosticsControl: () => null
+}))
 
-import { appearanceSchema } from '../appearanceSchema'
 import { audioSchema } from '../audioSchema'
 import { generalSchema } from '../generalSchema'
 import { settingsRoutes, settingsSchema } from '../schema'
@@ -41,7 +52,7 @@ function collectPaths(node: any): string[] {
 
 describe('settings schemas', () => {
   test('root schemas have route type and children', () => {
-    for (const s of [generalSchema, audioSchema, videoSchema, appearanceSchema, systemSchema]) {
+    for (const s of [generalSchema, audioSchema, videoSchema, systemSchema]) {
       expect(s.type).toBe('route')
       expect(Array.isArray((s as any).children)).toBe(true)
       expect((s as any).children.length).toBeGreaterThan(0)
@@ -59,128 +70,56 @@ describe('settings schemas', () => {
     expect(slider.valueTransform.format(50)).toBe('50 %')
   })
 
-  test('settings schema aggregates major sections and generates routes', () => {
+  test('settings landing goes straight to the moto controls with an Advanced route', () => {
     expect(settingsSchema.type).toBe('route')
     if (settingsSchema.type !== 'route') {
       throw new Error('settingsSchema must be a route node')
     }
-    expect((settingsSchema.children as any[]).map((child) => child.route)).toEqual([
-      'system',
-      'motoDisplay'
-    ])
+    const children = settingsSchema.children as any[]
+    // Landing exposes the most-used moto controls directly (no more two tabs).
+    expect(children[0]).toMatchObject({ type: 'custom', label: 'Background' })
+    // Light/dark mode lives on the landing.
+    expect(children.some((c) => c.path === 'appearanceMode')).toBe(true)
+    expect(children.some((c) => c.path === 'diagnosticMode')).toBe(true)
+    // The old System settings are now behind a single "Advanced" route at the end.
+    const advanced = children.find((c) => c.route === 'advanced')
+    expect(advanced).toBeTruthy()
+    expect(children[children.length - 1].route).toBe('advanced')
     expect(settingsRoutes?.path).toBe('new-settings')
     expect(Array.isArray(settingsRoutes?.children)).toBe(true)
   })
 
-  test('moto system settings flatten connection controls into the system list', () => {
+  test('landing exposes phone light/dark controls up top', () => {
     if (settingsSchema.type !== 'route') {
       throw new Error('settingsSchema must be a route node')
     }
-
-    const system = (settingsSchema.children as any[]).find((child) => child.route === 'system')
-    const wifi = system.children.find((child: any) => child.path === 'wifiType')
-    const autoConnect = system.children.find((child: any) => child.path === 'autoConn')
-    const preferredConnection = system.children.find(
-      (child: any) => child.path === 'connectionPreference'
-    )
-
-    expect(wifi).toMatchObject({
-      type: 'select',
-      label: 'Wi-Fi Frequency',
-      displayValue: true
-    })
-    expect(wifi.options.map((option: any) => option.value)).toEqual(['2.4ghz', '5ghz'])
-    expect(autoConnect).toMatchObject({
-      type: 'checkbox',
-      label: 'Auto Connect'
-    })
-    expect(preferredConnection.options.map((option: any) => option.value)).toEqual([
-      'dongle',
-      'auto',
-      'native'
+    const children = settingsSchema.children as any[]
+    const appearance = children.find((c) => c.path === 'appearanceMode')
+    expect(appearance).toMatchObject({ type: 'select' })
+    expect(appearance.options.map((o: any) => o.value)).toEqual(['scheduled', 'day', 'night'])
+    expect(children.some((c) => c.path === 'appearanceDayStartHour')).toBe(true)
+    expect(children.some((c) => c.path === 'appearanceNightStartHour')).toBe(true)
+    // The light/dark color pickers are grouped in their own sub-route.
+    const colors = children.find((c) => c.route === 'appearanceColors')
+    expect(colors).toBeTruthy()
+    expect(colors.children.map((c: any) => c.path)).toEqual([
+      'primaryColorDark',
+      'highlightColorDark',
+      'backgroundColorDark',
+      'primaryColorLight',
+      'highlightColorLight',
+      'backgroundColorLight'
     ])
+    // Dark Mode (LIVI UI theme) is on the landing.
+    expect(children.some((c) => c.path === 'darkMode')).toBe(true)
   })
 
-  test('moto display settings expose the cheap backdrop/fill controls and tilt calibration', () => {
+  test('Advanced route keeps the LIVI/CarPlay system pages', () => {
     if (settingsSchema.type !== 'route') {
       throw new Error('settingsSchema must be a route node')
     }
-
-    const motoDisplay = (settingsSchema.children as any[]).find(
-      (child) => child.route === 'motoDisplay'
-    )
-
-    expect(motoDisplay.children.map((child: any) => child.path)).toEqual([
-      'backdropEnabled',
-      'backdropMode',
-      'ambientFillEnabled',
-      'ambientFillColor',
-      'roundedCornerMaskEnabled',
-      '',
-      'reverseTilt',
-      'reversePitch',
-      '',
-      'diagnosticMode',
-      ''
-    ])
-    expect(motoDisplay.children.map((child: any) => child.label)).toEqual([
-      'Backdrop',
-      'Backdrop Style',
-      'Ambient Fill',
-      'Fill Color',
-      'Round Corners',
-      'Tilt Calibration',
-      'Reverse Tilt',
-      'Reverse Front/Back',
-      'Graph History',
-      'Diagnostic Mode',
-      'Diagnostic Data'
-    ])
-    expect(motoDisplay.children[1]).toMatchObject({
-      type: 'select',
-      displayValue: true,
-      options: [
-        { label: 'Average Color', value: 'color' },
-        { label: 'Blur Glow', value: 'blur' }
-      ]
-    })
-    expect(motoDisplay.children[3]).toMatchObject({
-      type: 'color',
-      displayValue: true
-    })
-  })
-
-  test('moto system settings flatten projection controls and keep detail pages', () => {
-    if (settingsSchema.type !== 'route') {
-      throw new Error('settingsSchema must be a route node')
-    }
-
-    const system = (settingsSchema.children as any[]).find((child) => child.route === 'system')
-    const projectionControls = system.children.filter((child: any) =>
-      ['projectionFps', 'projectionDpi', 'viewArea'].includes(child.path || child.route)
-    )
-
-    expect(projectionControls.map((child: any) => child.label)).toEqual(['FPS', 'DPI', 'View Area'])
-    expect(projectionControls.map((child: any) => child.path)).toEqual([
-      'projectionFps',
-      'projectionDpi',
-      ''
-    ])
-    expect(projectionControls.map((child: any) => child.route)).toEqual([
-      undefined,
-      undefined,
-      'viewArea'
-    ])
-  })
-
-  test('moto system settings keep only active system pages', () => {
-    if (settingsSchema.type !== 'route') {
-      throw new Error('settingsSchema must be a route node')
-    }
-
-    const system = (settingsSchema.children as any[]).find((child) => child.route === 'system')
-
-    expect(system.children.map((child: any) => child.label)).toEqual([
+    const advanced = (settingsSchema.children as any[]).find((c) => c.route === 'advanced')
+    expect(advanced.children.map((child: any) => child.label)).toEqual([
       'Wi-Fi Frequency',
       'Auto Connect',
       'Preferred Connection',
@@ -190,17 +129,19 @@ describe('settings schemas', () => {
       'USB Dongle Info',
       'About'
     ])
-    expect(system.children.map((child: any) => child.route).filter(Boolean)).toEqual([
+    expect(advanced.children.map((child: any) => child.route).filter(Boolean)).toEqual([
       'viewArea',
       'usbDongle',
       'about'
     ])
-    expect(system.children.map((child: any) => child.route)).not.toEqual(
-      expect.arrayContaining(['restart', 'poweroff'])
+    const preferredConnection = advanced.children.find(
+      (child: any) => child.path === 'connectionPreference'
     )
-    expect(
-      system.children.find((child: any) => child.route === 'usbDongle').children[0].label
-    ).toBe('USB Dongle Info')
+    expect(preferredConnection.options.map((option: any) => option.value)).toEqual([
+      'dongle',
+      'auto',
+      'native'
+    ])
   })
 
   test('active moto settings omit unused generic controls from the round dashboard', () => {
@@ -222,7 +163,6 @@ describe('settings schemas', () => {
         'camera.aux',
         'cameraId',
         'cameraMirror',
-        'darkMode',
         'disableAudioOutput',
         'audioInputDevice',
         'audioInputDeviceLabel',
