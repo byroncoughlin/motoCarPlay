@@ -350,17 +350,20 @@ function WaitingProjectionPane({
         }}
       />
       <div
+        data-testid="projection-waiting-content"
         style={{
           position: 'absolute',
-          left: '9%',
-          right: '9%',
-          top: '9%',
-          bottom: '9%',
+          left: '50%',
+          top: '50%',
+          transform: 'translate(-50%, -50%)',
+          width: '68%',
+          maxHeight: '82%',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          textAlign: 'center'
+          textAlign: 'center',
+          gap: 0
         }}
       >
         <div
@@ -371,7 +374,7 @@ function WaitingProjectionPane({
             fontWeight: 800,
             fontFamily: 'monospace',
             letterSpacing: 3,
-            marginBottom: 10
+            marginBottom: 6
           }}
         >
           {dateLabel}
@@ -380,7 +383,7 @@ function WaitingProjectionPane({
           data-testid="projection-waiting-clock"
           style={{
             color: '#fff',
-            fontSize: 118,
+            fontSize: 104,
             fontWeight: 900,
             lineHeight: 0.92,
             letterSpacing: 0,
@@ -392,12 +395,12 @@ function WaitingProjectionPane({
         </div>
         <div
           style={{
-            width: 88,
+            width: 80,
             height: 4,
             borderRadius: 2,
             background: status.accentTone,
             boxShadow: `0 0 18px ${status.accentTone}99`,
-            margin: '24px 0'
+            margin: '18px 0'
           }}
         />
         <div
@@ -429,7 +432,7 @@ function WaitingProjectionPane({
             data-testid="projection-waiting-status-notice"
             data-tone={statusNotice.tone}
             style={{
-              marginTop: 20,
+              marginTop: 16,
               maxWidth: '100%',
               display: 'flex',
               flexDirection: 'column',
@@ -488,28 +491,45 @@ function WaitingProjectionPane({
             </style>
           </div>
         )}
-        {(videoStarting || phoneLinked) && (
-          <div style={{ marginTop: 22, display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <ConnectingDots tone={status.accentTone} />
-            <div
-              style={{
-                color: 'rgba(255,255,255,0.7)',
-                fontSize: 12,
-                fontWeight: 800,
-                fontFamily: 'monospace',
-                letterSpacing: 2,
-                textTransform: 'uppercase'
-              }}
-            >
-              Starting CarPlay
-            </div>
-          </div>
-        )}
+        {/*
+          Fixed-height slot so the clock never shifts when "Starting CarPlay"
+          appears. The connecting indicator fades in inside a reserved row.
+        */}
+        <div
+          data-testid="projection-waiting-connecting-slot"
+          style={{
+            height: 58,
+            marginTop: 14,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8
+          }}
+        >
+          {(videoStarting || phoneLinked) && (
+            <>
+              <ConnectingDots tone={status.accentTone} />
+              <div
+                style={{
+                  color: 'rgba(255,255,255,0.7)',
+                  fontSize: 12,
+                  fontWeight: 800,
+                  fontFamily: 'monospace',
+                  letterSpacing: 2,
+                  textTransform: 'uppercase'
+                }}
+              >
+                Starting CarPlay
+              </div>
+            </>
+          )}
+        </div>
         {power && (
           <div
             data-testid="projection-waiting-power"
             style={{
-              marginTop: 18,
+              marginTop: 6,
               display: 'flex',
               alignItems: 'center',
               gap: 7,
@@ -532,94 +552,91 @@ function WaitingProjectionPane({
             {power.text}
           </div>
         )}
-      </div>
-      <div
-        data-testid="projection-waiting-actions"
-        style={{
-          position: 'absolute',
-          left: 0,
-          right: 0,
-          bottom: '8%',
-          display: 'flex',
-          justifyContent: 'center',
-          gap: 12,
-          pointerEvents: 'auto',
-          zIndex: 8
-        }}
-      >
-        <button
-          type="button"
-          aria-label="Re-search for dongle and phone"
-          data-testid="projection-waiting-research-button"
-          disabled={researching}
-          onPointerDown={(event) => event.stopPropagation()}
-          onClick={(event) => {
-            event.stopPropagation()
-            handleResearch()
-          }}
+        <div
+          data-testid="projection-waiting-actions"
           style={{
+            marginTop: 22,
             display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            height: 48,
-            padding: '0 18px',
-            borderRadius: 10,
-            border: '1px solid rgba(79,195,247,0.4)',
-            background: 'rgba(79,195,247,0.12)',
-            color: researching ? 'rgba(255,255,255,0.5)' : '#bfe7fb',
-            fontSize: 13,
-            fontWeight: 800,
-            fontFamily: 'monospace',
-            letterSpacing: 1,
-            textTransform: 'uppercase',
-            cursor: researching ? 'default' : 'pointer',
-            touchAction: 'manipulation',
-            WebkitTapHighlightColor: 'transparent'
+            justifyContent: 'center',
+            gap: 12,
+            pointerEvents: 'auto',
+            zIndex: 8
           }}
         >
-          <RefreshOutlinedIcon
-            style={{
-              fontSize: 22,
-              animation: researching ? 'livi-research-spin 1s linear infinite' : undefined
+          <button
+            type="button"
+            aria-label="Re-search for dongle and phone"
+            data-testid="projection-waiting-research-button"
+            disabled={researching}
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation()
+              handleResearch()
             }}
-          />
-          {researching ? 'Searching' : 'Re-search'}
-        </button>
-        <button
-          type="button"
-          aria-label="Reboot Pi"
-          data-testid="projection-waiting-reboot-button"
-          onPointerDown={(event) => event.stopPropagation()}
-          onClick={(event) => {
-            event.stopPropagation()
-            setConfirmReboot(true)
-          }}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            height: 48,
-            padding: '0 18px',
-            borderRadius: 10,
-            border: '1px solid rgba(255,133,133,0.4)',
-            background: 'rgba(255,85,85,0.12)',
-            color: '#ff9d9d',
-            fontSize: 13,
-            fontWeight: 800,
-            fontFamily: 'monospace',
-            letterSpacing: 1,
-            textTransform: 'uppercase',
-            cursor: 'pointer',
-            touchAction: 'manipulation',
-            WebkitTapHighlightColor: 'transparent'
-          }}
-        >
-          <PowerSettingsNewOutlinedIcon style={{ fontSize: 22 }} />
-          Reboot
-        </button>
-        <style>
-          {`@keyframes livi-research-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}
-        </style>
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              height: 46,
+              padding: '0 18px',
+              borderRadius: 999,
+              border: '1px solid rgba(79,195,247,0.4)',
+              background: 'rgba(79,195,247,0.12)',
+              color: researching ? 'rgba(255,255,255,0.5)' : '#bfe7fb',
+              fontSize: 13,
+              fontWeight: 800,
+              fontFamily: 'monospace',
+              letterSpacing: 1,
+              textTransform: 'uppercase',
+              cursor: researching ? 'default' : 'pointer',
+              touchAction: 'manipulation',
+              WebkitTapHighlightColor: 'transparent'
+            }}
+          >
+            <RefreshOutlinedIcon
+              style={{
+                fontSize: 22,
+                animation: researching ? 'livi-research-spin 1s linear infinite' : undefined
+              }}
+            />
+            {researching ? 'Searching' : 'Re-search'}
+          </button>
+          <button
+            type="button"
+            aria-label="Reboot Pi"
+            data-testid="projection-waiting-reboot-button"
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation()
+              setConfirmReboot(true)
+            }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              height: 46,
+              padding: '0 18px',
+              borderRadius: 999,
+              border: '1px solid rgba(255,133,133,0.4)',
+              background: 'rgba(255,85,85,0.12)',
+              color: '#ff9d9d',
+              fontSize: 13,
+              fontWeight: 800,
+              fontFamily: 'monospace',
+              letterSpacing: 1,
+              textTransform: 'uppercase',
+              cursor: 'pointer',
+              touchAction: 'manipulation',
+              WebkitTapHighlightColor: 'transparent'
+            }}
+          >
+            <PowerSettingsNewOutlinedIcon style={{ fontSize: 22 }} />
+            Reboot
+          </button>
+          <style>
+            {`@keyframes livi-research-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}
+          </style>
+        </div>
       </div>
       {confirmReboot && (
         <div

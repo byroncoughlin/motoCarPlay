@@ -140,6 +140,17 @@ const CHT_STALE_MS = 7000
 // speed/heading/altitude slowly blink instead of freezing as if still live.
 const GPS_STALE_MS = 5000
 
+// When "Extend CarPlay Background" is on, the edge gauges float over live
+// CarPlay wallpaper. Instead of opaque fills, each gauge cluster sits on a
+// single uniform translucent "chip" (Apple-style overlay card) so numbers stay
+// legible on any wallpaper without hiding it. One color + radius everywhere.
+const SCRIM_FILL = 'rgba(18,20,24,0.44)'
+const SCRIM_STROKE = 'rgba(255,255,255,0.10)'
+const SCRIM_RADIUS = 16
+// A soft shadow makes numerals readable even where a chip does not fully cover.
+const NUM_SHADOW = '0 1px 3px rgba(0,0,0,0.85)'
+const SVG_TEXT_SHADOW = 'drop-shadow(0 1px 2px rgba(0,0,0,0.85))'
+
 // CHT color thresholds (°C): blue < 80 (cold), green 80–140 (normal),
 // yellow 140–150 (warm), red > 150 (hot).
 const CHT_ZONES: MetricZone[] = [
@@ -874,11 +885,13 @@ function useMotoTelemetry(settings: MotoSettings | null): {
 function TopArc({
   telemetry,
   actions,
-  background
+  background,
+  extend
 }: {
   telemetry: MotoTelemetry
   actions: MotoActions
   background: string
+  extend: boolean
 }) {
   const hasFix = telemetry.gpsFix === true
   // GPS is "live" only when we currently have a fix and the sensor is still
@@ -908,12 +921,27 @@ function TopArc({
     cursor: 'pointer',
     userSelect: 'none'
   }
+  // Extend mode: one uniform scrim that darkens toward the outer (top) edge and
+  // fades to nothing before the CarPlay square, so the readouts stay legible on
+  // any wallpaper without a hard-edged panel. Text also carries a soft shadow.
+  const containerBg = extend ? 'transparent' : background
+  const scrim = extend
+    ? 'linear-gradient(to top, rgba(18,20,24,0) 12%, rgba(18,20,24,0.30) 62%, rgba(18,20,24,0.52) 100%)'
+    : undefined
+  const numShadow = extend ? NUM_SHADOW : undefined
 
   return (
     <div
-      style={{ position: 'relative', width: '100%', height: '100%', background }}
+      style={{ position: 'relative', width: '100%', height: '100%', background: containerBg }}
       data-testid="projection-top-arc"
     >
+      {scrim && (
+        <div
+          aria-hidden
+          data-testid="projection-top-arc-scrim"
+          style={{ position: 'absolute', inset: 0, background: scrim, pointerEvents: 'none' }}
+        />
+      )}
       {telemetry.gpsFix !== true && (
         <button
           type="button"
@@ -973,13 +1001,25 @@ function TopArc({
       >
         <span
           className={gpsStale && heading != null ? 'moto-gps-stale' : undefined}
-          style={{ fontSize: 32, fontWeight: 700, color: 'white', lineHeight: 1 }}
+          style={{
+            fontSize: 32,
+            fontWeight: 700,
+            color: 'white',
+            lineHeight: 1,
+            textShadow: numShadow
+          }}
         >
           {cardinal ?? '--'}
         </span>
         <span
           className={gpsStale && heading != null ? 'moto-gps-stale' : undefined}
-          style={{ fontSize: 14, fontWeight: 800, color: 'white', marginTop: 2 }}
+          style={{
+            fontSize: 14,
+            fontWeight: 800,
+            color: 'white',
+            marginTop: 2,
+            textShadow: numShadow
+          }}
         >
           {heading != null ? `${heading}\u00b0` : ''}
         </span>
@@ -1007,7 +1047,8 @@ function TopArc({
             lineHeight: 1,
             letterSpacing: 0,
             marginBottom: -7,
-            fontVariantNumeric: 'tabular-nums'
+            fontVariantNumeric: 'tabular-nums',
+            textShadow: numShadow
           }}
         >
           {speed != null ? speed : '--'}
@@ -1018,7 +1059,8 @@ function TopArc({
             fontWeight: 800,
             color: 'white',
             letterSpacing: 3,
-            textTransform: 'uppercase'
+            textTransform: 'uppercase',
+            textShadow: numShadow
           }}
         >
           mph
@@ -1037,10 +1079,26 @@ function TopArc({
           background: 'transparent'
         }}
       >
-        <span style={{ fontSize: 32, fontWeight: 700, color: 'white', lineHeight: 1 }}>
+        <span
+          style={{
+            fontSize: 32,
+            fontWeight: 700,
+            color: 'white',
+            lineHeight: 1,
+            textShadow: numShadow
+          }}
+        >
           {telemetry.ambientF != null ? `${telemetry.ambientF}\u00b0` : '--'}
         </span>
-        <span style={{ fontSize: 14, fontWeight: 800, color: 'white', marginTop: 2 }}>
+        <span
+          style={{
+            fontSize: 14,
+            fontWeight: 800,
+            color: 'white',
+            marginTop: 2,
+            textShadow: numShadow
+          }}
+        >
           {telemetry.ambientF != null ? 'F' : ''}
         </span>
       </button>
@@ -1054,7 +1112,8 @@ function ChtGauge({
   lastValue,
   responding,
   actions,
-  background
+  background,
+  extend
 }: {
   side: 'L' | 'R'
   value: number | null
@@ -1062,6 +1121,7 @@ function ChtGauge({
   responding?: boolean
   actions: MotoActions
   background: string
+  extend: boolean
 }) {
   const maxTemp = 200
   const barW = 72
@@ -1084,6 +1144,13 @@ function ChtGauge({
   const barInset = 29
   const barX = side === 'L' ? barInset : vw - barW - barInset
   const textCX = barX + barW / 2
+  // Extend mode: transparent strip, a single rounded scrim chip hugging the
+  // thermometer + readout so it reads uniformly with the other edge gauges.
+  const chipPad = 12
+  const chipX = barX - chipPad
+  const chipY = barY - chipPad
+  const chipW = barW + chipPad * 2
+  const chipH = barH + 66 + chipPad
 
   return (
     <button
@@ -1100,7 +1167,7 @@ function ChtGauge({
         cursor: 'pointer',
         border: 0,
         padding: 0,
-        background
+        background: extend ? 'transparent' : background
       }}
     >
       <svg
@@ -1110,6 +1177,19 @@ function ChtGauge({
         style={{ display: 'block' }}
         preserveAspectRatio="xMidYMid meet"
       >
+        {extend && (
+          <rect
+            data-testid={`projection-cht-scrim-${side}`}
+            x={chipX}
+            y={chipY}
+            width={chipW}
+            height={chipH}
+            rx={SCRIM_RADIUS}
+            fill={SCRIM_FILL}
+            stroke={SCRIM_STROKE}
+            strokeWidth={1}
+          />
+        )}
         <rect x={barX} y={barY} width={barW} height={barH} fill="#141414" rx={6} />
         {hasData && fill > 0 && (
           <rect
@@ -1191,12 +1271,14 @@ function BottomArc({
   telemetry,
   settings,
   actions,
-  background
+  background,
+  extend
 }: {
   telemetry: MotoTelemetry
   settings: MotoSettings | null
   actions: MotoActions
   background: string
+  extend: boolean
 }) {
   const clipId = useSvgId('bottom-arc')
   const w = MOTO_CENTER_SQUARE_SIZE
@@ -1234,12 +1316,15 @@ function BottomArc({
   }))
 
   return (
-    <div style={{ width: '100%', height: '100%', background }} data-testid="projection-bottom-arc">
+    <div
+      style={{ width: '100%', height: '100%', background: extend ? 'transparent' : background }}
+      data-testid="projection-bottom-arc"
+    >
       <svg
         viewBox={`0 0 ${w} ${h}`}
         width="100%"
         height="100%"
-        style={{ display: 'block' }}
+        style={{ display: 'block', filter: extend ? SVG_TEXT_SHADOW : undefined }}
         preserveAspectRatio="xMidYMid slice"
       >
         <defs>
@@ -1250,7 +1335,13 @@ function BottomArc({
         <g clipPath={`url(#${clipId})`}>
           <g transform={rot}>
             <rect x={-w} y={-3 * h} width={3 * w} height={3 * h + horizonY} fill="transparent" />
-            <rect x={-w} y={horizonY} width={3 * w} height={3 * h} fill="#5c3412" />
+            <rect
+              x={-w}
+              y={horizonY}
+              width={3 * w}
+              height={3 * h}
+              fill={extend ? 'rgba(92,52,18,0.55)' : '#5c3412'}
+            />
             <line
               x1={-w}
               y1={horizonY}
@@ -1337,7 +1428,15 @@ function BottomArc({
           strokeWidth={3.5}
           strokeLinecap="round"
         />
-        <rect x={cx - 27} y={34} width={54} height={24} fill="rgba(0,0,0,0.88)" rx={8} />
+        <rect
+          x={cx - 27}
+          y={34}
+          width={54}
+          height={24}
+          fill={extend ? SCRIM_FILL : 'rgba(0,0,0,0.88)'}
+          stroke={extend ? SCRIM_STROKE : undefined}
+          rx={8}
+        />
         <text
           x={cx}
           y={52}
@@ -1353,10 +1452,18 @@ function BottomArc({
               : `${pitchDir}${absPitch}\u00b0`
             : '--'}
         </text>
-        <rect x={0} y={60} width={w} height={h - 60} fill="rgba(0,0,0,0.25)" />
+        {!extend && <rect x={0} y={60} width={w} height={h - 60} fill="rgba(0,0,0,0.25)" />}
 
         <g>
-          <rect x={110} y={5} width={88} height={53} fill="rgba(0,0,0,0.72)" rx={5} />
+          <rect
+            x={110}
+            y={5}
+            width={88}
+            height={53}
+            fill={extend ? SCRIM_FILL : 'rgba(0,0,0,0.72)'}
+            stroke={extend ? SCRIM_STROKE : undefined}
+            rx={extend ? SCRIM_RADIUS : 5}
+          />
           <text
             x={154}
             y={20}
@@ -1407,8 +1514,8 @@ function BottomArc({
             y={68}
             width={80}
             height={32}
-            fill="rgba(0,0,0,0.88)"
-            stroke="rgba(255,255,255,0.07)"
+            fill={extend ? SCRIM_FILL : 'rgba(0,0,0,0.88)'}
+            stroke={extend ? SCRIM_STROKE : 'rgba(255,255,255,0.07)'}
             strokeWidth={0.75}
             rx={12}
           />
@@ -1458,7 +1565,15 @@ function BottomArc({
           >
             G
           </text>
-          <rect x={398} y={14} width={60} height={34} fill="rgba(0,0,0,0.72)" rx={5} />
+          <rect
+            x={398}
+            y={14}
+            width={60}
+            height={34}
+            fill={extend ? SCRIM_FILL : 'rgba(0,0,0,0.72)'}
+            stroke={extend ? SCRIM_STROKE : undefined}
+            rx={extend ? SCRIM_RADIUS : 5}
+          />
           <text
             x={428}
             y={40}
@@ -1484,7 +1599,15 @@ function BottomArc({
               >
                 MAX
               </text>
-              <rect x={464} y={14} width={48} height={23} fill="rgba(0,0,0,0.65)" rx={5} />
+              <rect
+                x={464}
+                y={14}
+                width={48}
+                height={23}
+                fill={extend ? SCRIM_FILL : 'rgba(0,0,0,0.65)'}
+                stroke={extend ? SCRIM_STROKE : undefined}
+                rx={5}
+              />
               <text
                 x={488}
                 y={30}
@@ -3305,7 +3428,12 @@ export function ProjectionSensorOverlay() {
           pointerEvents: 'auto'
         }}
       >
-        <TopArc telemetry={telemetry} actions={actions} background={arcBackground} />
+        <TopArc
+          telemetry={telemetry}
+          actions={actions}
+          background={arcBackground}
+          extend={extendBackground}
+        />
       </div>
       <div
         style={{
@@ -3323,6 +3451,7 @@ export function ProjectionSensorOverlay() {
           settings={motoSettings}
           actions={actions}
           background={arcBackground}
+          extend={extendBackground}
         />
       </div>
       <div
@@ -3343,6 +3472,7 @@ export function ProjectionSensorOverlay() {
           responding={telemetry.chtLeftResponding}
           actions={actions}
           background={arcBackground}
+          extend={extendBackground}
         />
       </div>
       <div
@@ -3363,6 +3493,7 @@ export function ProjectionSensorOverlay() {
           responding={telemetry.chtRightResponding}
           actions={actions}
           background={arcBackground}
+          extend={extendBackground}
         />
       </div>
 
