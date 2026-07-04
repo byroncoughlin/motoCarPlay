@@ -149,7 +149,6 @@
     "projectionFpsDescription": "FPS du flux.",
     "projectionDpi": "DPI",
     "projectionDpiDescription": "DPI du flux. 0 = auto (calculé sur la résolution).",
-    "projectionResolution": "Résolution CarPlay",
     "viewArea": "Zone d'affichage",
     "viewAreaTopDescription": "Marge haute en px. Réduit l'image.",
     "viewAreaBottomDescription": "Marge basse en px. Réduit l'image.",

@@ -8,11 +8,9 @@ import { PhoneWorkMode } from '@shared/types'
 import { isInputCommand } from '@shared/types/InputCommand'
 import type { ClusterScreen, NavLocale } from '@shared/utils'
 import {
-  MOTO_SQUARE_INSET_FRAC,
   aaContentArea,
   clusterTargetScreens,
   isClusterDisplayed,
-  isSquareContainedProjection,
   resolveNightMode,
   translateNavigation
 } from '@shared/utils'
@@ -947,21 +945,13 @@ export class ProjectionService {
 
   private applyVideoCrop(): void {
     const r = this.videoCrop
-    // Contain a small (sub-display) CarPlay stream to the round display's centre
-    // square; the full 800 stream fills the output 1:1 as before (inset 0).
-    const contained = isSquareContainedProjection(
-      this.config.projectionWidth ?? 0,
-      this.config.projectionHeight ?? 0
-    )
-    const squareInsetFrac = contained ? MOTO_SQUARE_INSET_FRAC : 0
     this.gstVideo?.setContentRegion(
       r?.cropL ?? 0,
       r?.cropT ?? 0,
       r?.visW ?? 0,
       r?.visH ?? 0,
       r?.tierW ?? 0,
-      r?.tierH ?? 0,
-      squareInsetFrac
+      r?.tierH ?? 0
     )
   }
 

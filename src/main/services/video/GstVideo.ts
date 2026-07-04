@@ -62,8 +62,6 @@ class CompositorControl {
   }
 
   // Place + crop the tagged plane on a screen (fullscreen with its own AA content region).
-  // dstInsetXFrac/dstInsetYFrac (0..0.5) optionally confine the plane to an inner
-  // rect of the output (centre square) instead of filling it; 0 = fill (legacy).
   videocfg(
     tag: string,
     screen: string,
@@ -72,20 +70,13 @@ class CompositorControl {
     visW: number,
     visH: number,
     tierW: number,
-    tierH: number,
-    dstInsetXFrac = 0,
-    dstInsetYFrac = 0
+    tierH: number
   ): void {
     if (!this.enabled) return
     const n = (v: number): number => Math.round(v)
-    const f = (v: number): string => (Number.isFinite(v) && v > 0 ? v.toFixed(5) : '0')
-    const insets =
-      dstInsetXFrac > 0 || dstInsetYFrac > 0
-        ? ` ${f(dstInsetXFrac)} ${f(dstInsetYFrac)}`
-        : ''
     this.state.set(
       `cfg:${tag}`,
-      `videocfg ${tag} ${screen} ${n(cropL)} ${n(cropT)} ${n(visW)} ${n(visH)} ${n(tierW)} ${n(tierH)}${insets}\n`
+      `videocfg ${tag} ${screen} ${n(cropL)} ${n(cropT)} ${n(visW)} ${n(visH)} ${n(tierW)} ${n(tierH)}\n`
     )
     this.flush()
   }
@@ -388,16 +379,13 @@ export class GstVideo {
 
   // Set the AA content region inside the decoded tier. The native view crops to it by
   // sizing + positioning the GL render (zero-copy).
-  // squareInsetFrac (0..0.5) optionally confines the plane to an inner centred rect of
-  // the compositor output (the round display's centre square) instead of filling it.
   setContentRegion(
     cropL: number,
     cropT: number,
     visW: number,
     visH: number,
     tierW: number,
-    tierH: number,
-    squareInsetFrac = 0
+    tierH: number
   ): void {
     const prevRegionKey = regionKey(this.region)
     this.region = visW > 0 && visH > 0 ? { cropL, cropT, visW, visH, tierW, tierH } : null
@@ -426,9 +414,7 @@ export class GstVideo {
         visW,
         visH,
         tierW,
-        tierH,
-        squareInsetFrac,
-        squareInsetFrac
+        tierH
       )
     }
     if (addon && this.player) this.applyRegion(addon)
