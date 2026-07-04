@@ -141,15 +141,45 @@ const CHT_STALE_MS = 7000
 const GPS_STALE_MS = 5000
 
 // When "Extend CarPlay Background" is on, the edge gauges float over live
-// CarPlay wallpaper. Instead of opaque fills, each gauge cluster sits on a
-// single uniform translucent "chip" (Apple-style overlay card) so numbers stay
-// legible on any wallpaper without hiding it. One color + radius everywhere.
-const SCRIM_FILL = 'rgba(18,20,24,0.44)'
-const SCRIM_STROKE = 'rgba(255,255,255,0.10)'
-const SCRIM_RADIUS = 16
-// A soft shadow makes numerals readable even where a chip does not fully cover.
+// CarPlay wallpaper. Each numeric readout sits inside a uniform pill (an
+// Apple-style capsule): one fill, one border, fully rounded, identical height
+// and padding everywhere so every gauge reads as part of one instrument set.
+const SCRIM_FILL = 'rgba(22,24,28,0.55)'
+const SCRIM_STROKE = 'rgba(255,255,255,0.12)'
+// Shared pill metrics (SVG user units, which equal on-screen px in the arcs).
+const PILL_H = 34
+// A soft shadow makes numerals readable even where a pill does not fully cover.
 const NUM_SHADOW = '0 1px 3px rgba(0,0,0,0.85)'
 const SVG_TEXT_SHADOW = 'drop-shadow(0 1px 2px rgba(0,0,0,0.85))'
+
+// A uniform rounded capsule used behind every extend-mode gauge readout.
+function GaugePill({
+  cx,
+  cy,
+  width,
+  height = PILL_H,
+  'data-testid': testId
+}: {
+  cx: number
+  cy: number
+  width: number
+  height?: number
+  'data-testid'?: string
+}) {
+  return (
+    <rect
+      data-testid={testId}
+      x={cx - width / 2}
+      y={cy - height / 2}
+      width={width}
+      height={height}
+      rx={height / 2}
+      fill={SCRIM_FILL}
+      stroke={SCRIM_STROKE}
+      strokeWidth={1}
+    />
+  )
+}
 
 // CHT color thresholds (°C): blue < 80 (cold), green 80–140 (normal),
 // yellow 140–150 (warm), red > 150 (hot).
@@ -921,27 +951,24 @@ function TopArc({
     cursor: 'pointer',
     userSelect: 'none'
   }
-  // Extend mode: one uniform scrim that darkens toward the outer (top) edge and
-  // fades to nothing before the CarPlay square, so the readouts stay legible on
-  // any wallpaper without a hard-edged panel. Text also carries a soft shadow.
+  // Extend mode: each readout sits in its own rounded capsule (pill) so the
+  // gauge set reads uniformly over the CarPlay wallpaper. No gradient band.
   const containerBg = extend ? 'transparent' : background
-  const scrim = extend
-    ? 'linear-gradient(to top, rgba(18,20,24,0) 12%, rgba(18,20,24,0.30) 62%, rgba(18,20,24,0.52) 100%)'
-    : undefined
   const numShadow = extend ? NUM_SHADOW : undefined
+  const pill: React.CSSProperties = extend
+    ? {
+        background: SCRIM_FILL,
+        border: `1px solid ${SCRIM_STROKE}`,
+        borderRadius: 999,
+        padding: '4px 14px'
+      }
+    : {}
 
   return (
     <div
       style={{ position: 'relative', width: '100%', height: '100%', background: containerBg }}
       data-testid="projection-top-arc"
     >
-      {scrim && (
-        <div
-          aria-hidden
-          data-testid="projection-top-arc-scrim"
-          style={{ position: 'absolute', inset: 0, background: scrim, pointerEvents: 'none' }}
-        />
-      )}
       {telemetry.gpsFix !== true && (
         <button
           type="button"
@@ -992,8 +1019,8 @@ function TopArc({
         onClick={() => actions.openMetric('heading')}
         style={{
           ...bandBase,
-          left: 88,
-          width: '20%',
+          left: 78,
+          width: '22%',
           paddingBottom: 14,
           border: 0,
           background: 'transparent'
@@ -1002,26 +1029,19 @@ function TopArc({
         <span
           className={gpsStale && heading != null ? 'moto-gps-stale' : undefined}
           style={{
-            fontSize: 32,
-            fontWeight: 700,
-            color: 'white',
-            lineHeight: 1,
+            ...pill,
+            display: 'flex',
+            alignItems: 'baseline',
+            gap: 5,
             textShadow: numShadow
           }}
         >
-          {cardinal ?? '--'}
-        </span>
-        <span
-          className={gpsStale && heading != null ? 'moto-gps-stale' : undefined}
-          style={{
-            fontSize: 14,
-            fontWeight: 800,
-            color: 'white',
-            marginTop: 2,
-            textShadow: numShadow
-          }}
-        >
-          {heading != null ? `${heading}\u00b0` : ''}
+          <span style={{ fontSize: 28, fontWeight: 800, color: 'white', lineHeight: 1 }}>
+            {cardinal ?? '--'}
+          </span>
+          <span style={{ fontSize: 15, fontWeight: 800, color: 'rgba(255,255,255,0.75)' }}>
+            {heading != null ? `${heading}\u00b0` : ''}
+          </span>
         </span>
       </button>
 
@@ -1072,8 +1092,8 @@ function TopArc({
         onClick={() => actions.openMetric('ambientTemp')}
         style={{
           ...bandBase,
-          right: 88,
-          width: '20%',
+          right: 78,
+          width: '22%',
           paddingBottom: 14,
           border: 0,
           background: 'transparent'
@@ -1081,25 +1101,19 @@ function TopArc({
       >
         <span
           style={{
-            fontSize: 32,
-            fontWeight: 700,
-            color: 'white',
-            lineHeight: 1,
+            ...pill,
+            display: 'flex',
+            alignItems: 'baseline',
+            gap: 5,
             textShadow: numShadow
           }}
         >
-          {telemetry.ambientF != null ? `${telemetry.ambientF}\u00b0` : '--'}
-        </span>
-        <span
-          style={{
-            fontSize: 14,
-            fontWeight: 800,
-            color: 'white',
-            marginTop: 2,
-            textShadow: numShadow
-          }}
-        >
-          {telemetry.ambientF != null ? 'F' : ''}
+          <span style={{ fontSize: 28, fontWeight: 800, color: 'white', lineHeight: 1 }}>
+            {telemetry.ambientF != null ? `${telemetry.ambientF}\u00b0` : '--'}
+          </span>
+          <span style={{ fontSize: 15, fontWeight: 800, color: 'rgba(255,255,255,0.75)' }}>
+            {telemetry.ambientF != null ? 'F' : ''}
+          </span>
         </span>
       </button>
     </div>
@@ -1144,13 +1158,10 @@ function ChtGauge({
   const barInset = 29
   const barX = side === 'L' ? barInset : vw - barW - barInset
   const textCX = barX + barW / 2
-  // Extend mode: transparent strip, a single rounded scrim chip hugging the
-  // thermometer + readout so it reads uniformly with the other edge gauges.
-  const chipPad = 12
-  const chipX = barX - chipPad
-  const chipY = barY - chipPad
-  const chipW = barW + chipPad * 2
-  const chipH = barH + 66 + chipPad
+  // Extend mode: transparent strip; only the temperature number sits in a pill
+  // whose width matches the thermometer bar, centered on the bar (mirror-safe).
+  const numPillCY = barY + barH + 25
+  const numPillW = barW
 
   return (
     <button
@@ -1177,19 +1188,6 @@ function ChtGauge({
         style={{ display: 'block' }}
         preserveAspectRatio="xMidYMid meet"
       >
-        {extend && (
-          <rect
-            data-testid={`projection-cht-scrim-${side}`}
-            x={chipX}
-            y={chipY}
-            width={chipW}
-            height={chipH}
-            rx={SCRIM_RADIUS}
-            fill={SCRIM_FILL}
-            stroke={SCRIM_STROKE}
-            strokeWidth={1}
-          />
-        )}
         <rect x={barX} y={barY} width={barW} height={barH} fill="#141414" rx={6} />
         {hasData && fill > 0 && (
           <rect
@@ -1218,15 +1216,24 @@ function ChtGauge({
             />
           )
         })}
+        {extend && (
+          <GaugePill
+            data-testid={`projection-cht-pill-${side}`}
+            cx={textCX}
+            cy={numPillCY}
+            width={numPillW}
+          />
+        )}
         <text
           x={textCX}
-          y={barY + barH + 34}
+          y={numPillCY + 10}
           textAnchor="middle"
           fill={!hasData ? 'white' : showStale ? '#c9a227' : color}
           fontSize={28}
           fontWeight="bold"
           fontFamily="sans-serif"
           opacity={showStale ? 0.85 : 1}
+          style={extend ? { filter: SVG_TEXT_SHADOW } : undefined}
         >
           {hasData ? Math.round(displayValue as number) : '--'}
         </text>
@@ -1314,6 +1321,15 @@ function BottomArc({
     len: Math.abs(p) % 10 === 0 ? 120 : 70,
     label: Math.abs(p) % 10 === 0 ? Math.abs(p) : null
   }))
+  // Extend mode: every readout is a uniform capsule on shared baselines.
+  // ALT (left) and G (right) mirror each other on the same top row; lean sits
+  // in a matching capsule centered under the horizon. Same height + radius.
+  const altG = 70 // width of the mirrored ALT / G capsules
+  const altGcy = 24 // shared vertical center of the top-row capsules
+  const altCX = 154 // ALT capsule center (left)
+  const gCX = w - altCX // G capsule center (right) — exact mirror of ALT
+  const leanW = 92
+  const leanCY = 88
 
   return (
     <div
@@ -1428,21 +1444,17 @@ function BottomArc({
           strokeWidth={3.5}
           strokeLinecap="round"
         />
-        <rect
-          x={cx - 27}
-          y={34}
-          width={54}
-          height={24}
-          fill={extend ? SCRIM_FILL : 'rgba(0,0,0,0.88)'}
-          stroke={extend ? SCRIM_STROKE : undefined}
-          rx={8}
-        />
+        {extend ? (
+          <GaugePill cx={cx} cy={20} width={54} height={28} />
+        ) : (
+          <rect x={cx - 27} y={34} width={54} height={24} fill="rgba(0,0,0,0.88)" rx={8} />
+        )}
         <text
           x={cx}
-          y={52}
+          y={extend ? 25 : 52}
           textAnchor="middle"
           fill={telemetry.pitchDeg != null ? ref : 'white'}
-          fontSize={18}
+          fontSize={extend ? 15 : 18}
           fontWeight="bold"
           fontFamily="monospace"
         >
@@ -1455,21 +1467,17 @@ function BottomArc({
         {!extend && <rect x={0} y={60} width={w} height={h - 60} fill="rgba(0,0,0,0.25)" />}
 
         <g>
-          <rect
-            x={110}
-            y={5}
-            width={88}
-            height={53}
-            fill={extend ? SCRIM_FILL : 'rgba(0,0,0,0.72)'}
-            stroke={extend ? SCRIM_STROKE : undefined}
-            rx={extend ? SCRIM_RADIUS : 5}
-          />
+          {extend ? (
+            <GaugePill cx={154} cy={altGcy} width={altG} />
+          ) : (
+            <rect x={110} y={5} width={88} height={53} fill="rgba(0,0,0,0.72)" rx={5} />
+          )}
           <text
             x={154}
-            y={20}
+            y={extend ? altGcy - 21 : 20}
             textAnchor="middle"
-            fill="rgba(255,255,255,0.75)"
-            fontSize={12}
+            fill="rgba(255,255,255,0.7)"
+            fontSize={extend ? 10 : 12}
             fontWeight="bold"
             fontFamily="monospace"
             letterSpacing={2}
@@ -1478,10 +1486,10 @@ function BottomArc({
           </text>
           <text
             x={154}
-            y={43}
+            y={extend ? altGcy + 5 : 43}
             textAnchor="middle"
             fill={altValue != null ? '#e0e0e0' : 'white'}
-            fontSize={22}
+            fontSize={extend ? 18 : 22}
             fontWeight="bold"
             fontFamily="monospace"
           >
@@ -1495,36 +1503,42 @@ function BottomArc({
               />
             )}
           </text>
-          <text
-            x={154}
-            y={54}
-            textAnchor="middle"
-            fill="rgba(255,255,255,0.7)"
-            fontSize={11}
-            fontWeight="bold"
-            fontFamily="sans-serif"
-          >
-            ft
-          </text>
+          {!extend && (
+            <text
+              x={154}
+              y={54}
+              textAnchor="middle"
+              fill="rgba(255,255,255,0.7)"
+              fontSize={11}
+              fontWeight="bold"
+              fontFamily="sans-serif"
+            >
+              ft
+            </text>
+          )}
         </g>
 
         <g>
-          <rect
-            x={cx - 40}
-            y={68}
-            width={80}
-            height={32}
-            fill={extend ? SCRIM_FILL : 'rgba(0,0,0,0.88)'}
-            stroke={extend ? SCRIM_STROKE : 'rgba(255,255,255,0.07)'}
-            strokeWidth={0.75}
-            rx={12}
-          />
+          {extend ? (
+            <GaugePill cx={cx} cy={leanCY} width={leanW} />
+          ) : (
+            <rect
+              x={cx - 40}
+              y={68}
+              width={80}
+              height={32}
+              fill="rgba(0,0,0,0.88)"
+              stroke="rgba(255,255,255,0.07)"
+              strokeWidth={0.75}
+              rx={12}
+            />
+          )}
           <text
             x={cx}
-            y={90}
+            y={extend ? leanCY + 6 : 90}
             textAnchor="middle"
             fill="white"
-            fontSize={21}
+            fontSize={extend ? 18 : 21}
             fontWeight="bold"
             fontFamily="sans-serif"
           >
@@ -1533,7 +1547,7 @@ function BottomArc({
           {telemetry.imuRecalibrating && (
             <text
               x={cx}
-              y={112}
+              y={extend ? leanCY + 24 : 112}
               textAnchor="middle"
               fill="#ffca28"
               fontSize={11}
@@ -1553,39 +1567,51 @@ function BottomArc({
         </g>
 
         <g>
+          {extend ? (
+            <GaugePill cx={gCX} cy={altGcy} width={altG} />
+          ) : (
+            <>
+              <text
+                x={428}
+                y={11}
+                textAnchor="middle"
+                fill="rgba(255,255,255,0.75)"
+                fontSize={12}
+                fontWeight="bold"
+                fontFamily="monospace"
+                letterSpacing={2}
+              >
+                G
+              </text>
+              <rect x={398} y={14} width={60} height={34} fill="rgba(0,0,0,0.72)" rx={5} />
+            </>
+          )}
+          {extend && (
+            <text
+              x={gCX}
+              y={altGcy - 21}
+              textAnchor="middle"
+              fill="rgba(255,255,255,0.7)"
+              fontSize={10}
+              fontWeight="bold"
+              fontFamily="monospace"
+              letterSpacing={2}
+            >
+              G
+            </text>
+          )}
           <text
-            x={428}
-            y={11}
-            textAnchor="middle"
-            fill="rgba(255,255,255,0.75)"
-            fontSize={12}
-            fontWeight="bold"
-            fontFamily="monospace"
-            letterSpacing={2}
-          >
-            G
-          </text>
-          <rect
-            x={398}
-            y={14}
-            width={60}
-            height={34}
-            fill={extend ? SCRIM_FILL : 'rgba(0,0,0,0.72)'}
-            stroke={extend ? SCRIM_STROKE : undefined}
-            rx={extend ? SCRIM_RADIUS : 5}
-          />
-          <text
-            x={428}
-            y={40}
+            x={extend ? gCX : 428}
+            y={extend ? altGcy + 6 : 40}
             textAnchor="middle"
             fill={hasG ? gTextColor : 'white'}
-            fontSize={30}
+            fontSize={extend ? 19 : 30}
             fontWeight="bold"
             fontFamily="monospace"
           >
             {hasG ? gVal.toFixed(1) : '--'}
           </text>
-          {hasG && telemetry.imuPeak.g > 0.05 && (
+          {hasG && telemetry.imuPeak.g > 0.05 && !extend && (
             <g>
               <text
                 x={488}
@@ -1599,15 +1625,7 @@ function BottomArc({
               >
                 MAX
               </text>
-              <rect
-                x={464}
-                y={14}
-                width={48}
-                height={23}
-                fill={extend ? SCRIM_FILL : 'rgba(0,0,0,0.65)'}
-                stroke={extend ? SCRIM_STROKE : undefined}
-                rx={5}
-              />
+              <rect x={464} y={14} width={48} height={23} fill="rgba(0,0,0,0.65)" rx={5} />
               <text
                 x={488}
                 y={30}

@@ -677,7 +677,7 @@ describe('Projection page', () => {
         top: '13.375%',
         width: '73.25%',
         height: '73.25%',
-        backgroundColor: '#02050a'
+        backgroundColor: '#f2f2f7'
       })
       expect(screen.getByTestId('projection-waiting-clock')).toHaveTextContent('5:07')
       expect(screen.getByTestId('projection-waiting-status-pills')).toHaveTextContent(
@@ -946,11 +946,11 @@ describe('Projection page', () => {
     expect(screen.getByTestId('projection-waiting-status-pills')).toHaveTextContent('iPhone linked')
     expect(screen.getByTestId('projection-waiting-adapter-pill')).toHaveAttribute(
       'data-tone',
-      '#66bb6a'
+      '#34c759'
     )
     expect(screen.getByTestId('projection-waiting-phone-pill')).toHaveAttribute(
       'data-tone',
-      '#66bb6a'
+      '#34c759'
     )
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })

@@ -221,35 +221,56 @@ function WaitingProjectionPane({
   const bottom = Math.min(nonNegative(settings.projectionViewAreaBottom), displayHeight - top)
   const frame = roundDashboardFramePct(displayWidth, displayHeight, { top, bottom, left, right })
   const clock = waitingClockLabel(now)
-  const dateLabel = now
-    .toLocaleDateString(undefined, {
-      weekday: 'long',
-      month: 'short',
-      day: 'numeric'
-    })
-    .toUpperCase()
+  const dateLabel = now.toLocaleDateString(undefined, {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric'
+  })
+  // Light / dark by hard-coded local time of day (day = 07:00–19:00).
+  const hour = now.getHours()
+  const dark = hour < 7 || hour >= 19
+  const theme = dark
+    ? {
+        bg: '#000000',
+        surface: 'rgba(255,255,255,0.06)',
+        surfaceBorder: 'rgba(255,255,255,0.10)',
+        text: '#f5f5f7',
+        textDim: 'rgba(235,235,245,0.6)',
+        textFaint: 'rgba(235,235,245,0.35)',
+        divider: 'rgba(255,255,255,0.08)'
+      }
+    : {
+        bg: '#f2f2f7',
+        surface: 'rgba(0,0,0,0.045)',
+        surfaceBorder: 'rgba(0,0,0,0.08)',
+        text: '#1c1c1e',
+        textDim: 'rgba(60,60,67,0.6)',
+        textFaint: 'rgba(60,60,67,0.3)',
+        divider: 'rgba(0,0,0,0.08)'
+      }
+  // Apple system status colors (green / blue / red), same in both themes.
   const status = !adapterFound
     ? {
-        accentTone: '#ef5350',
-        adapterTone: '#ef5350',
-        phoneTone: '#ef5350',
+        tone: '#ff3b30',
+        adapterTone: '#ff3b30',
+        phoneTone: '#ff3b30',
         adapter: 'Adapter missing',
         phone: 'iPhone search paused',
         phoneActive: false
       }
     : videoStarting || phoneLinked
       ? {
-          accentTone: '#66bb6a',
-          adapterTone: '#66bb6a',
-          phoneTone: '#66bb6a',
+          tone: '#34c759',
+          adapterTone: '#34c759',
+          phoneTone: '#34c759',
           adapter: 'Adapter found',
           phone: 'iPhone linked',
           phoneActive: true
         }
       : {
-          accentTone: '#4fc3f7',
-          adapterTone: '#66bb6a',
-          phoneTone: '#4fc3f7',
+          tone: '#0a84ff',
+          adapterTone: '#34c759',
+          phoneTone: '#0a84ff',
           adapter: 'Adapter found',
           phone: 'Searching for iPhone',
           phoneActive: true
@@ -262,17 +283,16 @@ function WaitingProjectionPane({
         display: 'flex',
         alignItems: 'center',
         gap: 8,
-        minHeight: 34,
-        padding: '0 14px',
+        minHeight: 36,
+        padding: '0 16px',
         borderRadius: 999,
-        border: `1px solid ${active ? `${tone}66` : 'rgba(255,255,255,0.16)'}`,
-        background: active ? `${tone}18` : 'rgba(255,255,255,0.06)',
-        color: active ? '#f8fafc' : 'rgba(255,255,255,0.62)',
-        fontSize: 12,
-        fontWeight: 800,
-        fontFamily: 'monospace',
-        letterSpacing: 1,
-        textTransform: 'uppercase',
+        border: `1px solid ${active ? `${tone}55` : theme.surfaceBorder}`,
+        background: active ? `${tone}1f` : theme.surface,
+        color: active ? theme.text : theme.textDim,
+        fontSize: 13,
+        fontWeight: 600,
+        fontFamily: 'sans-serif',
+        letterSpacing: 0.2,
         whiteSpace: 'nowrap'
       }}
     >
@@ -282,8 +302,7 @@ function WaitingProjectionPane({
           width: 8,
           height: 8,
           borderRadius: '50%',
-          background: active ? tone : 'rgba(255,255,255,0.28)',
-          boxShadow: active ? `0 0 12px ${tone}aa` : undefined,
+          background: active ? tone : theme.textFaint,
           flex: '0 0 auto'
         }}
       />
@@ -294,19 +313,20 @@ function WaitingProjectionPane({
   return (
     <div
       data-testid="projection-waiting-pane"
+      data-appearance={dark ? 'dark' : 'light'}
       style={{
         position: 'absolute',
         left: frame.left,
         top: frame.top,
         width: frame.width,
         height: frame.height,
-        backgroundColor: '#02050a',
-        border: '1px solid rgba(255,255,255,0.16)',
+        backgroundColor: theme.bg,
+        border: `1px solid ${theme.surfaceBorder}`,
         borderRadius: 34,
         overflow: 'hidden',
         pointerEvents: 'none',
         zIndex: 2,
-        color: '#f8fafc',
+        color: theme.text,
         fontFamily: 'sans-serif'
       }}
     >
@@ -323,12 +343,12 @@ function WaitingProjectionPane({
           position: 'absolute',
           top: 16,
           right: 16,
-          width: 54,
-          height: 54,
-          borderRadius: 12,
-          border: '1px solid rgba(255,255,255,0.18)',
-          background: 'rgba(255,255,255,0.075)',
-          color: '#f8fafc',
+          width: 52,
+          height: 52,
+          borderRadius: 999,
+          border: `1px solid ${theme.surfaceBorder}`,
+          background: theme.surface,
+          color: theme.text,
           display: 'grid',
           placeItems: 'center',
           padding: 0,
@@ -339,16 +359,8 @@ function WaitingProjectionPane({
           zIndex: 8
         }}
       >
-        <SettingsOutlinedIcon style={{ fontSize: 31 }} />
+        <SettingsOutlinedIcon style={{ fontSize: 29 }} />
       </button>
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          background:
-            'radial-gradient(circle at 50% 12%, rgba(79,195,247,0.18), transparent 46%), linear-gradient(180deg, #07111f 0%, #02050a 62%, #000 100%)'
-        }}
-      />
       <div
         data-testid="projection-waiting-content"
         style={{
@@ -356,7 +368,7 @@ function WaitingProjectionPane({
           left: '50%',
           top: '50%',
           transform: 'translate(-50%, -50%)',
-          width: '68%',
+          width: '72%',
           maxHeight: '82%',
           display: 'flex',
           flexDirection: 'column',
@@ -369,12 +381,12 @@ function WaitingProjectionPane({
         <div
           data-testid="projection-waiting-date"
           style={{
-            color: 'rgba(255,255,255,0.58)',
-            fontSize: 15,
-            fontWeight: 800,
-            fontFamily: 'monospace',
-            letterSpacing: 3,
-            marginBottom: 6
+            color: theme.textDim,
+            fontSize: 17,
+            fontWeight: 600,
+            fontFamily: 'sans-serif',
+            letterSpacing: 0.2,
+            marginBottom: 2
           }}
         >
           {dateLabel}
@@ -382,27 +394,17 @@ function WaitingProjectionPane({
         <div
           data-testid="projection-waiting-clock"
           style={{
-            color: '#fff',
-            fontSize: 104,
-            fontWeight: 900,
-            lineHeight: 0.92,
-            letterSpacing: 0,
-            fontVariantNumeric: 'tabular-nums',
-            textShadow: '0 6px 34px rgba(0,0,0,0.72)'
+            color: theme.text,
+            fontSize: 112,
+            fontWeight: 700,
+            lineHeight: 1.0,
+            letterSpacing: -2,
+            fontVariantNumeric: 'tabular-nums'
           }}
         >
           {clock}
         </div>
-        <div
-          style={{
-            width: 80,
-            height: 4,
-            borderRadius: 2,
-            background: status.accentTone,
-            boxShadow: `0 0 18px ${status.accentTone}99`,
-            margin: '18px 0'
-          }}
-        />
+        <div style={{ height: 26 }} />
         <div
           data-testid="projection-waiting-status-pills"
           style={{
@@ -438,10 +440,10 @@ function WaitingProjectionPane({
               flexDirection: 'column',
               alignItems: 'center',
               gap: 4,
-              padding: '10px 16px',
-              borderRadius: 12,
-              border: `1px solid ${statusNotice.tone}66`,
-              background: `${statusNotice.tone}1f`,
+              padding: '12px 18px',
+              borderRadius: 16,
+              border: `1px solid ${statusNotice.tone}44`,
+              background: `${statusNotice.tone}1a`,
               animation: 'livi-status-notice-in 220ms ease-out'
             }}
           >
@@ -451,11 +453,10 @@ function WaitingProjectionPane({
                 alignItems: 'center',
                 gap: 8,
                 color: statusNotice.tone,
-                fontSize: 13,
-                fontWeight: 900,
-                fontFamily: 'monospace',
-                letterSpacing: 1.5,
-                textTransform: 'uppercase'
+                fontSize: 14,
+                fontWeight: 700,
+                fontFamily: 'sans-serif',
+                letterSpacing: 0.2
               }}
             >
               <span
@@ -464,7 +465,6 @@ function WaitingProjectionPane({
                   height: 9,
                   borderRadius: '50%',
                   background: statusNotice.tone,
-                  boxShadow: `0 0 12px ${statusNotice.tone}aa`,
                   flex: '0 0 auto'
                 }}
               />
@@ -472,11 +472,10 @@ function WaitingProjectionPane({
             </div>
             <div
               style={{
-                color: 'rgba(255,255,255,0.78)',
-                fontSize: 11.5,
-                fontWeight: 700,
-                fontFamily: 'monospace',
-                letterSpacing: 0.5,
+                color: theme.textDim,
+                fontSize: 12.5,
+                fontWeight: 500,
+                fontFamily: 'sans-serif',
                 textAlign: 'center',
                 lineHeight: 1.35
               }}
@@ -498,7 +497,7 @@ function WaitingProjectionPane({
         <div
           data-testid="projection-waiting-connecting-slot"
           style={{
-            height: 58,
+            height: 56,
             marginTop: 14,
             display: 'flex',
             flexDirection: 'column',
@@ -509,18 +508,17 @@ function WaitingProjectionPane({
         >
           {(videoStarting || phoneLinked) && (
             <>
-              <ConnectingDots tone={status.accentTone} />
+              <ConnectingDots tone={status.tone} />
               <div
                 style={{
-                  color: 'rgba(255,255,255,0.7)',
-                  fontSize: 12,
-                  fontWeight: 800,
-                  fontFamily: 'monospace',
-                  letterSpacing: 2,
-                  textTransform: 'uppercase'
+                  color: theme.textDim,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  fontFamily: 'sans-serif',
+                  letterSpacing: 0.2
                 }}
               >
-                Starting CarPlay
+                Starting CarPlay…
               </div>
             </>
           )}
@@ -534,10 +532,10 @@ function WaitingProjectionPane({
               alignItems: 'center',
               gap: 7,
               color: power.tone,
-              fontSize: 12,
-              fontWeight: 800,
-              fontFamily: 'monospace',
-              letterSpacing: 1.5
+              fontSize: 13,
+              fontWeight: 600,
+              fontFamily: 'sans-serif',
+              letterSpacing: 0.2
             }}
           >
             <span
@@ -546,7 +544,7 @@ function WaitingProjectionPane({
                 height: 8,
                 borderRadius: '50%',
                 background: power.tone,
-                boxShadow: `0 0 10px ${power.tone}aa`
+                flex: '0 0 auto'
               }}
             />
             {power.text}
@@ -555,7 +553,7 @@ function WaitingProjectionPane({
         <div
           data-testid="projection-waiting-actions"
           style={{
-            marginTop: 22,
+            marginTop: 24,
             display: 'flex',
             justifyContent: 'center',
             gap: 12,
@@ -577,17 +575,16 @@ function WaitingProjectionPane({
               display: 'flex',
               alignItems: 'center',
               gap: 8,
-              height: 46,
-              padding: '0 18px',
+              height: 48,
+              padding: '0 22px',
               borderRadius: 999,
-              border: '1px solid rgba(79,195,247,0.4)',
-              background: 'rgba(79,195,247,0.12)',
-              color: researching ? 'rgba(255,255,255,0.5)' : '#bfe7fb',
-              fontSize: 13,
-              fontWeight: 800,
-              fontFamily: 'monospace',
-              letterSpacing: 1,
-              textTransform: 'uppercase',
+              border: 'none',
+              background: researching ? theme.surface : '#0a84ff',
+              color: researching ? theme.textDim : '#ffffff',
+              fontSize: 15,
+              fontWeight: 600,
+              fontFamily: 'sans-serif',
+              letterSpacing: 0.2,
               cursor: researching ? 'default' : 'pointer',
               touchAction: 'manipulation',
               WebkitTapHighlightColor: 'transparent'
@@ -595,7 +592,7 @@ function WaitingProjectionPane({
           >
             <RefreshOutlinedIcon
               style={{
-                fontSize: 22,
+                fontSize: 21,
                 animation: researching ? 'livi-research-spin 1s linear infinite' : undefined
               }}
             />
@@ -614,23 +611,22 @@ function WaitingProjectionPane({
               display: 'flex',
               alignItems: 'center',
               gap: 8,
-              height: 46,
-              padding: '0 18px',
+              height: 48,
+              padding: '0 22px',
               borderRadius: 999,
-              border: '1px solid rgba(255,133,133,0.4)',
-              background: 'rgba(255,85,85,0.12)',
-              color: '#ff9d9d',
-              fontSize: 13,
-              fontWeight: 800,
-              fontFamily: 'monospace',
-              letterSpacing: 1,
-              textTransform: 'uppercase',
+              border: `1px solid ${theme.surfaceBorder}`,
+              background: theme.surface,
+              color: theme.text,
+              fontSize: 15,
+              fontWeight: 600,
+              fontFamily: 'sans-serif',
+              letterSpacing: 0.2,
               cursor: 'pointer',
               touchAction: 'manipulation',
               WebkitTapHighlightColor: 'transparent'
             }}
           >
-            <PowerSettingsNewOutlinedIcon style={{ fontSize: 22 }} />
+            <PowerSettingsNewOutlinedIcon style={{ fontSize: 21 }} />
             Reboot
           </button>
           <style>
@@ -650,7 +646,9 @@ function WaitingProjectionPane({
             position: 'absolute',
             inset: 0,
             zIndex: 12,
-            background: 'rgba(0,0,0,0.9)',
+            background: dark ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0.32)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
             display: 'grid',
             placeItems: 'center',
             padding: 24,
@@ -659,32 +657,35 @@ function WaitingProjectionPane({
         >
           <div
             style={{
-              width: 'min(360px, 100%)',
-              borderRadius: 12,
-              border: '1px solid rgba(255,255,255,0.14)',
-              background: '#101316',
+              width: 'min(320px, 100%)',
+              borderRadius: 20,
+              border: `1px solid ${theme.surfaceBorder}`,
+              background: dark ? '#1c1c1e' : '#ffffff',
               padding: 24,
               textAlign: 'center'
             }}
           >
-            <div style={{ fontSize: 26, fontWeight: 900, lineHeight: 1.05 }}>Reboot Pi?</div>
-            <div style={{ marginTop: 8, color: 'rgba(255,255,255,0.62)', fontSize: 14 }}>
+            <div style={{ fontSize: 22, fontWeight: 700, lineHeight: 1.1, color: theme.text }}>
+              Reboot Pi?
+            </div>
+            <div style={{ marginTop: 8, color: theme.textDim, fontSize: 14, lineHeight: 1.35 }}>
               The display will go dark while the Pi restarts.
             </div>
             <div
-              style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 22 }}
+              style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 22 }}
             >
               <button
                 type="button"
                 onClick={() => setConfirmReboot(false)}
                 style={{
-                  minHeight: 52,
-                  borderRadius: 10,
-                  border: '1px solid rgba(255,255,255,0.2)',
-                  background: 'transparent',
-                  color: '#f8fafc',
-                  fontWeight: 900,
-                  fontSize: 15,
+                  minHeight: 50,
+                  borderRadius: 14,
+                  border: `1px solid ${theme.surfaceBorder}`,
+                  background: theme.surface,
+                  color: theme.text,
+                  fontWeight: 600,
+                  fontSize: 16,
+                  fontFamily: 'sans-serif',
                   cursor: 'pointer'
                 }}
               >
@@ -697,13 +698,14 @@ function WaitingProjectionPane({
                   handleReboot()
                 }}
                 style={{
-                  minHeight: 52,
-                  borderRadius: 10,
-                  border: '1px solid rgba(255,202,40,0.5)',
-                  background: 'transparent',
-                  color: '#ffca28',
-                  fontWeight: 900,
-                  fontSize: 15,
+                  minHeight: 50,
+                  borderRadius: 14,
+                  border: 'none',
+                  background: '#ff3b30',
+                  color: '#ffffff',
+                  fontWeight: 600,
+                  fontSize: 16,
+                  fontFamily: 'sans-serif',
                   cursor: 'pointer'
                 }}
               >
