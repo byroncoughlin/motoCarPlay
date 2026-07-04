@@ -1052,7 +1052,7 @@ function TopArc({
           ...bandBase,
           left: '30%',
           right: '30%',
-          paddingBottom: 12,
+          paddingBottom: 10,
           border: 0,
           background: 'transparent'
         }}
@@ -1070,7 +1070,7 @@ function TopArc({
         >
           <span
             style={{
-              fontSize: extend ? 64 : 90,
+              fontSize: extend ? 72 : 90,
               fontWeight: 800,
               color: 'white',
               lineHeight: 1,
@@ -1082,7 +1082,7 @@ function TopArc({
           </span>
           <span
             style={{
-              fontSize: extend ? 16 : 13,
+              fontSize: extend ? 18 : 13,
               fontWeight: 800,
               color: extend ? 'rgba(255,255,255,0.78)' : 'white',
               letterSpacing: extend ? 2 : 3,
@@ -1341,13 +1341,16 @@ function BottomArc({
   // Extend mode: readouts are uniform two-line capsules (label+unit line over a
   // big value) placed in the widest part of the bottom band so nothing is
   // clipped by the round display. ALT (left) and G (right) mirror exactly.
-  const rowCY = 26 // vertical center of the ALT / G row
-  const rowH = 42 // capsule height
-  const rowW = 122 // capsule width
-  const altCX = 152 // ALT capsule center (left)
+  const rowCY = 30 // vertical center of the ALT / G row
+  const rowH = 54 // capsule height
+  const rowW = 128 // capsule width
+  const altCX = 169 // ALT capsule center (left) — sized so the outer-bottom
+  // corner keeps ~12px clearance from the round display edge at max content
+  // ("18,000 FT"); see the circle-safe geometry model.
   const gCX = w - altCX // G capsule center (right) — exact mirror of ALT
   const leanW = 104
-  const leanCY = 86
+  const leanCY = 76 // raised so the centered lean pill keeps ~12px clearance
+  // from the bottom of the round display (was riding ~2px from the edge)
 
   return (
     <div
@@ -1490,10 +1493,10 @@ function BottomArc({
               <GaugePill cx={altCX} cy={rowCY} width={rowW} height={rowH} />
               <text
                 x={altCX}
-                y={rowCY - 8}
+                y={rowCY - 11}
                 textAnchor="middle"
                 fill="rgba(255,255,255,0.75)"
-                fontSize={13}
+                fontSize={14}
                 fontWeight="bold"
                 fontFamily="monospace"
                 letterSpacing={2}
@@ -1502,15 +1505,15 @@ function BottomArc({
               </text>
               <text
                 x={altCX}
-                y={rowCY + 14}
+                y={rowCY + 16}
                 textAnchor="middle"
                 fill={altValue != null ? '#f0f0f0' : 'white'}
-                fontSize={22}
+                fontSize={24}
                 fontWeight="bold"
                 fontFamily="monospace"
               >
                 {altFt}
-                <tspan fontSize={13} fill="rgba(255,255,255,0.7)" dx={4}>
+                <tspan fontSize={14} fill="rgba(255,255,255,0.7)" dx={4}>
                   FT
                 </tspan>
                 {gpsStale && (
@@ -1626,9 +1629,9 @@ function BottomArc({
               <GaugePill cx={gCX} cy={rowCY} width={rowW} height={rowH} />
               <text
                 x={gCX}
-                y={rowCY - 8}
+                y={rowCY - 11}
                 textAnchor="middle"
-                fontSize={13}
+                fontSize={14}
                 fontWeight="bold"
                 fontFamily="monospace"
                 letterSpacing={2}
@@ -1642,10 +1645,10 @@ function BottomArc({
               </text>
               <text
                 x={gCX}
-                y={rowCY + 14}
+                y={rowCY + 16}
                 textAnchor="middle"
                 fill={hasG ? gTextColor : 'white'}
-                fontSize={22}
+                fontSize={24}
                 fontWeight="bold"
                 fontFamily="monospace"
               >
