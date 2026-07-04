@@ -5,7 +5,15 @@ import { useTheme } from '@mui/material'
 import type { Config } from '@shared/types'
 import { PhoneType } from '@shared/types/Config'
 import { AudioCommand, CommandMapping } from '@shared/types/ProjectionEnums'
-import { aaContentArea, isClusterDisplayed, motoFillEnabled, motoFillHex } from '@shared/utils'
+import {
+  MOTO_DISPLAY_SIZE,
+  MOTO_SQUARE_INSET_FRAC,
+  aaContentArea,
+  isClusterDisplayed,
+  isSquareContainedProjection,
+  motoFillEnabled,
+  motoFillHex
+} from '@shared/utils'
 import { createProjectionWorker } from '@worker/createProjectionWorker'
 import type { KeyCommand, ProjectionWorker, UsbEvent, WorkerToUI } from '@worker/types'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -1568,6 +1576,13 @@ const CarplayComponent: React.FC<CarplayProps> = ({
 
   const visibleWidth = aaContent?.contentWidth ?? resolvedNegotiatedWidth
   const visibleHeight = aaContent?.contentHeight ?? resolvedNegotiatedHeight
+  // A sub-display stream is contained to the centre square: the compositor scales
+  // it into the square and LIVI masks the surrounding margin. Touch + mask must use
+  // the square geometry (fraction of the 800 output), not the stream/view-area.
+  const squareContained = isSquareContainedProjection(
+    settings.projectionWidth,
+    settings.projectionHeight
+  )
   const blurBackdropActive = settings.backdropEnabled === true && settings.backdropMode === 'blur'
   const fillEnabled = motoFillEnabled(settings)
   const maskColor =
@@ -1585,7 +1600,9 @@ const CarplayComponent: React.FC<CarplayProps> = ({
           cropLeft: Math.max(0, (resolvedNegotiatedWidth - visibleWidth) / 2),
           cropTop: Math.max(0, (resolvedNegotiatedHeight - visibleHeight) / 2),
           visibleWidth,
-          visibleHeight
+          visibleHeight,
+          displayInsetXFrac: squareContained ? MOTO_SQUARE_INSET_FRAC : 0,
+          displayInsetYFrac: squareContained ? MOTO_SQUARE_INSET_FRAC : 0
         }
       : undefined
   )
@@ -1641,14 +1658,23 @@ const CarplayComponent: React.FC<CarplayProps> = ({
 
       <ViewAreaMask
         visible={showProjectionOverlay && ((receivingVideo && !rendererError) || fillEnabled)}
-        displayWidth={settings.projectionWidth}
-        displayHeight={settings.projectionHeight}
-        insets={{
-          top: settings.projectionViewAreaTop ?? 0,
-          bottom: settings.projectionViewAreaBottom ?? 0,
-          left: settings.projectionViewAreaLeft ?? 0,
-          right: settings.projectionViewAreaRight ?? 0
-        }}
+        displayWidth={squareContained ? MOTO_DISPLAY_SIZE : settings.projectionWidth}
+        displayHeight={squareContained ? MOTO_DISPLAY_SIZE : settings.projectionHeight}
+        insets={
+          squareContained
+            ? {
+                top: MOTO_SQUARE_INSET_FRAC * MOTO_DISPLAY_SIZE,
+                bottom: MOTO_SQUARE_INSET_FRAC * MOTO_DISPLAY_SIZE,
+                left: MOTO_SQUARE_INSET_FRAC * MOTO_DISPLAY_SIZE,
+                right: MOTO_SQUARE_INSET_FRAC * MOTO_DISPLAY_SIZE
+              }
+            : {
+                top: settings.projectionViewAreaTop ?? 0,
+                bottom: settings.projectionViewAreaBottom ?? 0,
+                left: settings.projectionViewAreaLeft ?? 0,
+                right: settings.projectionViewAreaRight ?? 0
+              }
+        }
         color={maskColor}
         cornerMask={roundedCornerMask}
         barsVisible={!blurBackdropActive}

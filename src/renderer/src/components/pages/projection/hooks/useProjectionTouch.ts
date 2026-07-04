@@ -20,6 +20,12 @@ type TouchTransform = {
   cropTop: number
   visibleWidth: number
   visibleHeight: number
+  // Optional inset (fraction 0..0.5 of the container) applied before the AR
+  // letterbox: the video only occupies the inner region of the container (e.g.
+  // a small CarPlay stream contained to the round display's centre square).
+  // Touches outside this inner region are ignored; inside it maps to the stream.
+  displayInsetXFrac?: number
+  displayInsetYFrac?: number
 }
 
 const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v)
@@ -32,7 +38,25 @@ const norm = (
   transform?: TouchTransform
 ) => {
   const target = videoRef.current ?? eventTarget
-  const r = target.getBoundingClientRect()
+  const rect = target.getBoundingClientRect()
+  if (rect.width <= 0 || rect.height <= 0) return null
+
+  // Optional display inset: the video occupies only the inner region of the
+  // container (e.g. contained to the centre square). Shrink the usable rect.
+  const insetXFrac =
+    transform && transform.displayInsetXFrac && transform.displayInsetXFrac > 0
+      ? Math.min(0.5, transform.displayInsetXFrac)
+      : 0
+  const insetYFrac =
+    transform && transform.displayInsetYFrac && transform.displayInsetYFrac > 0
+      ? Math.min(0.5, transform.displayInsetYFrac)
+      : 0
+  const r = {
+    left: rect.left + rect.width * insetXFrac,
+    top: rect.top + rect.height * insetYFrac,
+    width: rect.width * (1 - 2 * insetXFrac),
+    height: rect.height * (1 - 2 * insetYFrac)
+  }
   if (r.width <= 0 || r.height <= 0) return null
 
   // No usable transform yet: map straight to the container.

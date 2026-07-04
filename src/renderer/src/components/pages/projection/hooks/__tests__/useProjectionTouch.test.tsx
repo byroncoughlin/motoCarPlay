@@ -188,4 +188,66 @@ describe('useProjectionMultiTouch', () => {
     result.current.onContextMenu({ preventDefault } as unknown as React.MouseEvent<HTMLDivElement>)
     expect(preventDefault).toHaveBeenCalled()
   })
+
+  describe('display inset (square-contained stream)', () => {
+    // 100×100 container, video contained to the inner region inset 0.13375 on each
+    // edge: usable rect = [13.375, 86.625], width 73.25. A stream of 100×100 maps
+    // the inner region 1:1 onto 0..1.
+    const containedTransform = {
+      streamWidth: 100,
+      streamHeight: 100,
+      cropLeft: 0,
+      cropTop: 0,
+      visibleWidth: 100,
+      visibleHeight: 100,
+      displayInsetXFrac: 0.13375,
+      displayInsetYFrac: 0.13375
+    }
+
+    test('centre of the inner region maps to the centre of the stream', () => {
+      const target = createTarget()
+      const videoRef = createRef<HTMLElement>()
+      videoRef.current = target
+
+      const { result } = renderHook(() =>
+        useProjectionMultiTouch(videoRef, containedTransform)
+      )
+
+      // container centre (50,50) is the centre of the inset region → 0.5,0.5
+      result.current.onPointerDown(ptrEvent(target, { pointerType: 'mouse', clientX: 50, clientY: 50 }))
+      expect(sendTouch).toHaveBeenCalledWith(0.5, 0.5, TouchAction.Down)
+    })
+
+    test('the inner-region edges map to the stream edges', () => {
+      const target = createTarget()
+      const videoRef = createRef<HTMLElement>()
+      videoRef.current = target
+
+      const { result } = renderHook(() =>
+        useProjectionMultiTouch(videoRef, containedTransform)
+      )
+
+      // left/top edge of the inset region (13.375, 13.375) → 0,0
+      result.current.onPointerDown(
+        ptrEvent(target, { pointerType: 'mouse', clientX: 13.375, clientY: 13.375 })
+      )
+      const [x, y] = sendTouch.mock.calls[0]
+      expect(x).toBeCloseTo(0, 4)
+      expect(y).toBeCloseTo(0, 4)
+    })
+
+    test('taps in the masked margin (outside the square) are ignored', () => {
+      const target = createTarget()
+      const videoRef = createRef<HTMLElement>()
+      videoRef.current = target
+
+      const { result } = renderHook(() =>
+        useProjectionMultiTouch(videoRef, containedTransform)
+      )
+
+      // (5,5) sits in the 13.375px margin outside the contained region → no send
+      result.current.onPointerDown(ptrEvent(target, { pointerType: 'mouse', clientX: 5, clientY: 5 }))
+      expect(sendTouch).not.toHaveBeenCalled()
+    })
+  })
 })
