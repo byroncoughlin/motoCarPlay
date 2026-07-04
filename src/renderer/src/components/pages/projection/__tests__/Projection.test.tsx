@@ -131,6 +131,7 @@ describe('Projection page', () => {
     liviState.negotiatedWidth = 0
     liviState.negotiatedHeight = 0
     liviState.backdropSampleColor = null
+    liviState.settings = undefined
     liviState.dongleFwVersion = ''
     liviState.boxInfo = null
     liviState.resetInfo.mockClear()
@@ -912,6 +913,23 @@ describe('Projection page', () => {
     expect(screen.queryByTestId('view-area-corner-mask-top-left')).not.toBeInTheDocument()
     // The dashboard sensor overlay still sits on top of the extended wallpaper.
     expect(screen.getByTestId('projection-sensor-overlay')).toBeInTheDocument()
+  })
+
+  test('extend-background mode keeps the arcs/strips transparent so wallpaper shows through', () => {
+    // Even with an ambient fill color set (which normally paints the arcs), the
+    // draw-outside flag must win so the arcs/strips do not hide the wallpaper.
+    liviState.settings = {
+      ambientFillEnabled: true,
+      ambientFillColor: '#20364a',
+      projectionSafeAreaDrawOutside: true
+    }
+
+    render(<Projection {...baseProps({ receivingVideo: true })} />)
+
+    expect(screen.getByTestId('projection-top-arc')).toHaveStyle({ background: 'transparent' })
+    expect(screen.getByTestId('projection-bottom-arc')).toHaveStyle({ background: 'transparent' })
+
+    liviState.settings = undefined
   })
 
   test('hides waiting pane when video frames are present', () => {

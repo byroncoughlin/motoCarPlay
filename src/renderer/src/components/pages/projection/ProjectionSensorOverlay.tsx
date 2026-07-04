@@ -99,6 +99,7 @@ type MotoSettings = Pick<
   | 'backdropMode'
   | 'ambientFillEnabled'
   | 'ambientFillColor'
+  | 'projectionSafeAreaDrawOutside'
   | 'leanOffset'
   | 'pitchOffset'
   | 'reverseTilt'
@@ -826,15 +827,12 @@ function useMotoTelemetry(settings: MotoSettings | null): {
       const now = Date.now()
       setTelemetry((prev) => {
         const track = chtTrackRef.current
-        const leftStale =
-          track.left.lastGoodTs > 0 && now - track.left.lastGoodTs > CHT_STALE_MS
-        const rightStale =
-          track.right.lastGoodTs > 0 && now - track.right.lastGoodTs > CHT_STALE_MS
+        const leftStale = track.left.lastGoodTs > 0 && now - track.left.lastGoodTs > CHT_STALE_MS
+        const rightStale = track.right.lastGoodTs > 0 && now - track.right.lastGoodTs > CHT_STALE_MS
         const nextLeftResponding = !leftStale && prev.chtLeftResponding
         const nextRightResponding = !rightStale && prev.chtRightResponding
         const gpsTrack = gpsTrackRef.current
-        const gpsStale =
-          gpsTrack.lastFixTs > 0 && now - gpsTrack.lastFixTs > GPS_STALE_MS
+        const gpsStale = gpsTrack.lastFixTs > 0 && now - gpsTrack.lastFixTs > GPS_STALE_MS
         const nextGpsResponding = !gpsStale && prev.gpsResponding
         if (
           (leftStale && prev.chtLeftResponding) ||
@@ -3269,8 +3267,13 @@ export function ProjectionSensorOverlay() {
   const { telemetry, activeGraph, dataRef, actions } = useMotoTelemetry(motoSettings)
   const blurBackdropActive =
     motoSettings?.backdropEnabled === true && motoSettings.backdropMode === 'blur'
+  // With "Extend CarPlay Background" on, the margin outside the safe square is
+  // live CarPlay wallpaper — the arcs/strips must be transparent (like the blur
+  // backdrop case) so the gauges float over it instead of hiding it behind an
+  // opaque fill rectangle.
+  const extendBackground = motoSettings?.projectionSafeAreaDrawOutside === true
   const arcBackground = motoSettings
-    ? blurBackdropActive
+    ? blurBackdropActive || extendBackground
       ? 'transparent'
       : ((motoSettings.backdropEnabled === true
           ? (backdropSampleColor ?? motoFillHex(motoSettings))
