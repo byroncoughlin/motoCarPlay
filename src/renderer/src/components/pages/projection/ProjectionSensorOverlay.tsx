@@ -100,6 +100,7 @@ type MotoSettings = Pick<
   | 'diagnosticMode'
   | 'chtReadoutInBar'
   | 'leanRulerEnabled'
+  | 'altitudeOffsetFt'
 >
 
 type MetricZone = {
@@ -815,6 +816,13 @@ function useMotoTelemetry(settings: MotoSettings | null): {
       setTelemetry((prev) => {
         const next: MotoTelemetry = { ...prev, ...patch }
         const stable = stableRef.current
+
+        // Rider-set GPS altitude correction (Advanced > Altitude Offset),
+        // applied to freshly-arrived readings so the pill, holds and graphs
+        // all see the corrected value.
+        if (patch.altitudeFt !== undefined && next.altitudeFt != null) {
+          next.altitudeFt = next.altitudeFt + Math.round(settingsRef.current?.altitudeOffsetFt ?? 0)
+        }
 
         // normalizeGpsSky always builds a fresh object graph; reuse the
         // previous one when the report is byte-identical so an unchanged sky
@@ -2663,7 +2671,9 @@ function MetricGraph({
         : null
   const keys: MetricKey[] = metricKey === 'ambientTemp' ? ['ambientTemp', 'piTemp'] : [metricKey]
   const compact = topPanel !== null || keys.length > 1
-  const showSettingsShortcut = metricKey === 'ambientTemp'
+  // Settings gear on EVERY graph page (Byron) — the header strip always has
+  // room beside the close button.
+  const showSettingsShortcut = true
   const [nowMs, setNowMs] = React.useState(() => Date.now())
   const [confirmQuit, setConfirmQuit] = React.useState(false)
   const closeHoldRef = React.useRef<{ timer: number | null; fired: boolean }>({

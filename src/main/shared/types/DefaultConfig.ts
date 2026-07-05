@@ -82,6 +82,7 @@ export const DEFAULT_CONFIG: Config = {
   diagnosticMode: false,
   chtReadoutInBar: true,
   leanRulerEnabled: false,
+  altitudeOffsetFt: 0,
   startPage: 'home',
   language: 'en',
   kiosk: { main: true, dash: false, aux: false },

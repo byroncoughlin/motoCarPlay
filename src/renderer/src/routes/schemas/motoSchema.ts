@@ -56,6 +56,17 @@ const advancedSchema: SettingsNode<Config> = {
       label: 'Lean Ruler',
       path: 'leanRulerEnabled'
     },
+    // GPS altitude correction: dial in at a known elevation (QNH-style).
+    {
+      type: 'number',
+      label: 'Altitude Offset',
+      path: 'altitudeOffsetFt',
+      min: -500,
+      max: 500,
+      step: 1,
+      displayValue: true,
+      displayValueUnit: ' ft'
+    },
     {
       type: 'route',
       label: 'Settings Menu Colors',

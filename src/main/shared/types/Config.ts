@@ -218,6 +218,11 @@ export type Config = {
    *  horizon (aircraft-ADI style wings). Hidden by default — the lean pill
    *  carries the number; the brackets are extra chrome at a glance. */
   leanRulerEnabled?: boolean
+  /** Rider-set correction (ft) added to the GPS altitude readout. Consumer
+   *  GPS vertical error runs ±30-100 ft (coarse onboard geoid model +
+   *  2-3x horizontal DOP), so a fixed offset dialed in at a known elevation
+   *  is the practical fix — same idea as setting QNH on an altimeter. */
+  altitudeOffsetFt?: number
 
   // Camera + dashboards + media slots
   cameraId: string

@@ -115,6 +115,7 @@ describe('settings schemas', () => {
       'Round Corners',
       'CHT Readout In Gauge',
       'Lean Ruler',
+      'Altitude Offset',
       'Settings Menu Colors',
       'Wi-Fi Frequency',
       'Auto Connect',

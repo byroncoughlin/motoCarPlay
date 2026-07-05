@@ -120,7 +120,11 @@ export const SettingsFieldControl = <T,>({
           disabled={node.disabled === true}
           onChange={(_, v) => onChange(v as T)}
           sx={{
-            // Larger iOS-style toggle, comfortable tap target.
+            // Larger iOS-style toggle, comfortable tap target. The thumb is
+            // FORCED white in both states — the theme otherwise tints the
+            // checked thumb with the primary color, which blends it into the
+            // equally-primary track (an all-one-color pill with no visible
+            // knob).
             width: 62,
             height: 38,
             padding: 0,
@@ -128,8 +132,26 @@ export const SettingsFieldControl = <T,>({
               padding: '4px',
               '&.Mui-checked': { transform: 'translateX(24px)' }
             },
-            '& .MuiSwitch-thumb': { width: 30, height: 30 },
-            '& .MuiSwitch-track': { borderRadius: 19, opacity: 1 }
+            '& .MuiSwitch-thumb': {
+              width: 30,
+              height: 30,
+              backgroundColor: '#ffffff',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.35)'
+            },
+            '& .MuiSwitch-switchBase.Mui-checked .MuiSwitch-thumb': {
+              backgroundColor: '#ffffff'
+            },
+            // Unchecked track pinned to iOS dark gray — the theme's light
+            // track made the (now white) thumb invisible when OFF.
+            '& .MuiSwitch-track': {
+              borderRadius: 19,
+              opacity: 1,
+              backgroundColor: 'rgba(120,120,128,0.4)'
+            },
+            '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+              backgroundColor: '#34c759',
+              opacity: 1
+            }
           }}
         />
       )
