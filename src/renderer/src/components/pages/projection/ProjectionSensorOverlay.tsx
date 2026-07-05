@@ -1509,9 +1509,9 @@ function BottomArc({
   const rowCY = 30 // vertical center of the ALT / G row
   const rowH = 54 // capsule height
   const rowW = 142 // capsule width
-  const altCX = 180 // ALT capsule center (left) — moved inward with the wider
-  // capsule so the outer corner keeps ~13px clearance at max content
-  // ("18,000 FT"); see the circle-safe geometry model.
+  const altCX = 172 // ALT capsule center (left) — as far outward as the round
+  // glass allows with margin: 10.3px clearance at this width (8px is the
+  // floor; 13px further out would touch it). See the circle-safe model.
   const gCX = w - altCX // G capsule center (right) — exact mirror of ALT
   const leanW = 112
   const leanCY = 77 // keeps ~9px clearance from the bottom of the glass at
@@ -2811,7 +2811,7 @@ function MetricGraph({
         onPointerDown={closeHoldStart}
         onPointerUp={closeHoldEnd}
         onPointerLeave={closeHoldCancel}
-        style={{ ...cornerHitArea, top: -2, right: 0 }}
+        style={{ ...cornerHitArea, top: 0, right: 0 }}
         title={'tap to close \u00b7 hold to quit app'}
       >
         <span style={closeBtn}>{'\u2715'}</span>
@@ -2827,7 +2827,7 @@ function MetricGraph({
           // Sits just left of the close ✕ (Byron: right side is the natural
           // reach). right:80 keeps the two 80px hit areas exactly adjacent,
           // zero overlap (measured on-device).
-          style={{ ...cornerHitArea, top: -2, right: 80 }}
+          style={{ ...cornerHitArea, top: 0, right: 80 }}
         >
           <span style={graphSettingsBtn}>
             <SettingsOutlinedIcon style={{ fontSize: 27 }} />
@@ -2835,11 +2835,15 @@ function MetricGraph({
         </button>
       )}
 
-      {topPanel === 'gps' && <GpsSkyPanel telemetry={telemetry} />}
-      {topPanel === 'imu' && (
-        <RideDynamicsPanel telemetry={telemetry} settings={settings} actions={actions} />
+      {topPanel && (
+        <div style={{ ...graphCard, marginBottom: 0 }}>
+          {topPanel === 'gps' && <GpsSkyPanel telemetry={telemetry} />}
+          {topPanel === 'imu' && (
+            <RideDynamicsPanel telemetry={telemetry} settings={settings} actions={actions} />
+          )}
+          {topPanel === 'cht' && <CylinderHeadsPanel telemetry={telemetry} actions={actions} />}
+        </div>
       )}
-      {topPanel === 'cht' && <CylinderHeadsPanel telemetry={telemetry} actions={actions} />}
 
       {keys.map((key, index) => (
         <GraphPane
@@ -2975,7 +2979,9 @@ function GraphPaneImpl({
   const visMax = vals.length ? rawMax : null
   const zones = cfg.zones
   const zoneOf = (v: number) => zones?.find((z) => v <= z.max) ?? zones?.[zones.length - 1]
-  const valueColor = zones && current !== null ? (zoneOf(current)?.color ?? cfg.color) : 'white'
+  // Zoned metrics color the numeral by zone; the rest tint it with the
+  // metric's own color (Apple Fitness style) instead of plain white.
+  const valueColor = zones && current !== null ? (zoneOf(current)?.color ?? cfg.color) : cfg.color
   const clipId = useSvgId(`graph-clip-${metricKey}`)
   const areaId = useSvgId(`graph-area-${metricKey}`)
   const gradId = useSvgId(`graph-grad-${metricKey}`)
@@ -3002,27 +3008,18 @@ function GraphPaneImpl({
   }
 
   return (
-    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-      {!first && (
-        <div style={{ flexShrink: 0, display: 'flex', justifyContent: 'center', paddingTop: 3 }}>
-          <div
-            style={{
-              width: '75%',
-              height: 2,
-              borderRadius: 1,
-              background: 'rgba(255,255,255,0.22)'
-            }}
-          />
-        </div>
-      )}
+    <div style={{ ...graphCard, flex: 1 }}>
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          // First pane reserves right-side header space for the corner
-          // actions: ✕ alone (70px) or ✕ + settings gear (150px).
-          padding: first ? `12px ${reserveLeadingAction ? 150 : 70}px 0 14px` : '8px 14px 0',
+          // First pane: card margin 10 + 0 top padding puts the Reset
+          // capsule's center on the same line as the floating gear/✕ faces
+          // (both at 40px from the pane top); right padding reserves the
+          // corner actions with an even ~16px gap (168px with the gear,
+          // 70px with ✕ alone). Verified by on-device measurement.
+          padding: first ? `0 ${reserveLeadingAction ? 168 : 70}px 0 14px` : '8px 14px 0',
           flexShrink: 0
         }}
       >
@@ -3180,8 +3177,8 @@ function GraphPaneImpl({
             <rect x={cx} y={cy} width={cw} height={ch} />
           </clipPath>
           <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={cfg.color} stopOpacity="0.3" />
-            <stop offset="100%" stopColor={cfg.color} stopOpacity="0.02" />
+            <stop offset="0%" stopColor={cfg.color} stopOpacity="0.42" />
+            <stop offset="100%" stopColor={cfg.color} stopOpacity="0.05" />
           </linearGradient>
           {zones && areaPath && (
             <clipPath id={areaId}>
@@ -3457,6 +3454,19 @@ const closeBtn: React.CSSProperties = {
   justifyContent: 'center',
   padding: 0,
   flexShrink: 0
+}
+
+// Apple Health dark-mode surface: each graph/panel section is an elevated
+// #1c1c1e card on the black pane instead of a divider-separated void.
+const graphCard: React.CSSProperties = {
+  flex: 1,
+  minHeight: 0,
+  display: 'flex',
+  flexDirection: 'column',
+  margin: '10px 12px',
+  background: '#1c1c1e',
+  borderRadius: 20,
+  overflow: 'hidden'
 }
 
 // Circular, matching the close ✕ face it now sits beside.
