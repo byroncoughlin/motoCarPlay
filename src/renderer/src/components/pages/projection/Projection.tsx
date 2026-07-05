@@ -1660,6 +1660,22 @@ const CarplayComponent: React.FC<CarplayProps> = ({
   // (view area = full stream, drawOutside on). The margin is live phone video, so
   // the passepartout bars must NOT cover it — only the sensor overlay sits on top.
   const extendBackground = settings.projectionSafeAreaDrawOutside === true
+  // Stable identity so the memoized ViewAreaMask doesn't rebuild on every
+  // backdrop color sample (frame rate in "average" mode).
+  const viewAreaInsets = useMemo(
+    () => ({
+      top: settings.projectionViewAreaTop ?? 0,
+      bottom: settings.projectionViewAreaBottom ?? 0,
+      left: settings.projectionViewAreaLeft ?? 0,
+      right: settings.projectionViewAreaRight ?? 0
+    }),
+    [
+      settings.projectionViewAreaTop,
+      settings.projectionViewAreaBottom,
+      settings.projectionViewAreaLeft,
+      settings.projectionViewAreaRight
+    ]
+  )
 
   const touchHandlers = useProjectionMultiTouch(
     videoContainerRef,
@@ -1727,12 +1743,7 @@ const CarplayComponent: React.FC<CarplayProps> = ({
         visible={showProjectionOverlay && (receivingVideo || fillEnabled)}
         displayWidth={settings.projectionWidth}
         displayHeight={settings.projectionHeight}
-        insets={{
-          top: settings.projectionViewAreaTop ?? 0,
-          bottom: settings.projectionViewAreaBottom ?? 0,
-          left: settings.projectionViewAreaLeft ?? 0,
-          right: settings.projectionViewAreaRight ?? 0
-        }}
+        insets={viewAreaInsets}
         color={maskColor}
         cornerMask={roundedCornerMask && !extendBackground}
         barsVisible={!blurBackdropActive && !extendBackground}

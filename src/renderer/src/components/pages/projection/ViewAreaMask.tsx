@@ -1,5 +1,5 @@
 import { useTheme } from '@mui/material'
-import type { CSSProperties } from 'react'
+import { type CSSProperties, memo } from 'react'
 import { MOTO_CENTER_CORNER_RADIUS_PX } from './motoLayout'
 
 export type ViewAreaInsets = { top: number; bottom: number; left: number; right: number }
@@ -17,7 +17,12 @@ const BAR_BLEED_PX = 1
 // Passepartout between the LIVI UI and the video plane: paints the configured view-area margins
 // with the theme background, leaving the view area itself transparent so the video shows through.
 // Platform-independent, the video always sits below the React UI (mac NSView, Linux compositor plane).
-export function ViewAreaMask({
+// Memoized: in "average" mode the parent re-renders at frame-sample rate for
+// the backdrop color — the 8 mask divs only need to rebuild when the color or
+// geometry actually changes (callers must pass a stable insets object).
+export const ViewAreaMask = memo(ViewAreaMaskImpl)
+
+function ViewAreaMaskImpl({
   insets,
   displayWidth,
   displayHeight,

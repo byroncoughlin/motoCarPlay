@@ -734,6 +734,18 @@ function useMotoTelemetry(settings: MotoSettings | null): {
         const next: MotoTelemetry = { ...prev, ...patch }
         const stable = stableRef.current
 
+        // normalizeGpsSky always builds a fresh object graph; reuse the
+        // previous one when the report is byte-identical so an unchanged sky
+        // doesn't defeat the Object.is dedup below at GPS report rate.
+        if (
+          patch.gpsSky !== undefined &&
+          patch.gpsSky !== null &&
+          prev.gpsSky != null &&
+          JSON.stringify(patch.gpsSky) === JSON.stringify(prev.gpsSky)
+        ) {
+          next.gpsSky = prev.gpsSky
+        }
+
         // Reverse-tilt: invert lean angle (and lateral G) so a physical
         // left lean reads as left. Reverse-pitch independently inverts pitch
         // (and longitudinal G) for a flipped fore/aft mount. Applied once here
@@ -925,7 +937,28 @@ function useMotoTelemetry(settings: MotoSettings | null): {
   return { telemetry, activeGraph, dataRef, actions, historyRevision }
 }
 
-function TopArc({ telemetry, actions }: { telemetry: MotoTelemetry; actions: MotoActions }) {
+// Memoized on exactly the fields the top band renders, so IMU-rate commits
+// (lean/G change nearly every tick) don't re-render the speed/heading/temp
+// pills. Keep TOP_ARC_FIELDS in sync with the telemetry.* reads below.
+const TOP_ARC_FIELDS = [
+  'ambientF',
+  'gpsFix',
+  'gpsResponding',
+  'gpsSatellites',
+  'headingDeg',
+  'headingDegLast',
+  'speedMph',
+  'speedMphLast'
+] as const satisfies readonly (keyof MotoTelemetry)[]
+
+const TopArc = React.memo(
+  TopArcImpl,
+  (prev, next) =>
+    prev.actions === next.actions &&
+    TOP_ARC_FIELDS.every((f) => Object.is(prev.telemetry[f], next.telemetry[f]))
+)
+
+function TopArcImpl({ telemetry, actions }: { telemetry: MotoTelemetry; actions: MotoActions }) {
   const hasFix = telemetry.gpsFix === true
   // GPS is "live" only when we currently have a fix and the sensor is still
   // emitting. When the fix drops OR the sensor stops responding entirely, keep
@@ -1142,7 +1175,10 @@ function TopArc({ telemetry, actions }: { telemetry: MotoTelemetry; actions: Mot
   )
 }
 
-function ChtGauge({
+// Memoized: props are primitives plus the stable actions object.
+const ChtGauge = React.memo(ChtGaugeImpl)
+
+function ChtGaugeImpl({
   side,
   value,
   lastValue,

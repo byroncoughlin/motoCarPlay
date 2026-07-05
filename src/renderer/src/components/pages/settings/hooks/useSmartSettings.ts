@@ -1,5 +1,5 @@
 import { useLiviStore, useStatusStore } from '@store/store'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { requiresRestartParams } from '../constants'
 import { getValueByPath, setValueByPath } from '../utils'
 
@@ -58,7 +58,10 @@ export function useSmartSettings<T extends Record<string, unknown>>(
   settings: T,
   options?: { overrides?: Overrides }
 ) {
-  const overrides = options?.overrides ?? {}
+  // Callers usually pass an inline options object; read overrides through a
+  // ref so a fresh identity per render doesn't invalidate buildSettingsChange.
+  const overridesRef = useRef<Overrides>(options?.overrides ?? {})
+  overridesRef.current = options?.overrides ?? {}
   const [state, setState] = useState<T>(() => ({ ...initial }))
   const [restartRequested, setRestartRequested] = useState(false)
   const [pendingAppRestartChange, setPendingAppRestartChange] =
@@ -106,7 +109,7 @@ export function useSmartSettings<T extends Record<string, unknown>>(
   const buildSettingsChange = useCallback(
     (baseState: T, path: string, rawValue: unknown) => {
       const prevValue = baseState[path]
-      const override = overrides[path]
+      const override = overridesRef.current[path]
 
       // No ?? fallback: a transform returning null/undefined means exactly that.
       const nextValue = override?.transform ? override.transform(rawValue, prevValue) : rawValue
@@ -122,7 +125,7 @@ export function useSmartSettings<T extends Record<string, unknown>>(
 
       return { nextState, nextSettings }
     },
-    [overrides, settings]
+    [settings]
   )
 
   const backdropEnabled = Boolean(
@@ -132,41 +135,44 @@ export function useSmartSettings<T extends Record<string, unknown>>(
     (settings as Record<string, unknown> | undefined)?.backdropMode
   )
 
-  const handleFieldChange = (path: string, rawValue: unknown) => {
-    const change = buildSettingsChange(state, path, rawValue)
-    if (!change) return
+  const handleFieldChange = useCallback(
+    (path: string, rawValue: unknown) => {
+      const change = buildSettingsChange(state, path, rawValue)
+      if (!change) return
 
-    const nextBackdropEnabled = Boolean(
-      (change.nextSettings as Record<string, unknown>).backdropEnabled
-    )
-    const nextBackdropMode = normalizeBackdropMode(
-      (change.nextSettings as Record<string, unknown>).backdropMode
-    )
-    if (nextBackdropEnabled !== backdropEnabled) {
-      setPendingAppRestartChange({
-        path,
-        nextBackdropEnabled,
-        kind: nextBackdropEnabled ? 'enable' : 'disable',
-        nextState: change.nextState,
-        nextSettings: change.nextSettings
-      })
-      return
-    }
+      const nextBackdropEnabled = Boolean(
+        (change.nextSettings as Record<string, unknown>).backdropEnabled
+      )
+      const nextBackdropMode = normalizeBackdropMode(
+        (change.nextSettings as Record<string, unknown>).backdropMode
+      )
+      if (nextBackdropEnabled !== backdropEnabled) {
+        setPendingAppRestartChange({
+          path,
+          nextBackdropEnabled,
+          kind: nextBackdropEnabled ? 'enable' : 'disable',
+          nextState: change.nextState,
+          nextSettings: change.nextSettings
+        })
+        return
+      }
 
-    if (nextBackdropEnabled && nextBackdropMode !== backdropMode) {
-      setPendingAppRestartChange({
-        path,
-        nextBackdropEnabled,
-        kind: 'mode',
-        nextState: change.nextState,
-        nextSettings: change.nextSettings
-      })
-      return
-    }
+      if (nextBackdropEnabled && nextBackdropMode !== backdropMode) {
+        setPendingAppRestartChange({
+          path,
+          nextBackdropEnabled,
+          kind: 'mode',
+          nextState: change.nextState,
+          nextSettings: change.nextSettings
+        })
+        return
+      }
 
-    setState(change.nextState)
-    void saveSettings(change.nextSettings)
-  }
+      setState(change.nextState)
+      void saveSettings(change.nextSettings)
+    },
+    [buildSettingsChange, state, backdropEnabled, backdropMode, saveSettings]
+  )
 
   const cancelPendingAppRestartChange = useCallback(() => {
     setPendingAppRestartChange(null)
@@ -190,12 +196,12 @@ export function useSmartSettings<T extends Record<string, unknown>>(
     return true
   }, [pendingAppRestartChange, saveSettings])
 
-  const resetState = () => {
+  const resetState = useCallback(() => {
     setPendingAppRestartChange(null)
     setState(initial)
-  }
+  }, [initial])
 
-  const restart = async () => {
+  const restart = useCallback(async () => {
     if (!needsRestart) return false
 
     if (wirelessAaEnabled || isAaActive) {
@@ -209,19 +215,34 @@ export function useSmartSettings<T extends Record<string, unknown>>(
     setRestartRequested(false)
 
     return true
-  }
+  }, [needsRestart, wirelessAaEnabled, isAaActive, isDongleConnected, markRestartBaseline])
 
-  return {
-    state,
-    isDirty,
-    needsRestart,
-    isDongleConnected,
-    handleFieldChange,
-    resetState,
-    restart,
-    requestRestart,
-    pendingAppRestartChange,
-    cancelPendingAppRestartChange,
-    confirmPendingAppRestartChange
-  }
+  return useMemo(
+    () => ({
+      state,
+      isDirty,
+      needsRestart,
+      isDongleConnected,
+      handleFieldChange,
+      resetState,
+      restart,
+      requestRestart,
+      pendingAppRestartChange,
+      cancelPendingAppRestartChange,
+      confirmPendingAppRestartChange
+    }),
+    [
+      state,
+      isDirty,
+      needsRestart,
+      isDongleConnected,
+      handleFieldChange,
+      resetState,
+      restart,
+      requestRestart,
+      pendingAppRestartChange,
+      cancelPendingAppRestartChange,
+      confirmPendingAppRestartChange
+    ]
+  )
 }
