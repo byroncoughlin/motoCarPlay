@@ -1,7 +1,7 @@
 import { Typography } from '@mui/material'
 import { ReactNode } from 'react'
-import { StackItem } from '../stackItem'
 import { settingsRowLabelSx } from '../settingsStyle'
+import { StackItem } from '../stackItem'
 
 type Props = {
   label: string

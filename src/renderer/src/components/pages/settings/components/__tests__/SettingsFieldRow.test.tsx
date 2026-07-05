@@ -61,13 +61,43 @@ describe('SettingsFieldRow', () => {
   test('renders SettingsItemRow + SettingsFieldControl by default', () => {
     render(
       <SettingsFieldRow
-        node={{ type: 'checkbox', path: 'mute', label: 'Mute' } as any}
-        value={false}
-        state={{ mute: false }}
+        node={{ type: 'text', path: 'name', label: 'Name' } as any}
+        value={'x'}
+        state={{ name: 'x' }}
         onChange={jest.fn()}
       />
     )
     expect(screen.getByTestId('settings-item-row')).toBeInTheDocument()
     expect(screen.getByTestId('field-control')).toBeInTheDocument()
+  })
+
+  test('checkbox rows toggle from a tap anywhere on the row', () => {
+    const onChange = jest.fn()
+    render(
+      <SettingsFieldRow
+        node={{ type: 'checkbox', path: 'mute', label: 'Mute' } as any}
+        value={false}
+        state={{ mute: false }}
+        onChange={onChange}
+      />
+    )
+    const row = screen.getByTestId('stack-item')
+    expect(screen.getByTestId('field-control')).toBeInTheDocument()
+    row.click()
+    expect(onChange).toHaveBeenCalledWith(true)
+  })
+
+  test('disabled checkbox rows do not toggle from a row tap', () => {
+    const onChange = jest.fn()
+    render(
+      <SettingsFieldRow
+        node={{ type: 'checkbox', path: 'mute', label: 'Mute', disabled: true } as any}
+        value={false}
+        state={{ mute: false }}
+        onChange={onChange}
+      />
+    )
+    screen.getByTestId('stack-item').click()
+    expect(onChange).not.toHaveBeenCalled()
   })
 })

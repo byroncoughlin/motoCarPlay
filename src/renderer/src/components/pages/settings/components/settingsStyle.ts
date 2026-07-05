@@ -36,13 +36,13 @@ export const settingsSectionHeaderSx = {
 } as const
 
 // A large, pill-shaped trailing action button used inside rows (SET LEVEL,
-// CLEAR, etc). Big enough to tap reliably; sits inside the fixed row height.
+// CLEAR, etc). 52px keeps a real gloved tap target inside the 60px row.
 export const settingsActionButtonSx = {
-  minWidth: 92,
-  height: 44,
+  minWidth: 104,
+  height: 52,
   px: 2,
-  borderRadius: '12px',
-  fontSize: '15px',
+  borderRadius: '14px',
+  fontSize: '16px',
   fontWeight: 700,
   lineHeight: 1,
   whiteSpace: 'nowrap',

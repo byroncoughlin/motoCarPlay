@@ -149,6 +149,9 @@ export const SettingsFieldControl = <T,>({
             ml: 2,
             mr: 2,
             minWidth: 0,
+            // Gloved-thumb slider: bigger grab handle and a thicker track.
+            '& .MuiSlider-thumb': { width: 28, height: 28 },
+            '& .MuiSlider-rail, & .MuiSlider-track': { height: 6 },
             '& .MuiSlider-valueLabel': { zIndex: 2 }
           }}
         />
@@ -340,9 +343,10 @@ function DynamicSelect({ node, value, onChange, savedLabel, onLabelChange }: Dyn
       renderValue={() => (selectedOption ? labelFor(selectedOption) : '')}
       sx={{
         minWidth: 'min(190px, 48vw)',
-        height: 44,
+        // 52px: comfortably tappable with gloves while fitting the 60px row.
+        height: 52,
         borderRadius: '12px',
-        fontSize: '15px',
+        fontSize: '16px',
         '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
           borderColor: 'primary.main',
           borderWidth: '1px'

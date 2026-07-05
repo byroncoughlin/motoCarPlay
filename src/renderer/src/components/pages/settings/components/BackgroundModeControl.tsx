@@ -213,9 +213,9 @@ export function BackgroundModeControl({ state }: SettingsCustomPageProps<Config,
           onChange={(e) => onSelectMode(e.target.value as BgMode)}
           sx={{
             minWidth: 210,
-            height: 44,
+            height: 52,
             borderRadius: '12px',
-            fontSize: '15px',
+            fontSize: '16px',
             '& .MuiSelect-icon': { color: 'text.secondary' }
           }}
         >

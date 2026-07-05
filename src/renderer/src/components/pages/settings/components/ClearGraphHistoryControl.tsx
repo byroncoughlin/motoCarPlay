@@ -38,7 +38,7 @@ export function ClearGraphHistoryControl(_props: SettingsCustomPageProps<Config,
         onClick={onClick}
         sx={{ ...settingsActionButtonSx, minWidth: 150 }}
       >
-        {armed ? 'TAP TO CONFIRM' : 'CLEAR LOG'}
+        {armed ? 'Tap to Confirm' : 'Clear Log'}
       </Button>
     </SettingsItemRow>
   )

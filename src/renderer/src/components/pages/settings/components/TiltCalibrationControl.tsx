@@ -88,13 +88,8 @@ export function TiltCalibrationControl({ state }: SettingsCustomPageProps<Config
           {'\u00b0'} P {formatDegrees(pitchOffset)}
           {'\u00b0'}
         </Typography>
-        <Button
-          variant="outlined"
-          disabled={busy}
-          onClick={setLevel}
-          sx={settingsActionButtonSx}
-        >
-          SET LEVEL
+        <Button variant="outlined" disabled={busy} onClick={setLevel} sx={settingsActionButtonSx}>
+          Set Level
         </Button>
         <Button
           variant="outlined"
@@ -103,7 +98,7 @@ export function TiltCalibrationControl({ state }: SettingsCustomPageProps<Config
           onClick={reset}
           sx={settingsActionButtonSx}
         >
-          RESET
+          Reset
         </Button>
       </Stack>
     </SettingsItemRow>

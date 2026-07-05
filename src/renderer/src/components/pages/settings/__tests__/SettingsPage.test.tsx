@@ -250,7 +250,9 @@ describe('SettingsPage', () => {
 
     render(<SettingsPage />)
 
-    expect(screen.getByRole('dialog', { name: 'Restart LIVI for backdrop change' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('dialog', { name: 'Restart LIVI for backdrop change' })
+    ).toBeInTheDocument()
     expect(screen.getByText('Restart LIVI?')).toBeInTheDocument()
     expect(screen.getByText(/attach to live CarPlay video/)).toBeInTheDocument()
 

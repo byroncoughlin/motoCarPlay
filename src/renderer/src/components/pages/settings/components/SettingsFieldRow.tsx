@@ -63,6 +63,29 @@ export const SettingsFieldRow = <T, K>({
     )
   }
 
+  // Checkbox rows: the ENTIRE row is the tap target (iOS Settings behavior),
+  // not just the 62px switch — a gloved fingertip anywhere on the 60px row
+  // toggles it. The switch itself stops propagation so it doesn't double-fire.
+  if (node.type === 'checkbox') {
+    const toggle =
+      node.disabled === true
+        ? undefined
+        : () => onChange(!(value as unknown as boolean) as unknown as T)
+    return (
+      <StackItem onClick={toggle} node={node}>
+        <Typography>{label}</Typography>
+        <span
+          role="presentation"
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
+          style={{ display: 'inline-flex', flexShrink: 0 }}
+        >
+          <SettingsFieldControl node={node} value={value} onChange={onChange} />
+        </span>
+      </StackItem>
+    )
+  }
+
   return (
     <SettingsItemRow label={label}>
       <SettingsFieldControl

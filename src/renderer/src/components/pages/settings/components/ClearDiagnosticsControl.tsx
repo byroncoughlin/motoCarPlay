@@ -36,7 +36,7 @@ export function ClearDiagnosticsControl(_props: SettingsCustomPageProps<Config, 
         onClick={onClick}
         sx={{ ...settingsActionButtonSx, minWidth: 150 }}
       >
-        {armed ? 'TAP TO CONFIRM' : 'CLEAR DATA'}
+        {armed ? 'Tap to Confirm' : 'Clear Data'}
       </Button>
     </SettingsItemRow>
   )

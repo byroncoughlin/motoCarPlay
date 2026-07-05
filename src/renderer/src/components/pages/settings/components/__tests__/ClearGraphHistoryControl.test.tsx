@@ -38,15 +38,15 @@ describe('ClearGraphHistoryControl', () => {
       renderControl()
 
       const button = screen.getByRole('button')
-      expect(button).toHaveTextContent('CLEAR LOG')
+      expect(button).toHaveTextContent('Clear Log')
 
       fireEvent.click(button)
       expect(handler).not.toHaveBeenCalled()
-      expect(button).toHaveTextContent('TAP TO CONFIRM')
+      expect(button).toHaveTextContent('Tap to Confirm')
 
       fireEvent.click(button)
       expect(handler).toHaveBeenCalledTimes(1)
-      expect(button).toHaveTextContent('CLEAR LOG')
+      expect(button).toHaveTextContent('Clear Log')
     } finally {
       window.removeEventListener(MOTO_CLEAR_GRAPH_HISTORY_EVENT, handler)
     }
@@ -61,14 +61,14 @@ describe('ClearGraphHistoryControl', () => {
 
       const button = screen.getByRole('button')
       fireEvent.click(button)
-      expect(button).toHaveTextContent('TAP TO CONFIRM')
+      expect(button).toHaveTextContent('Tap to Confirm')
 
       act(() => {
         jest.advanceTimersByTime(3000)
       })
 
       expect(handler).not.toHaveBeenCalled()
-      expect(button).toHaveTextContent('CLEAR LOG')
+      expect(button).toHaveTextContent('Clear Log')
     } finally {
       window.removeEventListener(MOTO_CLEAR_GRAPH_HISTORY_EVENT, handler)
     }

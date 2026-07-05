@@ -52,7 +52,7 @@ describe('TiltCalibrationControl', () => {
     getTelemetrySnapshot.mockResolvedValue({ leanDeg: 12.34, pitchDeg: -3.21 })
     renderControl()
 
-    fireEvent.click(screen.getByRole('button', { name: 'SET LEVEL' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Set Level' }))
 
     await waitFor(() => {
       expect(saveSettings).toHaveBeenCalledWith({ leanOffset: 12.34, pitchOffset: -3.21 })
@@ -63,7 +63,7 @@ describe('TiltCalibrationControl', () => {
     getTelemetrySnapshot.mockResolvedValue({ leanDeg: 12.34, pitchDeg: -3.21 })
     renderControl({ reverseTilt: true })
 
-    fireEvent.click(screen.getByRole('button', { name: 'SET LEVEL' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Set Level' }))
 
     await waitFor(() => {
       expect(saveSettings).toHaveBeenCalledWith({ leanOffset: -12.34, pitchOffset: -3.21 })
@@ -74,7 +74,7 @@ describe('TiltCalibrationControl', () => {
     getTelemetrySnapshot.mockResolvedValue({ leanDeg: 12.34, pitchDeg: -3.21 })
     renderControl({ reversePitch: true })
 
-    fireEvent.click(screen.getByRole('button', { name: 'SET LEVEL' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Set Level' }))
 
     await waitFor(() => {
       expect(saveSettings).toHaveBeenCalledWith({ leanOffset: 12.34, pitchOffset: 3.21 })
@@ -85,7 +85,7 @@ describe('TiltCalibrationControl', () => {
     getTelemetrySnapshot.mockResolvedValue({ leanDeg: 12.34, pitchDeg: -3.21 })
     renderControl({ reverseTilt: true, reversePitch: true })
 
-    fireEvent.click(screen.getByRole('button', { name: 'SET LEVEL' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Set Level' }))
 
     await waitFor(() => {
       expect(saveSettings).toHaveBeenCalledWith({ leanOffset: -12.34, pitchOffset: 3.21 })
@@ -96,7 +96,7 @@ describe('TiltCalibrationControl', () => {
     getTelemetrySnapshot.mockResolvedValue(null)
     renderControl()
 
-    fireEvent.click(screen.getByRole('button', { name: 'SET LEVEL' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Set Level' }))
 
     await waitFor(() => {
       expect(saveSettings).toHaveBeenCalledWith({ leanOffset: 0, pitchOffset: 0 })
@@ -106,7 +106,7 @@ describe('TiltCalibrationControl', () => {
   test('reset clears both offsets', async () => {
     renderControl({ leanOffset: 8, pitchOffset: -4 })
 
-    fireEvent.click(screen.getByRole('button', { name: 'RESET' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Reset' }))
 
     await waitFor(() => {
       expect(saveSettings).toHaveBeenCalledWith({ leanOffset: 0, pitchOffset: 0 })
