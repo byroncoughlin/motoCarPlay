@@ -188,6 +188,7 @@ function WaitingProjectionPane({
   const [usbPower, setUsbPower] = useState<WaitingPowerInfo>(null)
   const [confirmReboot, setConfirmReboot] = useState(false)
   const [researching, setResearching] = useState(false)
+  const researchTimerRef = useRef<number | null>(null)
 
   useEffect(() => {
     const isJsdom =
@@ -196,6 +197,13 @@ function WaitingProjectionPane({
     const id = window.setInterval(() => setNow(new Date()), 1000)
     return () => window.clearInterval(id)
   }, [show])
+
+  useEffect(
+    () => () => {
+      if (researchTimerRef.current != null) window.clearTimeout(researchTimerRef.current)
+    },
+    []
+  )
 
   useEffect(() => {
     const isJsdom =
@@ -230,7 +238,10 @@ function WaitingProjectionPane({
         await window.projection?.usb?.forceReset?.().catch(() => false)
         await window.projection?.ipc?.restart?.().catch(() => {})
       } finally {
-        window.setTimeout(() => setResearching(false), 1500)
+        researchTimerRef.current = window.setTimeout(() => {
+          researchTimerRef.current = null
+          setResearching(false)
+        }, 1500)
       }
     })()
   }, [researching])
@@ -844,7 +855,6 @@ const CarplayComponent: React.FC<CarplayProps> = ({
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const usbOpTokenRef = useRef(0)
   const hasStartedRef = useRef(false)
-  const [rendererError] = useState<string | null>(null)
   const [projectionSessionActive, setProjectionSessionActive] = useState(false)
   const [statusNotice, setStatusNotice] = useState<WaitingStatusNotice>(null)
   const statusNoticeTimerRef = useRef<number | null>(null)
@@ -861,6 +871,11 @@ const CarplayComponent: React.FC<CarplayProps> = ({
   const autoSwitchOnStreamRef = useRef(Boolean(settings.autoSwitchOnStream))
   const autoSwitchOnGuidanceRef = useRef(Boolean(settings.autoSwitchOnGuidance))
   const autoSwitchOnPhoneCallRef = useRef(Boolean(settings.autoSwitchOnPhoneCall))
+  // Mirrored into refs so the long-lived IPC onEvent handler reads the
+  // current values without being torn down/resubscribed on every change
+  // (events arriving in the unsubscribe window would be lost).
+  const wirelessAaEnabledRef = useRef(wirelessAaEnabled)
+  const isStreamingRef = useRef(isStreaming)
 
   const setDonglePhoneLinked = useCallback((linked: boolean) => {
     if (donglePhoneLinkedRef.current === linked) return
@@ -929,6 +944,14 @@ const CarplayComponent: React.FC<CarplayProps> = ({
     autoSwitchOnPhoneCallRef.current = Boolean(settings.autoSwitchOnPhoneCall)
   }, [settings.autoSwitchOnPhoneCall])
 
+  useEffect(() => {
+    wirelessAaEnabledRef.current = wirelessAaEnabled
+  }, [wirelessAaEnabled])
+
+  useEffect(() => {
+    isStreamingRef.current = isStreaming
+  }, [isStreaming])
+
   // Attention-driven UI switching (call / voiceAssistant / nav)
   type AttentionKind = 'call' | 'voiceAssistant'
   type AttentionPayload = { kind: AttentionKind; active: boolean; phase?: string }
@@ -971,9 +994,6 @@ const CarplayComponent: React.FC<CarplayProps> = ({
     }
   }, [navVideoOverlayActive, pathname, setNavVideoOverlayActive])
 
-  // Visual delay for FFT so spectrum matches audio playback
-  const fftVisualDelayMs = 0
-
   // Channels
   const audioChannel = useMemo(() => new MessageChannel(), [])
 
@@ -998,7 +1018,7 @@ const CarplayComponent: React.FC<CarplayProps> = ({
   }, [audioChannel])
 
   // Forward audio chunks to FFT (shared with the secondary windows via useFftPcm)
-  useFftPcm(fftVisualDelayMs)
+  useFftPcm(0)
 
   // Audio + touch hooks
 
@@ -1009,11 +1029,13 @@ const CarplayComponent: React.FC<CarplayProps> = ({
     }
   }, [])
 
+  // Reads pathnameRef (not location.pathname) so its identity — and that of
+  // the IPC onEvent subscription depending on it — survives route changes.
   const gotoHostUI = useCallback(() => {
-    if (location.pathname !== HOST_UI_ROUTE) {
+    if (pathnameRef.current !== HOST_UI_ROUTE) {
       navigate(HOST_UI_ROUTE, { replace: true })
     }
-  }, [location.pathname, navigate])
+  }, [navigate])
 
   useEffect(() => {
     let disposed = false
@@ -1031,7 +1053,7 @@ const CarplayComponent: React.FC<CarplayProps> = ({
 
   const applyAttention = useCallback(
     (p: AttentionPayload) => {
-      const inProjection = location.pathname === '/'
+      const inProjection = pathnameRef.current === '/'
 
       if (p.kind !== 'call' && p.kind !== 'voiceAssistant') return
 
@@ -1046,7 +1068,7 @@ const CarplayComponent: React.FC<CarplayProps> = ({
         }
 
         // Not on projection -> we will switch now, so arm return
-        attentionBackPathRef.current = location.pathname
+        attentionBackPathRef.current = pathnameRef.current
         attentionSwitchedByRef.current = p.kind
 
         navigate('/', { replace: true })
@@ -1060,7 +1082,7 @@ const CarplayComponent: React.FC<CarplayProps> = ({
 
       const doReturn = () => {
         attentionSwitchedByRef.current = null
-        if (back && back !== '/' && location.pathname === '/') {
+        if (back && back !== '/' && pathnameRef.current === '/') {
           navigate(back, { replace: true })
         }
       }
@@ -1082,7 +1104,7 @@ const CarplayComponent: React.FC<CarplayProps> = ({
       // Call: return immediately
       doReturn()
     },
-    [location.pathname, navigate, clearVoiceAssistantReleaseTimer]
+    [navigate, clearVoiceAssistantReleaseTimer]
   )
 
   // Projection worker messages
@@ -1115,10 +1137,6 @@ const CarplayComponent: React.FC<CarplayProps> = ({
           break
         }
 
-        case 'dongleInfo': {
-          break
-        }
-
         case 'failure':
           hasStartedRef.current = false
           if (!retryTimeoutRef.current) {
@@ -1130,15 +1148,7 @@ const CarplayComponent: React.FC<CarplayProps> = ({
 
     carplayWorker.addEventListener('message', handler)
     return () => carplayWorker.removeEventListener('message', handler)
-  }, [
-    carplayWorker,
-    clearRetryTimeout,
-    gotoHostUI,
-    setDeviceInfo,
-    setAudioInfo,
-    setPcmData,
-    setReceivingVideo
-  ])
+  }, [carplayWorker, clearRetryTimeout, gotoHostUI, setAudioInfo, setPcmData])
 
   // USB events
   useEffect(() => {
@@ -1221,14 +1231,12 @@ const CarplayComponent: React.FC<CarplayProps> = ({
     return () => {
       disposed = true
       unsubscribe?.()
-      window.electron?.ipcRenderer.removeListener('usb-event', usbHandler)
     }
   }, [
     setReceivingVideo,
     setDongleConnected,
     setStreaming,
     clearRetryTimeout,
-    navigate,
     resetInfo,
     setDeviceInfo,
     setDonglePhoneLinked,
@@ -1307,10 +1315,8 @@ const CarplayComponent: React.FC<CarplayProps> = ({
               negotiatedHeight: payload.height
             })
 
-            if (!rendererError) {
-              setReceivingVideo(true)
-              setStreaming(true)
-            }
+            setReceivingVideo(true)
+            setStreaming(true)
 
             if (pendingVideoFocusRef.current) {
               pendingVideoFocusRef.current = false
@@ -1458,7 +1464,7 @@ const CarplayComponent: React.FC<CarplayProps> = ({
               autoSwitchedRef.current = true
             }
 
-            if (!isStreaming) {
+            if (!isStreamingRef.current) {
               pendingVideoFocusRef.current = true
               break
             }
@@ -1510,7 +1516,9 @@ const CarplayComponent: React.FC<CarplayProps> = ({
         case 'plugged': {
           const phoneType = (d as { phoneType?: number }).phoneType
           const useAa =
-            phoneType !== undefined ? phoneType === PhoneType.AndroidAuto : wirelessAaEnabled
+            phoneType !== undefined
+              ? phoneType === PhoneType.AndroidAuto
+              : wirelessAaEnabledRef.current
           if (isProjectionPhoneType(phoneType)) setDonglePhoneLinked(true)
           if (useAa) {
             setProjectionSessionActive(true)
@@ -1560,11 +1568,9 @@ const CarplayComponent: React.FC<CarplayProps> = ({
     setReceivingVideo,
     navigate,
     setStreaming,
-    isStreaming,
     setDongleConnected,
     setNavVideoOverlayActive,
     applyAttention,
-    rendererError,
     setAudioInfo,
     setBluetoothPairedList,
     bumpAudioDevicesRevision,
@@ -1621,7 +1627,7 @@ const CarplayComponent: React.FC<CarplayProps> = ({
 
   const inProjection = pathname === '/'
   const showProjectionOverlay = inProjection || navVideoOverlayActive
-  const videoVisible = receivingVideo && !rendererError
+  const videoVisible = receivingVideo
   const phoneLinked = donglePhoneLinked || transportPhoneLinked
   const showWaitingProjectionPane = !videoVisible
   const waitingVideoStarting = isStreaming || (projectionSessionActive && phoneLinked)
@@ -1709,17 +1715,16 @@ const CarplayComponent: React.FC<CarplayProps> = ({
           margin: 0,
           display: 'block',
           touchAction: 'none',
-          backgroundColor:
-            receivingVideo && !rendererError ? 'transparent' : theme.palette.background.default,
-          visibility: receivingVideo && !rendererError ? 'visible' : 'hidden',
-          zIndex: receivingVideo && !rendererError ? 1 : -1,
+          backgroundColor: receivingVideo ? 'transparent' : theme.palette.background.default,
+          visibility: receivingVideo ? 'visible' : 'hidden',
+          zIndex: receivingVideo ? 1 : -1,
           position: 'relative',
           overflow: 'hidden'
         }}
       />
 
       <ViewAreaMask
-        visible={showProjectionOverlay && ((receivingVideo && !rendererError) || fillEnabled)}
+        visible={showProjectionOverlay && (receivingVideo || fillEnabled)}
         displayWidth={settings.projectionWidth}
         displayHeight={settings.projectionHeight}
         insets={{

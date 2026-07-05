@@ -359,6 +359,18 @@ export class ProjectionService {
     if (!this.gstVideo) return
     this.gstVideo.dispose()
     this.gstVideo = null
+    // Recompute the crop now: it is otherwise only refreshed on a stream
+    // resolution change, so the lazily recreated plane would apply a crop
+    // computed against the OLD projectionWidth/Height/view-area geometry.
+    this.updateVideoCrop()
+    // Ask the phone for a fresh keyframe. The new plane starts decoding at
+    // whatever NAL arrives next — mid-GOP that's a P-frame, which renders a
+    // black/corrupt center square until the next IDR.
+    try {
+      this.driver.send(new SendCommand('frame'))
+    } catch {
+      // no active driver / not connected — the next stream start sends an IDR
+    }
   }
 
   private clearSampledBackdropColor(): void {

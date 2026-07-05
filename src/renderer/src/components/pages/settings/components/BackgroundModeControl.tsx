@@ -2,7 +2,7 @@ import { Box, MenuItem, Select, Stack, Typography } from '@mui/material'
 import type { SettingsCustomPageProps } from '@renderer/routes/types'
 import type { Config } from '@shared/types'
 import { useLiviStore } from '@store/store'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { AMBIENT_FILL_SWATCHES } from './SettingsFieldControl'
 import { SettingsItemRow } from './settingsItemRow'
 import { settingsRowValueSx } from './settingsStyle'
@@ -168,7 +168,13 @@ export function BackgroundModeControl({ state }: SettingsCustomPageProps<Config,
   const [draftMode, setDraftMode] = useState<BgMode>(savedMode)
   const [pendingRestart, setPendingRestart] = useState<Partial<Config> | null>(null)
 
-  // Keep the draft in sync if the saved mode changes underneath us (e.g. reset).
+  // Keep the draft in sync if the saved mode changes underneath us (e.g. a
+  // reset or another window). Selecting "Solid" doesn't change savedMode, so
+  // the pick-a-color-first draft state survives this.
+  useEffect(() => {
+    setDraftMode(savedMode)
+  }, [savedMode])
+
   const shownMode = draftMode
 
   const commit = (patch: Partial<Config>, restart: boolean) => {

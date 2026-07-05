@@ -31,11 +31,20 @@ function applyMotoLinkedSettings(
   // Rounded corners stay on across every background change: toggling the
   // backdrop or ambient fill must never silently disable them. Only the
   // explicit "Round Corners" checkbox turns them off.
+  // Enabling either fill also leaves extend mode: the background modes are
+  // mutually exclusive (see fieldsForMode in BackgroundModeControl), and
+  // extend would otherwise win in effectiveMode() and silently mask the fill.
   if (path === 'backdropEnabled') {
-    if (value === true) next.ambientFillEnabled = false
+    if (value === true) {
+      next.ambientFillEnabled = false
+      next.projectionSafeAreaDrawOutside = false
+    }
     next.roundedCornerMaskEnabled = true
   } else if (path === 'ambientFillEnabled') {
-    if (value === true) next.backdropEnabled = false
+    if (value === true) {
+      next.backdropEnabled = false
+      next.projectionSafeAreaDrawOutside = false
+    }
     next.roundedCornerMaskEnabled = true
   }
 }
@@ -99,7 +108,8 @@ export function useSmartSettings<T extends Record<string, unknown>>(
       const prevValue = baseState[path]
       const override = overrides[path]
 
-      const nextValue = override?.transform?.(rawValue, prevValue) ?? rawValue
+      // No ?? fallback: a transform returning null/undefined means exactly that.
+      const nextValue = override?.transform ? override.transform(rawValue, prevValue) : rawValue
       if (override?.validate && !override.validate(nextValue)) return null
 
       const nextState = { ...baseState, [path]: nextValue }

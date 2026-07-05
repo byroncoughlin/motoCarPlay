@@ -143,6 +143,7 @@ describe('useSmartSettings', () => {
     expect(saveSettings).toHaveBeenLastCalledWith({
       backdropEnabled: true,
       ambientFillEnabled: false,
+      projectionSafeAreaDrawOutside: false,
       roundedCornerMaskEnabled: true
     })
     expect(restartApp).toHaveBeenCalledTimes(1)
@@ -180,6 +181,7 @@ describe('useSmartSettings', () => {
     expect(saveSettings).toHaveBeenLastCalledWith({
       backdropEnabled: false,
       ambientFillEnabled: true,
+      projectionSafeAreaDrawOutside: false,
       roundedCornerMaskEnabled: true
     })
     expect(restartApp).toHaveBeenCalledTimes(1)
