@@ -202,28 +202,28 @@ const METRIC_CONFIG: Record<MetricKey, MetricConfig> = {
     label: 'SPEED',
     unit: 'mph',
     color: '#4fc3f7',
-    minRange: 20,
+    minRange: 10,
     fmtVal: (v) => String(Math.round(v))
   },
   heading: {
     label: 'HEADING',
     unit: '\u00b0',
     color: '#81c784',
-    minRange: 45,
+    minRange: 20,
     fmtVal: (v) => String(Math.round(v))
   },
   ambientTemp: {
     label: 'AMBIENT',
     unit: '\u00b0F',
     color: '#fff176',
-    minRange: 10,
+    minRange: 6,
     fmtVal: (v) => String(Math.round(v))
   },
   chtLeft: {
     label: 'CHT LEFT',
     unit: '\u00b0C',
     color: '#ff8a65',
-    minRange: 30,
+    minRange: 20,
     fmtVal: (v) => String(Math.round(v)),
     zones: CHT_ZONES
   },
@@ -231,7 +231,7 @@ const METRIC_CONFIG: Record<MetricKey, MetricConfig> = {
     label: 'CHT RIGHT',
     unit: '\u00b0C',
     color: '#ff5252',
-    minRange: 30,
+    minRange: 20,
     fmtVal: (v) => String(Math.round(v)),
     zones: CHT_ZONES
   },
@@ -239,35 +239,35 @@ const METRIC_CONFIG: Record<MetricKey, MetricConfig> = {
     label: 'ALTITUDE',
     unit: 'ft',
     color: '#ce93d8',
-    minRange: 100,
+    minRange: 50,
     fmtVal: (v) => Math.round(v).toLocaleString()
   },
   gForce: {
     label: 'G-FORCE',
     unit: 'G',
     color: '#ffca28',
-    minRange: 0.5,
+    minRange: 0.3,
     fmtVal: (v) => v.toFixed(2)
   },
   leanAngle: {
     label: 'LEAN',
     unit: '\u00b0',
     color: '#ffd700',
-    minRange: 30,
+    minRange: 20,
     fmtVal: (v) => String(Math.round(v))
   },
   pitchAngle: {
     label: 'PITCH',
     unit: '\u00b0',
     color: '#80cbc4',
-    minRange: 20,
+    minRange: 12,
     fmtVal: (v) => String(Math.round(v))
   },
   piTemp: {
     label: 'PI CPU',
     unit: '\u00b0C',
     color: '#4dd0e1',
-    minRange: 15,
+    minRange: 10,
     fmtVal: (v) => String(Math.round(v)),
     zones: [
       { max: 70, color: '#43d17a' },
@@ -2890,7 +2890,10 @@ function GraphPaneImpl({
   const rawMax = vals.length ? Math.max(...vals) : 1
   const center = (rawMax + rawMin) / 2
   const span = Math.max(rawMax - rawMin, cfg.minRange)
-  const pad = span * 0.15
+  // 8% headroom (was 15%): together with the tightened minRange floors this
+  // lets a steady reading fill ~2x more of the plot height — flat temps and
+  // parked lean/speed used to draw a sliver under a tall empty grid.
+  const pad = span * 0.08
   const yMin = center - span / 2 - pad
   const yMax = center + span / 2 + pad
   const xFor = (ts: number) => cx + ((ts - windowStart) / GRAPH_WINDOW_MS) * cw
