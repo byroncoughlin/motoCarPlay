@@ -318,6 +318,13 @@ export class ProjectionService {
     const backdropEnabled = cfg.backdropEnabled === true
     const blurBackdrop = backdropEnabled && cfg.backdropMode === 'blur'
     const colorBackdrop = backdropEnabled && !blurBackdrop
+    // The stream's bottom-most view-area row arrives black (same artifact class
+    // as the 1px right-edge gutter the native pipeline already shaves off the
+    // blur foreground). In blur mode no mask bar covers that row on screen, so
+    // widen the bottom inset by 1px: the pipeline then drops the black source
+    // row and the blurred backdrop shows there instead. The other modes hide it
+    // under the view-area mask's 1px bleed.
+    const viewAreaBottom = cfg.projectionViewAreaBottom ?? 0
     return {
       dynamicBackdrop: blurBackdrop,
       // Use the live sampled-color branch only when a native player is being created.
@@ -327,21 +334,24 @@ export class ProjectionService {
       displayWidth: cfg.projectionWidth ?? 0,
       displayHeight: cfg.projectionHeight ?? 0,
       viewAreaTop: cfg.projectionViewAreaTop ?? 0,
-      viewAreaBottom: cfg.projectionViewAreaBottom ?? 0,
+      viewAreaBottom: blurBackdrop && viewAreaBottom > 0 ? viewAreaBottom + 1 : viewAreaBottom,
       viewAreaLeft: cfg.projectionViewAreaLeft ?? 0,
       viewAreaRight: cfg.projectionViewAreaRight ?? 0
     }
   }
 
   private mainGstVideoOptionsKey(cfg: Config): string {
-    const opts = this.mainGstVideoOptions(cfg)
+    // Built from the RAW config insets, not mainGstVideoOptions(): the blur
+    // mode's 1px bottom-inset shave must not change this key, or toggling the
+    // backdrop style would dispose the live CarPlay plane mid-session. The
+    // shave still applies whenever a player is (re)created.
     return [
-      opts.displayWidth ?? 0,
-      opts.displayHeight ?? 0,
-      opts.viewAreaTop ?? 0,
-      opts.viewAreaBottom ?? 0,
-      opts.viewAreaLeft ?? 0,
-      opts.viewAreaRight ?? 0
+      cfg.projectionWidth ?? 0,
+      cfg.projectionHeight ?? 0,
+      cfg.projectionViewAreaTop ?? 0,
+      cfg.projectionViewAreaBottom ?? 0,
+      cfg.projectionViewAreaLeft ?? 0,
+      cfg.projectionViewAreaRight ?? 0
     ].join(':')
   }
 

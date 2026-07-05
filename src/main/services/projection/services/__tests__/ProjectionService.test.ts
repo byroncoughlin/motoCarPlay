@@ -2411,7 +2411,9 @@ describe('ProjectionService', () => {
       displayWidth: 800,
       displayHeight: 800,
       viewAreaTop: 118,
-      viewAreaBottom: 118,
+      // Blur widens the bottom inset by 1px to shave the stream's black
+      // bottom view-area row (no mask bar covers it in blur mode).
+      viewAreaBottom: 119,
       viewAreaLeft: 118,
       viewAreaRight: 118
     })

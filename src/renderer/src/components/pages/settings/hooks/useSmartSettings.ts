@@ -23,21 +23,20 @@ function isRestartRelevantPath(path?: string) {
   return !(path === 'bindings' || path.startsWith('bindings.'))
 }
 
-function applyMotoLinkedSettings(next: Record<string, unknown>, path: string, value: unknown): void {
+function applyMotoLinkedSettings(
+  next: Record<string, unknown>,
+  path: string,
+  value: unknown
+): void {
+  // Rounded corners stay on across every background change: toggling the
+  // backdrop or ambient fill must never silently disable them. Only the
+  // explicit "Round Corners" checkbox turns them off.
   if (path === 'backdropEnabled') {
-    if (value === true) {
-      next.ambientFillEnabled = false
-      next.roundedCornerMaskEnabled = true
-    } else if (value === false) {
-      next.roundedCornerMaskEnabled = false
-    }
+    if (value === true) next.ambientFillEnabled = false
+    next.roundedCornerMaskEnabled = true
   } else if (path === 'ambientFillEnabled') {
-    if (value === true) {
-      next.backdropEnabled = false
-      next.roundedCornerMaskEnabled = true
-    } else if (value === false) {
-      next.roundedCornerMaskEnabled = false
-    }
+    if (value === true) next.backdropEnabled = false
+    next.roundedCornerMaskEnabled = true
   }
 }
 
@@ -116,7 +115,9 @@ export function useSmartSettings<T extends Record<string, unknown>>(
     [overrides, settings]
   )
 
-  const backdropEnabled = Boolean((settings as Record<string, unknown> | undefined)?.backdropEnabled)
+  const backdropEnabled = Boolean(
+    (settings as Record<string, unknown> | undefined)?.backdropEnabled
+  )
   const backdropMode = normalizeBackdropMode(
     (settings as Record<string, unknown> | undefined)?.backdropMode
   )

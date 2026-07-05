@@ -211,7 +211,9 @@ describe('useSmartSettings', () => {
     })
   })
 
-  test('turning off backdrop or background fill also turns off corner mask', async () => {
+  test('turning off backdrop or background fill keeps the corner mask on', async () => {
+    // Background-mode changes must never silently disable the rounded corners;
+    // only the explicit "Round Corners" checkbox does.
     const backdropSettings = {
       backdropEnabled: true,
       ambientFillEnabled: false,
@@ -233,11 +235,11 @@ describe('useSmartSettings', () => {
     })
 
     expect(backdrop.result.current.state.backdropEnabled).toBe(false)
-    expect(backdrop.result.current.state.roundedCornerMaskEnabled).toBe(false)
+    expect(backdrop.result.current.state.roundedCornerMaskEnabled).toBe(true)
     expect(saveSettings).toHaveBeenLastCalledWith({
       backdropEnabled: false,
       ambientFillEnabled: false,
-      roundedCornerMaskEnabled: false
+      roundedCornerMaskEnabled: true
     })
 
     saveSettings.mockClear()
@@ -255,11 +257,11 @@ describe('useSmartSettings', () => {
     })
 
     expect(fill.result.current.state.ambientFillEnabled).toBe(false)
-    expect(fill.result.current.state.roundedCornerMaskEnabled).toBe(false)
+    expect(fill.result.current.state.roundedCornerMaskEnabled).toBe(true)
     expect(saveSettings).toHaveBeenLastCalledWith({
       backdropEnabled: false,
       ambientFillEnabled: false,
-      roundedCornerMaskEnabled: false
+      roundedCornerMaskEnabled: true
     })
     expect(restartApp).not.toHaveBeenCalled()
   })

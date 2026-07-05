@@ -96,6 +96,55 @@ Run it with `/usr/bin/python3` on the Mac (it has PIL; the default `python3` may
 not). Target ~**8–12px** clearance to match the other gauges. Reference clearances
 achieved this project: speed 17.9px, ALT/G ~12px, lean 12.3px, CHT pills 8.1px.
 
+### Stream edge artifact + rounded corners (learned 2026-07-04)
+- The CarPlay stream's **outermost view-area row/column can arrive black** (a
+  1px dark ring at the 586-square boundary). Three coordinated defenses:
+  - Bar modes (solid/average): `ViewAreaMask` bars bleed **1px inward** (`BAR_BLEED_PX`).
+  - Blur right edge: native pipeline shaves 1 source column (`fg_vr = vr+1` in `gst_video.cc`).
+  - Blur bottom edge: `ProjectionService.mainGstVideoOptions` passes **viewAreaBottom+1**
+    (can't fix in native — gst-video must not be rebuilt). `mainGstVideoOptionsKey`
+    deliberately uses RAW config insets so this shave never recreates the live plane.
+- **Rounded corners are always on** (policy): `fieldsForMode` sets
+  `roundedCornerMaskEnabled: true` in all four modes, `applyMotoLinkedSettings`
+  never writes false, default is true. Rendering: DOM corner mask in solid/average;
+  **blur rounds natively** in the gst pipeline (radius 38 = `MOTO_CENTER_CORNER_RADIUS_PX`);
+  extend has no window boundary so nothing renders. Only the manual "Round
+  Corners" checkbox can turn it off.
+
+### Working from the container (not the Mac)
+- Claude sessions may run in a Linux container ("doscar", repo at `/home/byron/LIVI`)
+  playing the Mac-workspace role: Node 22 + pnpm 11.5.3, Mac SSH agent forwarded
+  (passwordless Pi SSH + sudo works). **No rsync** — sync by hash-manifest compare
+  (`find src -type f -exec md5sum {} + | LC_ALL=C sort` both sides, diff, then scp
+  only the differing files; sort with the SAME locale or the diff is garbage).
+  No PIL by default — `pip3 install --user Pillow` works for grim pixel forensics.
+- Use `ssh -o BatchMode=yes` (fails fast instead of hanging on a password prompt).
+  First connect may need `-o StrictHostKeyChecking=accept-new`.
+- `.claude/settings.local.json` here has `permissions.defaultMode: "bypassPermissions"`
+  (Byron's choice). Never commit `.claude/`.
+- **`git push` does NOT work from a background session in this container**: origin is
+  HTTPS, there are no github.com credentials (the gh token is github.hioscar.com only),
+  the VS Code credential helper only works with an attached VS Code window, and the
+  forwarded SSH key is not registered with GitHub. Commit locally, then Byron pushes
+  from a VS Code terminal attached to the container (or the Mac clone).
+
+### Forcing gauge states for screenshots (no CDP needed)
+- The Pi has **python-socketio**; `sio.emit("telemetry:push", {...})` on :4000 merges
+  top-level fields into the store: `gpsFix` (bool), `gpsSatellites`, `imuRecalibrating`
+  (bool), `chtLeftC/chtRightC`, `leanDeg`, `pitchDeg`, `gForceX/Y`, `ambientC`…
+- Live sensors override pushed values every tick — **stop the systemd user service
+  first**: `systemctl --user stop gps.service imu.service` (also `cht-temp.service`,
+  `ambient-temp.service`), push, grim, then `start` them again.
+- Restarting `imu.service` triggers a REAL "CALIBRATING" period (~1 min) while the
+  BNO055 fusion re-converges — expected, clears itself.
+- `/tmp` on the Pi is wiped every reboot — re-scp helper scripts after each boot.
+
+### Top-band layout constraint (TopArc)
+- The speed slot is only ~234px wide (left/right 30% of the 586 band); heading and
+  temperature pills flank it at left/right 70. A one-line pill with the 72px numeral
+  plus any status text OVERFLOWS into the neighbors — that's why the GPS no-fix
+  state renders as a compact two-line pill (48px numeral over dot + label).
+
 ---
 
 ## 3. ⚠️ THE #1 GOTCHA: build on the Pi, or CarPlay center goes black

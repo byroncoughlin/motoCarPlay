@@ -1,6 +1,5 @@
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined'
 import type { Config, TelemetryPayload } from '@shared/types'
-import { motoFillHex } from '@shared/utils'
 import { useLiviStore } from '@store/store'
 import * as React from 'react'
 import { useLocation, useNavigate } from 'react-router'
@@ -94,16 +93,7 @@ type MotoActions = {
 
 type MotoSettings = Pick<
   Config,
-  | 'backdropEnabled'
-  | 'backdropMode'
-  | 'ambientFillEnabled'
-  | 'ambientFillColor'
-  | 'projectionSafeAreaDrawOutside'
-  | 'leanOffset'
-  | 'pitchOffset'
-  | 'reverseTilt'
-  | 'reversePitch'
-  | 'diagnosticMode'
+  'leanOffset' | 'pitchOffset' | 'reverseTilt' | 'reversePitch' | 'diagnosticMode'
 >
 
 type MetricZone = {
@@ -139,10 +129,11 @@ const CHT_STALE_MS = 7000
 // speed/heading/altitude slowly blink instead of freezing as if still live.
 const GPS_STALE_MS = 5000
 
-// When "Extend CarPlay Background" is on, the edge gauges float over live
-// CarPlay wallpaper. Each numeric readout sits inside a uniform pill (an
-// Apple-style capsule): one fill, one border, fully rounded, identical height
-// and padding everywhere so every gauge reads as part of one instrument set.
+// The edge gauges float over whatever the background mode paints beneath the
+// strips (solid color, sampled color, blurred frame, or live CarPlay
+// wallpaper). Each numeric readout sits inside a uniform pill (an Apple-style
+// capsule): one fill, one border, fully rounded, identical height and padding
+// everywhere so every gauge reads as part of one instrument set.
 const SCRIM_FILL = 'rgba(22,24,28,0.55)'
 const SCRIM_STROKE = 'rgba(255,255,255,0.12)'
 // Shared pill metrics (SVG user units, which equal on-screen px in the arcs).
@@ -151,7 +142,7 @@ const PILL_H = 34
 const NUM_SHADOW = '0 1px 3px rgba(0,0,0,0.85)'
 const SVG_TEXT_SHADOW = 'drop-shadow(0 1px 2px rgba(0,0,0,0.85))'
 
-// A uniform rounded capsule used behind every extend-mode gauge readout.
+// A uniform rounded capsule used behind every gauge readout.
 function GaugePill({
   cx,
   cy,
@@ -911,17 +902,7 @@ function useMotoTelemetry(settings: MotoSettings | null): {
   return { telemetry, activeGraph, dataRef, actions }
 }
 
-function TopArc({
-  telemetry,
-  actions,
-  background,
-  extend
-}: {
-  telemetry: MotoTelemetry
-  actions: MotoActions
-  background: string
-  extend: boolean
-}) {
+function TopArc({ telemetry, actions }: { telemetry: MotoTelemetry; actions: MotoActions }) {
   const hasFix = telemetry.gpsFix === true
   // GPS is "live" only when we currently have a fix and the sensor is still
   // emitting. When the fix drops OR the sensor stops responding entirely, keep
@@ -950,69 +931,21 @@ function TopArc({
     cursor: 'pointer',
     userSelect: 'none'
   }
-  // Extend mode: each readout sits in its own rounded capsule (pill) so the
-  // gauge set reads uniformly over the CarPlay wallpaper. No gradient band.
-  const containerBg = extend ? 'transparent' : background
-  const numShadow = extend ? NUM_SHADOW : undefined
-  const pill: React.CSSProperties = extend
-    ? {
-        background: SCRIM_FILL,
-        border: `1px solid ${SCRIM_STROKE}`,
-        borderRadius: 999,
-        padding: '4px 14px'
-      }
-    : {}
+  // Each readout sits in its own rounded capsule (pill) so the gauge set reads
+  // uniformly in every background mode. The strip itself stays transparent —
+  // the mode's fill (or wallpaper) shows through from underneath.
+  const pill: React.CSSProperties = {
+    background: SCRIM_FILL,
+    border: `1px solid ${SCRIM_STROKE}`,
+    borderRadius: 999,
+    padding: '4px 14px'
+  }
 
   return (
     <div
-      style={{ position: 'relative', width: '100%', height: '100%', background: containerBg }}
+      style={{ position: 'relative', width: '100%', height: '100%', background: 'transparent' }}
       data-testid="projection-top-arc"
     >
-      {telemetry.gpsFix !== true && (
-        <button
-          type="button"
-          onClick={() => actions.openMetric('speed')}
-          style={{
-            position: 'absolute',
-            top: 5,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 5,
-            whiteSpace: 'nowrap',
-            cursor: 'pointer',
-            zIndex: 2,
-            border: 0,
-            background: 'transparent',
-            padding: 0
-          }}
-        >
-          <span
-            data-testid="projection-gps-status-dot"
-            className={telemetry.gpsFix === false ? 'moto-gps-acquiring-dot' : undefined}
-            style={{
-              width: 7,
-              height: 7,
-              borderRadius: '50%',
-              background: gpsDotColor,
-              boxShadow: `0 0 6px ${gpsDotColor}88`
-            }}
-          />
-          <span
-            style={{
-              fontSize: 10,
-              fontWeight: 800,
-              letterSpacing: 1.5,
-              color: '#bbb',
-              fontFamily: 'monospace'
-            }}
-          >
-            {gpsLabel}
-          </span>
-        </button>
-      )}
-
       <button
         type="button"
         onClick={() => actions.openMetric('heading')}
@@ -1032,7 +965,7 @@ function TopArc({
             display: 'flex',
             alignItems: 'baseline',
             gap: 6,
-            textShadow: numShadow
+            textShadow: NUM_SHADOW
           }}
         >
           <span style={{ fontSize: 34, fontWeight: 800, color: 'white', lineHeight: 1 }}>
@@ -1057,41 +990,98 @@ function TopArc({
           background: 'transparent'
         }}
       >
-        <span
-          className={gpsStale && speed != null ? 'moto-gps-stale' : undefined}
-          style={{
-            ...pill,
-            padding: extend ? '2px 18px' : 0,
-            display: 'flex',
-            alignItems: 'baseline',
-            gap: extend ? 8 : 4,
-            textShadow: numShadow
-          }}
-        >
+        {telemetry.gpsFix === true ? (
           <span
+            className={gpsStale && speed != null ? 'moto-gps-stale' : undefined}
             style={{
-              fontSize: extend ? 72 : 90,
-              fontWeight: 800,
-              color: 'white',
-              lineHeight: 1,
-              letterSpacing: 0,
-              fontVariantNumeric: 'tabular-nums'
+              ...pill,
+              padding: '2px 18px',
+              display: 'flex',
+              alignItems: 'baseline',
+              gap: 8,
+              textShadow: NUM_SHADOW
             }}
           >
-            {speed != null ? speed : '--'}
+            <span
+              style={{
+                fontSize: 72,
+                fontWeight: 800,
+                color: 'white',
+                lineHeight: 1,
+                letterSpacing: 0,
+                fontVariantNumeric: 'tabular-nums'
+              }}
+            >
+              {speed != null ? speed : '--'}
+            </span>
+            <span
+              style={{
+                fontSize: 18,
+                fontWeight: 800,
+                color: 'rgba(255,255,255,0.78)',
+                letterSpacing: 2,
+                textTransform: 'uppercase'
+              }}
+            >
+              mph
+            </span>
           </span>
+        ) : (
+          // No fix: a compact two-line pill — smaller numeral over the GPS
+          // state — so the status is large and central (not a tiny caption at
+          // the top of the glass) yet the pill never grows past its band slot
+          // into the heading/temperature pills.
           <span
+            className={gpsStale && speed != null ? 'moto-gps-stale' : undefined}
             style={{
-              fontSize: extend ? 18 : 13,
-              fontWeight: 800,
-              color: extend ? 'rgba(255,255,255,0.78)' : 'white',
-              letterSpacing: extend ? 2 : 3,
-              textTransform: 'uppercase'
+              ...pill,
+              padding: '6px 16px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 3,
+              textShadow: NUM_SHADOW
             }}
           >
-            mph
+            <span
+              style={{
+                fontSize: 48,
+                fontWeight: 800,
+                color: 'white',
+                lineHeight: 1,
+                letterSpacing: 0,
+                fontVariantNumeric: 'tabular-nums'
+              }}
+            >
+              {speed != null ? speed : '--'}
+            </span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span
+                data-testid="projection-gps-status-dot"
+                className={telemetry.gpsFix === false ? 'moto-gps-acquiring-dot' : undefined}
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  background: gpsDotColor,
+                  boxShadow: `0 0 6px ${gpsDotColor}88`
+                }}
+              />
+              <span
+                style={{
+                  fontSize: 12,
+                  fontWeight: 800,
+                  letterSpacing: 1.2,
+                  color: '#ccc',
+                  fontFamily: 'monospace',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                {gpsLabel}
+              </span>
+            </span>
           </span>
-        </span>
+        )}
       </button>
 
       <button
@@ -1112,7 +1102,7 @@ function TopArc({
             display: 'flex',
             alignItems: 'baseline',
             gap: 6,
-            textShadow: numShadow
+            textShadow: NUM_SHADOW
           }}
         >
           <span style={{ fontSize: 34, fontWeight: 800, color: 'white', lineHeight: 1 }}>
@@ -1132,17 +1122,13 @@ function ChtGauge({
   value,
   lastValue,
   responding,
-  actions,
-  background,
-  extend
+  actions
 }: {
   side: 'L' | 'R'
   value: number | null
   lastValue?: number | null
   responding?: boolean
   actions: MotoActions
-  background: string
-  extend: boolean
 }) {
   const maxTemp = 200
   const barW = 72
@@ -1165,18 +1151,18 @@ function ChtGauge({
   const barInset = 29
   const barX = side === 'L' ? barInset : vw - barW - barInset
   const textCX = barX + barW / 2
-  // Extend mode: transparent strip; only the temperature number sits in a pill
-  // below the thermometer bar. The round screen curves inward low on the
-  // left/right strips, so the default below-bar pill (screen y~559, full bar
-  // width, centered on the bar) pokes ~10px past the glass. In extend mode we
-  // keep the pill BELOW the bar (never overlapping it) but make it narrower,
-  // shorter, sit it snug (4px) under the bar, and nudge it 7px inward toward the
-  // center — that lands its outer corner ~8px inside the circle on both sides.
+  // Transparent strip; only the temperature number sits in a pill below the
+  // thermometer bar. The round screen curves inward low on the left/right
+  // strips, so a below-bar pill at full bar width (screen y~559, centered on
+  // the bar) would poke ~10px past the glass. Keep the pill BELOW the bar
+  // (never overlapping it) but narrower, shorter, snug (4px) under the bar,
+  // and nudged 7px inward toward the center — that lands its outer corner
+  // ~8px inside the circle on both sides.
   const inwardSign = side === 'L' ? 1 : -1
-  const numPillCX = extend ? textCX + inwardSign * 7 : textCX
-  const numPillCY = extend ? barY + barH + 16 : barY + barH + 25
-  const numPillW = extend ? 66 : barW + 12
-  const numPillH = extend ? 24 : PILL_H
+  const numPillCX = textCX + inwardSign * 7
+  const numPillCY = barY + barH + 16
+  const numPillW = 66
+  const numPillH = 24
 
   return (
     <button
@@ -1193,7 +1179,7 @@ function ChtGauge({
         cursor: 'pointer',
         border: 0,
         padding: 0,
-        background: extend ? 'transparent' : background
+        background: 'transparent'
       }}
     >
       <svg
@@ -1231,37 +1217,33 @@ function ChtGauge({
             />
           )
         })}
-        {extend && (
-          <GaugePill
-            data-testid={`projection-cht-pill-${side}`}
-            cx={numPillCX}
-            cy={numPillCY}
-            width={numPillW}
-            height={numPillH}
-          />
-        )}
+        <GaugePill
+          data-testid={`projection-cht-pill-${side}`}
+          cx={numPillCX}
+          cy={numPillCY}
+          width={numPillW}
+          height={numPillH}
+        />
         <text
-          x={extend ? numPillCX : textCX}
-          y={numPillCY + (extend ? 8 : 10)}
+          x={numPillCX}
+          y={numPillCY + 8}
           textAnchor="middle"
           fill={!hasData ? 'white' : showStale ? '#c9a227' : color}
-          fontSize={extend ? 22 : 28}
+          fontSize={22}
           fontWeight="bold"
           fontFamily="sans-serif"
           opacity={showStale ? 0.85 : 1}
-          style={extend ? { filter: SVG_TEXT_SHADOW } : undefined}
+          style={{ filter: SVG_TEXT_SHADOW }}
         >
           {hasData ? Math.round(displayValue as number) : '--'}
-          {extend && (
-            <tspan fontSize={11} fill="rgba(255,255,255,0.7)" dx={2}>
-              C
-            </tspan>
-          )}
+          <tspan fontSize={11} fill="rgba(255,255,255,0.7)" dx={2}>
+            C
+          </tspan>
         </text>
-        {showStale ? (
+        {showStale && (
           <text
-            x={extend ? numPillCX : textCX}
-            y={extend ? numPillCY + 18 : barY + barH + 54}
+            x={numPillCX}
+            y={numPillCY + 18}
             textAnchor="middle"
             fill="#ffca28"
             fontSize={12}
@@ -1277,20 +1259,6 @@ function ChtGauge({
               repeatCount="indefinite"
             />
           </text>
-        ) : (
-          !extend && (
-            <text
-              x={textCX}
-              y={barY + barH + 52}
-              textAnchor="middle"
-              fill="white"
-              fontSize={12}
-              fontWeight="bold"
-              fontFamily="sans-serif"
-            >
-              C
-            </text>
-          )
         )}
       </svg>
     </button>
@@ -1300,15 +1268,11 @@ function ChtGauge({
 function BottomArc({
   telemetry,
   settings,
-  actions,
-  background,
-  extend
+  actions
 }: {
   telemetry: MotoTelemetry
   settings: MotoSettings | null
   actions: MotoActions
-  background: string
-  extend: boolean
 }) {
   const clipId = useSvgId('bottom-arc')
   const w = MOTO_CENTER_SQUARE_SIZE
@@ -1344,12 +1308,11 @@ function BottomArc({
     len: Math.abs(p) % 10 === 0 ? 120 : 70,
     label: Math.abs(p) % 10 === 0 ? Math.abs(p) : null
   }))
-  // Extend mode: every readout is a uniform capsule on shared baselines.
-  // ALT (left) and G (right) mirror each other on the same top row; lean sits
-  // in a matching capsule centered under the horizon. Same height + radius.
-  // Extend mode: readouts are uniform two-line capsules (label+unit line over a
-  // big value) placed in the widest part of the bottom band so nothing is
-  // clipped by the round display. ALT (left) and G (right) mirror exactly.
+  // Every readout is a uniform two-line capsule (label+unit line over a big
+  // value) on shared baselines, placed in the widest part of the bottom band
+  // so nothing is clipped by the round display. ALT (left) and G (right)
+  // mirror each other on the same top row; lean sits in a matching capsule
+  // centered under the horizon. Same height + radius.
   const rowCY = 30 // vertical center of the ALT / G row
   const rowH = 54 // capsule height
   const rowW = 128 // capsule width
@@ -1363,14 +1326,14 @@ function BottomArc({
 
   return (
     <div
-      style={{ width: '100%', height: '100%', background: extend ? 'transparent' : background }}
+      style={{ width: '100%', height: '100%', background: 'transparent' }}
       data-testid="projection-bottom-arc"
     >
       <svg
         viewBox={`0 0 ${w} ${h}`}
         width="100%"
         height="100%"
-        style={{ display: 'block', filter: extend ? SVG_TEXT_SHADOW : undefined }}
+        style={{ display: 'block', filter: SVG_TEXT_SHADOW }}
         preserveAspectRatio="xMidYMid slice"
       >
         <defs>
@@ -1381,13 +1344,7 @@ function BottomArc({
         <g clipPath={`url(#${clipId})`}>
           <g transform={rot}>
             <rect x={-w} y={-3 * h} width={3 * w} height={3 * h + horizonY} fill="transparent" />
-            <rect
-              x={-w}
-              y={horizonY}
-              width={3 * w}
-              height={3 * h}
-              fill={extend ? 'rgba(92,52,18,0.55)' : '#5c3412'}
-            />
+            <rect x={-w} y={horizonY} width={3 * w} height={3 * h} fill="rgba(92,52,18,0.55)" />
             <line
               x1={-w}
               y1={horizonY}
@@ -1474,17 +1431,13 @@ function BottomArc({
           strokeWidth={3.5}
           strokeLinecap="round"
         />
-        {extend ? (
-          <GaugePill cx={cx} cy={18} width={64} height={26} />
-        ) : (
-          <rect x={cx - 27} y={34} width={54} height={24} fill="rgba(0,0,0,0.88)" rx={8} />
-        )}
+        <GaugePill cx={cx} cy={18} width={64} height={26} />
         <text
           x={cx}
-          y={extend ? 23 : 52}
+          y={23}
           textAnchor="middle"
           fill={telemetry.pitchDeg != null ? ref : 'white'}
-          fontSize={extend ? 16 : 18}
+          fontSize={16}
           fontWeight="bold"
           fontFamily="monospace"
         >
@@ -1494,129 +1447,57 @@ function BottomArc({
               : `${pitchDir}${absPitch}\u00b0`
             : '--'}
         </text>
-        {!extend && <rect x={0} y={60} width={w} height={h - 60} fill="rgba(0,0,0,0.25)" />}
 
         <g>
-          {extend ? (
-            <>
-              <GaugePill cx={altCX} cy={rowCY} width={rowW} height={rowH} />
-              <text
-                x={altCX}
-                y={rowCY - 11}
-                textAnchor="middle"
-                fill="rgba(255,255,255,0.75)"
-                fontSize={14}
-                fontWeight="bold"
-                fontFamily="monospace"
-                letterSpacing={2}
-              >
-                ALT
-              </text>
-              <text
-                x={altCX}
-                y={rowCY + 16}
-                textAnchor="middle"
-                fill={altValue != null ? '#f0f0f0' : 'white'}
-                fontSize={24}
-                fontWeight="bold"
-                fontFamily="monospace"
-              >
-                {altFt}
-                <tspan fontSize={14} fill="rgba(255,255,255,0.7)" dx={4}>
-                  FT
-                </tspan>
-                {gpsStale && (
-                  <animate
-                    attributeName="opacity"
-                    values="1;0.25;1"
-                    dur="2.4s"
-                    repeatCount="indefinite"
-                  />
-                )}
-              </text>
-            </>
-          ) : (
-            <>
-              <rect x={110} y={5} width={88} height={53} fill="rgba(0,0,0,0.72)" rx={5} />
-              <text
-                x={154}
-                y={20}
-                textAnchor="middle"
-                fill="rgba(255,255,255,0.7)"
-                fontSize={12}
-                fontWeight="bold"
-                fontFamily="monospace"
-                letterSpacing={2}
-              >
-                ALT
-              </text>
-              <text
-                x={154}
-                y={43}
-                textAnchor="middle"
-                fill={altValue != null ? '#e0e0e0' : 'white'}
-                fontSize={22}
-                fontWeight="bold"
-                fontFamily="monospace"
-              >
-                {altFt}
-                {gpsStale && (
-                  <animate
-                    attributeName="opacity"
-                    values="1;0.25;1"
-                    dur="2.4s"
-                    repeatCount="indefinite"
-                  />
-                )}
-              </text>
-              <text
-                x={154}
-                y={54}
-                textAnchor="middle"
-                fill="rgba(255,255,255,0.7)"
-                fontSize={11}
-                fontWeight="bold"
-                fontFamily="sans-serif"
-              >
-                ft
-              </text>
-            </>
-          )}
+          <GaugePill cx={altCX} cy={rowCY} width={rowW} height={rowH} />
+          <text
+            x={altCX}
+            y={rowCY - 11}
+            textAnchor="middle"
+            fill="rgba(255,255,255,0.75)"
+            fontSize={14}
+            fontWeight="bold"
+            fontFamily="monospace"
+            letterSpacing={2}
+          >
+            ALT
+          </text>
+          <text
+            x={altCX}
+            y={rowCY + 16}
+            textAnchor="middle"
+            fill={altValue != null ? '#f0f0f0' : 'white'}
+            fontSize={24}
+            fontWeight="bold"
+            fontFamily="monospace"
+          >
+            {altFt}
+            <tspan fontSize={14} fill="rgba(255,255,255,0.7)" dx={4}>
+              FT
+            </tspan>
+            {gpsStale && (
+              <animate
+                attributeName="opacity"
+                values="1;0.25;1"
+                dur="2.4s"
+                repeatCount="indefinite"
+              />
+            )}
+          </text>
         </g>
 
         <g>
-          {extend ? (
-            <GaugePill cx={cx} cy={leanCY} width={leanW} height={34} />
-          ) : (
-            <rect
-              x={cx - 40}
-              y={68}
-              width={80}
-              height={32}
-              fill="rgba(0,0,0,0.88)"
-              stroke="rgba(255,255,255,0.07)"
-              strokeWidth={0.75}
-              rx={12}
-            />
-          )}
-          <text
-            x={cx}
-            y={extend ? leanCY + 7 : 90}
-            textAnchor="middle"
-            fill="white"
-            fontSize={extend ? 21 : 21}
-            fontWeight="bold"
-            fontFamily="sans-serif"
-          >
-            {hasLean ? (absLean > 0 ? `${absLean}\u00b0 ${side}` : `0\u00b0`) : '--'}
-          </text>
-          {telemetry.imuRecalibrating && (
+          <GaugePill cx={cx} cy={leanCY} width={leanW} height={34} />
+          {telemetry.imuRecalibrating ? (
+            // The lean value is unreliable while the IMU recalibrates, so the
+            // pill itself carries the state \u2014 larger and well inside the glass
+            // instead of an 11px caption 7px from the bottom edge.
             <text
               x={cx}
-              y={extend ? leanCY + 24 : 112}
+              y={leanCY + 5}
               textAnchor="middle"
               fill="#ffca28"
-              fontSize={11}
+              fontSize={13}
               fontWeight="bold"
               fontFamily="monospace"
               letterSpacing={1}
@@ -1629,97 +1510,50 @@ function BottomArc({
                 repeatCount="indefinite"
               />
             </text>
+          ) : (
+            <text
+              x={cx}
+              y={leanCY + 7}
+              textAnchor="middle"
+              fill="white"
+              fontSize={21}
+              fontWeight="bold"
+              fontFamily="sans-serif"
+            >
+              {hasLean ? (absLean > 0 ? `${absLean}\u00b0 ${side}` : `0\u00b0`) : '--'}
+            </text>
           )}
         </g>
 
         <g>
-          {extend ? (
-            <>
-              <GaugePill cx={gCX} cy={rowCY} width={rowW} height={rowH} />
-              <text
-                x={gCX}
-                y={rowCY - 11}
-                textAnchor="middle"
-                fontSize={14}
-                fontWeight="bold"
-                fontFamily="monospace"
-                letterSpacing={2}
-              >
-                <tspan fill="rgba(255,255,255,0.75)">G</tspan>
-                {hasG && telemetry.imuPeak.g > 0.05 && (
-                  <tspan fill="rgba(255,170,0,0.92)" dx={8} letterSpacing={0}>
-                    {`\u25b2${telemetry.imuPeak.g.toFixed(1)}`}
-                  </tspan>
-                )}
-              </text>
-              <text
-                x={gCX}
-                y={rowCY + 16}
-                textAnchor="middle"
-                fill={hasG ? gTextColor : 'white'}
-                fontSize={24}
-                fontWeight="bold"
-                fontFamily="monospace"
-              >
-                {hasG ? gVal.toFixed(1) : '--'}
-              </text>
-            </>
-          ) : (
-            <>
-              <text
-                x={428}
-                y={11}
-                textAnchor="middle"
-                fill="rgba(255,255,255,0.75)"
-                fontSize={12}
-                fontWeight="bold"
-                fontFamily="monospace"
-                letterSpacing={2}
-              >
-                G
-              </text>
-              <rect x={398} y={14} width={60} height={34} fill="rgba(0,0,0,0.72)" rx={5} />
-              <text
-                x={428}
-                y={40}
-                textAnchor="middle"
-                fill={hasG ? gTextColor : 'white'}
-                fontSize={30}
-                fontWeight="bold"
-                fontFamily="monospace"
-              >
-                {hasG ? gVal.toFixed(1) : '--'}
-              </text>
-              {hasG && telemetry.imuPeak.g > 0.05 && (
-                <g>
-                  <text
-                    x={488}
-                    y={11}
-                    textAnchor="middle"
-                    fill="rgba(255,170,0,0.85)"
-                    fontSize={11}
-                    fontWeight="bold"
-                    fontFamily="monospace"
-                    letterSpacing={1}
-                  >
-                    MAX
-                  </text>
-                  <rect x={464} y={14} width={48} height={23} fill="rgba(0,0,0,0.65)" rx={5} />
-                  <text
-                    x={488}
-                    y={30}
-                    textAnchor="middle"
-                    fill="rgba(255,170,0,0.92)"
-                    fontSize={18}
-                    fontWeight="bold"
-                    fontFamily="monospace"
-                  >
-                    {telemetry.imuPeak.g.toFixed(1)}
-                  </text>
-                </g>
-              )}
-            </>
-          )}
+          <GaugePill cx={gCX} cy={rowCY} width={rowW} height={rowH} />
+          <text
+            x={gCX}
+            y={rowCY - 11}
+            textAnchor="middle"
+            fontSize={14}
+            fontWeight="bold"
+            fontFamily="monospace"
+            letterSpacing={2}
+          >
+            <tspan fill="rgba(255,255,255,0.75)">G</tspan>
+            {hasG && telemetry.imuPeak.g > 0.05 && (
+              <tspan fill="rgba(255,170,0,0.92)" dx={8} letterSpacing={0}>
+                {`\u25b2${telemetry.imuPeak.g.toFixed(1)}`}
+              </tspan>
+            )}
+          </text>
+          <text
+            x={gCX}
+            y={rowCY + 16}
+            textAnchor="middle"
+            fill={hasG ? gTextColor : 'white'}
+            fontSize={24}
+            fontWeight="bold"
+            fontFamily="monospace"
+          >
+            {hasG ? gVal.toFixed(1) : '--'}
+          </text>
         </g>
 
         <rect
@@ -3482,24 +3316,9 @@ const graphSettingsBtn: React.CSSProperties = {
 
 export function ProjectionSensorOverlay() {
   const settings = useLiviStore((s) => s.settings)
-  const backdropSampleColor = useLiviStore((s) => s.backdropSampleColor)
   const { pathname } = useLocation()
   const motoSettings = settings as MotoSettings | null
   const { telemetry, activeGraph, dataRef, actions } = useMotoTelemetry(motoSettings)
-  const blurBackdropActive =
-    motoSettings?.backdropEnabled === true && motoSettings.backdropMode === 'blur'
-  // With "Extend CarPlay Background" on, the margin outside the safe square is
-  // live CarPlay wallpaper — the arcs/strips must be transparent (like the blur
-  // backdrop case) so the gauges float over it instead of hiding it behind an
-  // opaque fill rectangle.
-  const extendBackground = motoSettings?.projectionSafeAreaDrawOutside === true
-  const arcBackground = motoSettings
-    ? blurBackdropActive || extendBackground
-      ? 'transparent'
-      : ((motoSettings.backdropEnabled === true
-          ? (backdropSampleColor ?? motoFillHex(motoSettings))
-          : motoFillHex(motoSettings)) ?? 'transparent')
-    : 'transparent'
 
   React.useEffect(() => {
     if (pathname !== '/') actions.closeMetric()
@@ -3526,12 +3345,7 @@ export function ProjectionSensorOverlay() {
           pointerEvents: 'auto'
         }}
       >
-        <TopArc
-          telemetry={telemetry}
-          actions={actions}
-          background={arcBackground}
-          extend={extendBackground}
-        />
+        <TopArc telemetry={telemetry} actions={actions} />
       </div>
       <div
         style={{
@@ -3544,13 +3358,7 @@ export function ProjectionSensorOverlay() {
           pointerEvents: 'auto'
         }}
       >
-        <BottomArc
-          telemetry={telemetry}
-          settings={motoSettings}
-          actions={actions}
-          background={arcBackground}
-          extend={extendBackground}
-        />
+        <BottomArc telemetry={telemetry} settings={motoSettings} actions={actions} />
       </div>
       <div
         style={{
@@ -3569,8 +3377,6 @@ export function ProjectionSensorOverlay() {
           lastValue={telemetry.chtLeftLastC}
           responding={telemetry.chtLeftResponding}
           actions={actions}
-          background={arcBackground}
-          extend={extendBackground}
         />
       </div>
       <div
@@ -3590,8 +3396,6 @@ export function ProjectionSensorOverlay() {
           lastValue={telemetry.chtRightLastC}
           responding={telemetry.chtRightResponding}
           actions={actions}
-          background={arcBackground}
-          extend={extendBackground}
         />
       </div>
 

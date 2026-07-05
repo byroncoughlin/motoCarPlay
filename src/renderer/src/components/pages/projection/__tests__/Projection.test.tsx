@@ -935,6 +935,26 @@ describe('Projection page', () => {
     liviState.settings = undefined
   })
 
+  test('gauge pills render in every background mode, not just extend', () => {
+    // Solid-color mode (no draw-outside): the readouts still sit in their
+    // capsules and the strips stay transparent — the mode's color comes from
+    // the view-area bars underneath, not from the arcs themselves.
+    liviState.settings = {
+      ambientFillEnabled: true,
+      ambientFillColor: '#20364a',
+      projectionSafeAreaDrawOutside: false
+    }
+
+    render(<Projection {...baseProps({ receivingVideo: true })} />)
+
+    expect(screen.getByTestId('projection-top-arc')).toHaveStyle({ background: 'transparent' })
+    expect(screen.getByTestId('projection-bottom-arc')).toHaveStyle({ background: 'transparent' })
+    expect(screen.getByTestId('projection-cht-pill-L')).toBeInTheDocument()
+    expect(screen.getByTestId('projection-cht-pill-R')).toBeInTheDocument()
+
+    liviState.settings = undefined
+  })
+
   test('extend-background mode shows the G pill with its unit and a held MAX peak', () => {
     liviState.settings = {
       projectionSafeAreaDrawOutside: true

@@ -72,7 +72,9 @@ export const DEFAULT_CONFIG: Config = {
   backdropMode: 'color',
   ambientFillEnabled: false,
   ambientFillColor: '#142321',
-  roundedCornerMaskEnabled: false,
+  // Rounded corners default on and stay on across background-mode changes;
+  // only the explicit "Round Corners" checkbox turns them off.
+  roundedCornerMaskEnabled: true,
   leanOffset: 0,
   pitchOffset: 0,
   reverseTilt: true,

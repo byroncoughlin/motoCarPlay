@@ -23,7 +23,11 @@ function effectiveMode(cfg: Partial<Config> | undefined): BgMode {
 
 /** The field combination that expresses a given mode. Modes are mutually
  *  exclusive: exactly one of the four is active, so every branch sets every
- *  linked field explicitly (including projectionSafeAreaDrawOutside). */
+ *  linked field explicitly (including projectionSafeAreaDrawOutside).
+ *  roundedCornerMaskEnabled stays true in EVERY mode: switching backgrounds
+ *  must never silently turn the rounded corners off. Where rounding does not
+ *  apply (extend has no window boundary; blur rounds natively in the gst
+ *  pipeline) the render layer skips it — the setting itself is not touched. */
 function fieldsForMode(mode: BgMode, fillColor: string): Partial<Config> {
   switch (mode) {
     case 'solid':
@@ -32,7 +36,7 @@ function fieldsForMode(mode: BgMode, fillColor: string): Partial<Config> {
         backdropEnabled: false,
         ambientFillEnabled: true,
         ambientFillColor: fillColor,
-        roundedCornerMaskEnabled: false
+        roundedCornerMaskEnabled: true
       }
     case 'average':
       return {
@@ -52,12 +56,12 @@ function fieldsForMode(mode: BgMode, fillColor: string): Partial<Config> {
       }
     case 'extend':
       // CarPlay draws its wallpaper across the whole round display; no fill or
-      // backdrop is needed and the corner mask would clip the extended video.
+      // backdrop is needed.
       return {
         projectionSafeAreaDrawOutside: true,
         backdropEnabled: false,
         ambientFillEnabled: false,
-        roundedCornerMaskEnabled: false
+        roundedCornerMaskEnabled: true
       }
   }
 }
