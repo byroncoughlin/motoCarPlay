@@ -80,6 +80,7 @@ export const DEFAULT_CONFIG: Config = {
   reverseTilt: true,
   reversePitch: false,
   diagnosticMode: false,
+  chtReadoutInBar: true,
   startPage: 'home',
   language: 'en',
   kiosk: { main: true, dash: false, aux: false },

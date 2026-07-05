@@ -210,6 +210,10 @@ export type Config = {
   /** When true, LIVI persists graph history + sensor diagnostics + raw telemetry
    *  to ~/.config/LIVI/diagnostics/ (size-capped). Off = zero logging overhead. */
   diagnosticMode?: boolean
+  /** CHT readout placement on the side gauges: true (default) embeds the
+   *  number in a darkened base segment of the thermometer bar; false renders
+   *  a centered pill below a slightly shorter bar. */
+  chtReadoutInBar?: boolean
 
   // Camera + dashboards + media slots
   cameraId: string

@@ -43,6 +43,13 @@ const advancedSchema: SettingsNode<Config> = {
       label: 'Round Corners',
       path: 'roundedCornerMaskEnabled'
     },
+    // CHT readout placement: on = number embedded in the thermometer's
+    // darkened base (default), off = centered pill below a shorter bar.
+    {
+      type: 'checkbox',
+      label: 'CHT Readout In Gauge',
+      path: 'chtReadoutInBar'
+    },
     {
       type: 'route',
       label: 'Settings Menu Colors',

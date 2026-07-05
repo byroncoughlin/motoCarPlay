@@ -93,7 +93,12 @@ type MotoActions = {
 
 type MotoSettings = Pick<
   Config,
-  'leanOffset' | 'pitchOffset' | 'reverseTilt' | 'reversePitch' | 'diagnosticMode'
+  | 'leanOffset'
+  | 'pitchOffset'
+  | 'reverseTilt'
+  | 'reversePitch'
+  | 'diagnosticMode'
+  | 'chtReadoutInBar'
 >
 
 type MetricZone = {
@@ -1235,18 +1240,27 @@ function ChtGaugeImpl({
   value,
   lastValue,
   responding,
+  readoutInBar = true,
   actions
 }: {
   side: 'L' | 'R'
   value: number | null
   lastValue?: number | null
   responding?: boolean
+  readoutInBar?: boolean
   actions: MotoActions
 }) {
   const maxTemp = 200
   const barW = 72
   const vw = MOTO_ARC_STRIP_SIZE
-  const barH = 268
+  // Two readout placements (Advanced > "CHT Readout In Gauge"):
+  // - in-bar (default): full-length bar with the number embedded in a
+  //   darkened base segment — always centered, always over a dark chip so it
+  //   reads on all four zone colors.
+  // - below-bar: bar shortened 22px so a centered pill fits higher up
+  //   (screen y≈532) where the glass is wide enough for 8px+ clearance;
+  //   the old full-length layout could only fit an OFF-center pill.
+  const barH = readoutInBar ? 268 : 246
   const barY = 159
   const vh = MOTO_CENTER_SQUARE_SIZE
   const metricKey = side === 'L' ? 'chtLeft' : 'chtRight'
@@ -1264,18 +1278,18 @@ function ChtGaugeImpl({
   const barInset = 29
   const barX = side === 'L' ? barInset : vw - barW - barInset
   const textCX = barX + barW / 2
-  // Transparent strip; only the temperature number sits in a pill below the
-  // thermometer bar. The round screen curves inward low on the left/right
-  // strips, so a below-bar pill at full bar width (screen y~559, centered on
-  // the bar) would poke ~10px past the glass. Keep the pill BELOW the bar
-  // (never overlapping it) but narrower, shorter, snug (4px) under the bar,
-  // and nudged 7px inward toward the center — that lands its outer corner
-  // ~8px inside the circle on both sides.
-  const inwardSign = side === 'L' ? 1 : -1
-  const numPillCX = textCX + inwardSign * 7
-  const numPillCY = barY + barH + 16
+  // Below-bar pill (readoutInBar=false): perfectly centered under the bar.
+  // With the shortened bar it sits at strip y≈425 (screen ≈532) where a
+  // 66x28 capsule keeps ~8.2px clearance from the glass — verified with the
+  // capsule arc-center model. 26px is the largest numeral that fits "100°"
+  // in the 66px pill.
+  const numPillCX = textCX
+  const numPillCY = barY + barH + 20
   const numPillW = 66
-  const numPillH = 26
+  const numPillH = 28
+  // In-bar chip (readoutInBar=true): darkened base segment of the bar.
+  const chipH = 46
+  const chipY = barY + barH - chipH
 
   return (
     <button
@@ -1332,32 +1346,63 @@ function ChtGaugeImpl({
             />
           )
         })}
-        <GaugePill
-          data-testid={`projection-cht-pill-${side}`}
-          cx={numPillCX}
-          cy={numPillCY}
-          width={numPillW}
-          height={numPillH}
-        />
-        <text
-          x={numPillCX}
-          y={numPillCY + 8}
-          textAnchor="middle"
-          fill={!hasData ? 'white' : showStale ? '#c9a227' : color}
-          fontSize={24}
-          fontWeight="bold"
-          opacity={showStale ? 0.85 : 1}
-          style={{ filter: SVG_TEXT_SHADOW }}
-        >
-          {hasData ? `${Math.round(displayValue as number)}°` : '--'}
-        </text>
+        {readoutInBar ? (
+          <>
+            {/* Darkened base segment of the thermometer carries the number —
+                white on ~45% black stays readable over all four zone colors
+                and over the empty (dark) bar. */}
+            <rect
+              data-testid={`projection-cht-pill-${side}`}
+              x={barX}
+              y={chipY}
+              width={barW}
+              height={chipH}
+              rx={6}
+              fill="rgba(0,0,0,0.45)"
+            />
+            <text
+              x={textCX}
+              y={chipY + 31}
+              textAnchor="middle"
+              fill="white"
+              fontSize={28}
+              fontWeight="bold"
+              opacity={showStale ? 0.7 : 1}
+              style={{ filter: SVG_TEXT_SHADOW, fontVariantNumeric: 'tabular-nums' }}
+            >
+              {hasData ? `${Math.round(displayValue as number)}°` : '--'}
+            </text>
+          </>
+        ) : (
+          <>
+            <GaugePill
+              data-testid={`projection-cht-pill-${side}`}
+              cx={numPillCX}
+              cy={numPillCY}
+              width={numPillW}
+              height={numPillH}
+            />
+            <text
+              x={numPillCX}
+              y={numPillCY + 9}
+              textAnchor="middle"
+              fill={!hasData ? 'white' : showStale ? '#c9a227' : color}
+              fontSize={26}
+              fontWeight="bold"
+              opacity={showStale ? 0.85 : 1}
+              style={{ filter: SVG_TEXT_SHADOW, fontVariantNumeric: 'tabular-nums' }}
+            >
+              {hasData ? `${Math.round(displayValue as number)}°` : '--'}
+            </text>
+          </>
+        )}
         {showStale && (
           <text
-            x={numPillCX}
-            y={numPillCY + 18}
+            x={textCX}
+            y={barY + barH + (readoutInBar ? 20 : 40)}
             textAnchor="middle"
             fill="#ffca28"
-            fontSize={12}
+            fontSize={13}
             fontWeight="bold"
             letterSpacing={0.5}
           >
@@ -3430,6 +3475,7 @@ export function ProjectionSensorOverlay() {
           value={telemetry.chtLeftC}
           lastValue={telemetry.chtLeftLastC}
           responding={telemetry.chtLeftResponding}
+          readoutInBar={motoSettings?.chtReadoutInBar !== false}
           actions={actions}
         />
       </div>
@@ -3449,6 +3495,7 @@ export function ProjectionSensorOverlay() {
           value={telemetry.chtRightC}
           lastValue={telemetry.chtRightLastC}
           responding={telemetry.chtRightResponding}
+          readoutInBar={motoSettings?.chtReadoutInBar !== false}
           actions={actions}
         />
       </div>

@@ -113,6 +113,7 @@ describe('settings schemas', () => {
     expect(advanced.children.map((child: any) => child.label)).toEqual([
       'Settings Color Mode',
       'Round Corners',
+      'CHT Readout In Gauge',
       'Settings Menu Colors',
       'Wi-Fi Frequency',
       'Auto Connect',
