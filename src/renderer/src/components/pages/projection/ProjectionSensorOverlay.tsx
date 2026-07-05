@@ -3,7 +3,11 @@ import type { Config, TelemetryPayload } from '@shared/types'
 import { useLiviStore } from '@store/store'
 import * as React from 'react'
 import { useLocation, useNavigate } from 'react-router'
-import { MOTO_CLEAR_GRAPH_HISTORY_EVENT } from './motoGraphEvents'
+import {
+  MOTO_CLEAR_GRAPH_HISTORY_EVENT,
+  MOTO_CLOSE_METRIC_EVENT,
+  MOTO_OPEN_METRIC_EVENT
+} from './motoGraphEvents'
 import {
   MOTO_ARC_PCT,
   MOTO_ARC_STRIP_SIZE,
@@ -749,8 +753,21 @@ function useMotoTelemetry(settings: MotoSettings | null): {
       lastSampleRef.current = {}
       setHistoryRevision((v) => v + 1)
     }
+    // Site-demo remote control: lets the project page's scroll steps open
+    // and close real graphs. Inert in the app — nothing dispatches these.
+    const openMetricEvt = (e: Event) => {
+      const key = (e as CustomEvent).detail as MetricKey | undefined
+      if (key && key in METRIC_CONFIG) setActiveGraph(key)
+    }
+    const closeMetricEvt = () => setActiveGraph(null)
     window.addEventListener(MOTO_CLEAR_GRAPH_HISTORY_EVENT, clearAll)
-    return () => window.removeEventListener(MOTO_CLEAR_GRAPH_HISTORY_EVENT, clearAll)
+    window.addEventListener(MOTO_OPEN_METRIC_EVENT, openMetricEvt)
+    window.addEventListener(MOTO_CLOSE_METRIC_EVENT, closeMetricEvt)
+    return () => {
+      window.removeEventListener(MOTO_CLEAR_GRAPH_HISTORY_EVENT, clearAll)
+      window.removeEventListener(MOTO_OPEN_METRIC_EVENT, openMetricEvt)
+      window.removeEventListener(MOTO_CLOSE_METRIC_EVENT, closeMetricEvt)
+    }
   }, [])
 
   // Diagnostic Mode: persist a snapshot (graph history + sensor diagnostics +
@@ -2778,7 +2795,7 @@ function MetricGraph({
           style={headerBtnWrap}
           title={'tap to close \u00b7 hold to quit app'}
         >
-          <span style={closeBtn}>{'\u2715'}</span>
+          <span style={closeBtn}>{'\u00d7'}</span>
         </button>
       </div>
 
@@ -3411,8 +3428,8 @@ const closeBtn: React.CSSProperties = {
   borderRadius: '50%',
   width: 56,
   height: 56,
-  fontSize: 22,
-  fontWeight: 700,
+  fontSize: 30,
+  fontWeight: 500,
   boxSizing: 'border-box',
   display: 'inline-flex',
   alignItems: 'center',

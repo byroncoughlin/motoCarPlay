@@ -338,7 +338,7 @@ describe('Projection page', () => {
     expect(graph.style.boxShadow).toBe('')
 
     const close = screen.getByLabelText('Close graph')
-    expect(close).toHaveTextContent('\u2715')
+    expect(close).toHaveTextContent('\u00d7')
 
     fireEvent.pointerDown(close)
     fireEvent.pointerUp(close)
