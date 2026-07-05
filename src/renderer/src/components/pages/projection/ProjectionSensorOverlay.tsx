@@ -563,10 +563,14 @@ function useMotoTelemetry(settings: MotoSettings | null): {
   activeGraph: MetricKey | null
   dataRef: React.MutableRefObject<Record<MetricKey, DataPoint[]>>
   actions: MotoActions
+  historyRevision: number
 } {
   const [telemetry, setTelemetry] = React.useState<MotoTelemetry>(() => initialTelemetry())
   const [activeGraph, setActiveGraph] = React.useState<MetricKey | null>(null)
-  const [, setHistoryRevision] = React.useState(0)
+  // Bumped whenever graph history is cleared. Also passed down to the
+  // memoized GraphPane so a clear redraws it immediately instead of waiting
+  // for the next 1 Hz nowMs tick (dataRef mutations are invisible to memo).
+  const [historyRevision, setHistoryRevision] = React.useState(0)
   const dataRef = React.useRef<Record<MetricKey, DataPoint[]>>(emptyLog())
   const lastSampleRef = React.useRef<Partial<Record<MetricKey, number>>>({})
   const settingsRef = React.useRef(settings)
@@ -803,24 +807,43 @@ function useMotoTelemetry(settings: MotoSettings | null): {
           next.gpsResponding = gpsLive
         }
 
-        if (next.leanDeg != null) {
+        // Peaks: only look at freshly-arrived patch values, and only allocate a
+        // new peak object when a peak actually increases. Unconditional spreads
+        // here gave imuPeak/chtPeak a new identity on every payload, which made
+        // changed() below always report a change and re-rendered the whole
+        // overlay at raw sensor tick rate.
+        if (patch.leanDeg !== undefined && next.leanDeg != null) {
           const leanOffset = settingsRef.current?.leanOffset ?? 0
           const lean = next.leanDeg - leanOffset
-          next.imuPeak = {
-            ...next.imuPeak,
-            leanR: Math.max(next.imuPeak.leanR, lean),
-            leanL: Math.max(next.imuPeak.leanL, -lean)
+          if (lean > next.imuPeak.leanR || -lean > next.imuPeak.leanL) {
+            next.imuPeak = {
+              ...next.imuPeak,
+              leanR: Math.max(next.imuPeak.leanR, lean),
+              leanL: Math.max(next.imuPeak.leanL, -lean)
+            }
           }
         }
-        if (next.gForceX != null && next.gForceY != null) {
+        if (
+          (patch.gForceX !== undefined || patch.gForceY !== undefined) &&
+          next.gForceX != null &&
+          next.gForceY != null
+        ) {
           const g = Math.sqrt(next.gForceX ** 2 + next.gForceY ** 2)
-          next.imuPeak = { ...next.imuPeak, g: Math.max(next.imuPeak.g, g) }
+          if (g > next.imuPeak.g) next.imuPeak = { ...next.imuPeak, g }
         }
-        if (next.chtLeftC != null) {
-          next.chtPeak = { ...next.chtPeak, left: Math.max(next.chtPeak.left, next.chtLeftC) }
+        if (
+          patch.chtLeftC !== undefined &&
+          next.chtLeftC != null &&
+          next.chtLeftC > next.chtPeak.left
+        ) {
+          next.chtPeak = { ...next.chtPeak, left: next.chtLeftC }
         }
-        if (next.chtRightC != null) {
-          next.chtPeak = { ...next.chtPeak, right: Math.max(next.chtPeak.right, next.chtRightC) }
+        if (
+          patch.chtRightC !== undefined &&
+          next.chtRightC != null &&
+          next.chtRightC > next.chtPeak.right
+        ) {
+          next.chtPeak = { ...next.chtPeak, right: next.chtRightC }
         }
 
         logFromState(next, patch, now)
@@ -899,7 +922,7 @@ function useMotoTelemetry(settings: MotoSettings | null): {
     []
   )
 
-  return { telemetry, activeGraph, dataRef, actions }
+  return { telemetry, activeGraph, dataRef, actions, historyRevision }
 }
 
 function TopArc({ telemetry, actions }: { telemetry: MotoTelemetry; actions: MotoActions }) {
@@ -929,7 +952,9 @@ function TopArc({ telemetry, actions }: { telemetry: MotoTelemetry; actions: Mot
     justifyContent: 'flex-end',
     boxSizing: 'border-box',
     cursor: 'pointer',
-    userSelect: 'none'
+    userSelect: 'none',
+    touchAction: 'manipulation',
+    WebkitTapHighlightColor: 'transparent'
   }
   // Each readout sits in its own rounded capsule (pill) so the gauge set reads
   // uniformly in every background mode. The strip itself stays transparent —
@@ -1179,7 +1204,9 @@ function ChtGauge({
         cursor: 'pointer',
         border: 0,
         padding: 0,
-        background: 'transparent'
+        background: 'transparent',
+        touchAction: 'manipulation',
+        WebkitTapHighlightColor: 'transparent'
       }}
     >
       <svg
@@ -1323,6 +1350,17 @@ function BottomArc({
   const leanW = 104
   const leanCY = 76 // raised so the centered lean pill keeps ~12px clearance
   // from the bottom of the round display (was riding ~2px from the edge)
+  const leanH = 34
+  const pitchCY = 18 // pitch chip center / height
+  const pitchH = 26
+  // Tap zones derived from the capsule geometry so moving a capsule can't
+  // orphan its hit area (they were hand-tuned pixels before, and the top of
+  // the lean pill actually landed in the pitch zone). Each boundary is the
+  // midpoint between neighboring capsules; lean gets the taller lower slice
+  // of the center column since it's the most-glanced readout.
+  const centerZoneLeft = (altCX + rowW / 2 + (cx - leanW / 2)) / 2
+  const centerZoneRight = w - centerZoneLeft
+  const pitchLeanSplit = (pitchCY + pitchH / 2 + (leanCY - leanH / 2)) / 2
 
   return (
     <div
@@ -1431,7 +1469,7 @@ function BottomArc({
           strokeWidth={3.5}
           strokeLinecap="round"
         />
-        <GaugePill cx={cx} cy={18} width={64} height={26} />
+        <GaugePill cx={cx} cy={pitchCY} width={64} height={pitchH} />
         <text
           x={cx}
           y={23}
@@ -1487,7 +1525,7 @@ function BottomArc({
         </g>
 
         <g>
-          <GaugePill cx={cx} cy={leanCY} width={leanW} height={34} />
+          <GaugePill cx={cx} cy={leanCY} width={leanW} height={leanH} />
           {telemetry.imuRecalibrating ? (
             // The lean value is unreliable while the IMU recalibrates, so the
             // pill itself carries the state \u2014 larger and well inside the glass
@@ -1559,35 +1597,35 @@ function BottomArc({
         <rect
           x={0}
           y={0}
-          width={210}
+          width={centerZoneLeft}
           height={h}
           fill="transparent"
           style={{ cursor: 'pointer' }}
           onClick={() => actions.openMetric('altitude')}
         />
         <rect
-          x={390}
+          x={centerZoneRight}
           y={0}
-          width={196}
+          width={w - centerZoneRight}
           height={h}
           fill="transparent"
           style={{ cursor: 'pointer' }}
           onClick={() => actions.openMetric('gForce')}
         />
         <rect
-          x={165}
+          x={centerZoneLeft}
           y={0}
-          width={225}
-          height={68}
+          width={centerZoneRight - centerZoneLeft}
+          height={pitchLeanSplit}
           fill="transparent"
           style={{ cursor: 'pointer' }}
           onClick={() => actions.openMetric('pitchAngle')}
         />
         <rect
-          x={165}
-          y={68}
-          width={225}
-          height={h - 68}
+          x={centerZoneLeft}
+          y={pitchLeanSplit}
+          width={centerZoneRight - centerZoneLeft}
+          height={h - pitchLeanSplit}
           fill="transparent"
           style={{ cursor: 'pointer' }}
           onClick={() => actions.openMetric('leanAngle')}
@@ -1935,6 +1973,11 @@ function RideDynamicsPanel({
   settings: MotoSettings | null
   actions: MotoActions
 }) {
+  // Hook must run before the early return below — otherwise the hook count
+  // changes when IMU data first arrives with this panel open, and React
+  // throws (rules of hooks).
+  const attitudeClip = useSvgId('ride-attitude')
+
   if (telemetry.leanDeg === null && telemetry.gForceX === null) {
     return (
       <div
@@ -1970,7 +2013,6 @@ function RideDynamicsPanel({
   const side = lean > 0.5 ? 'R' : lean < -0.5 ? 'L' : ''
   const absPitch = Math.abs(Math.round(pitch))
   const pitchDir = pitch > 0.5 ? '\u25b2' : pitch < -0.5 ? '\u25bc' : ''
-  const attitudeClip = useSvgId('ride-attitude')
 
   const stat = (label: string, value: string, color = '#fff') => (
     <div
@@ -2622,13 +2664,15 @@ function MetricGraph({
   telemetry,
   settings,
   dataRef,
-  actions
+  actions,
+  historyRevision
 }: {
   metricKey: MetricKey
   telemetry: MotoTelemetry
   settings: MotoSettings | null
   dataRef: React.MutableRefObject<Record<MetricKey, DataPoint[]>>
   actions: MotoActions
+  historyRevision: number
 }) {
   const navigate = useNavigate()
   const topPanel = GPS_KEYS.includes(metricKey)
@@ -2715,10 +2759,10 @@ function MetricGraph({
         onPointerDown={closeHoldStart}
         onPointerUp={closeHoldEnd}
         onPointerLeave={closeHoldCancel}
-        style={{ ...closeBtn, position: 'absolute', top: 10, right: 12, zIndex: 20 }}
+        style={{ ...cornerHitArea, top: -2, right: 0 }}
         title={'tap to close \u00b7 hold to quit app'}
       >
-        {'\u2715'}
+        <span style={closeBtn}>{'\u2715'}</span>
       </button>
 
       {showSettingsShortcut && (
@@ -2728,9 +2772,11 @@ function MetricGraph({
           data-testid="projection-graph-settings-button"
           onPointerDown={(event) => event.stopPropagation()}
           onClick={openSettings}
-          style={graphSettingsBtn}
+          style={{ ...cornerHitArea, top: -6, left: -4 }}
         >
-          <SettingsOutlinedIcon style={{ fontSize: 27 }} />
+          <span style={graphSettingsBtn}>
+            <SettingsOutlinedIcon style={{ fontSize: 27 }} />
+          </span>
         </button>
       )}
 
@@ -2750,6 +2796,7 @@ function MetricGraph({
           reserveLeadingAction={showSettingsShortcut && index === 0}
           dataRef={dataRef}
           actions={actions}
+          historyRevision={historyRevision}
         />
       ))}
 
@@ -2805,7 +2852,11 @@ function MetricGraph({
   )
 }
 
-function GraphPane({
+// Memoized: all props are primitives or stable refs, and the graph only needs
+// to redraw when nowMs ticks (1 Hz) — not on every telemetry commit.
+const GraphPane = React.memo(GraphPaneImpl)
+
+function GraphPaneImpl({
   metricKey,
   nowMs,
   compact,
@@ -2821,6 +2872,9 @@ function GraphPane({
   reserveLeadingAction?: boolean
   dataRef: React.MutableRefObject<Record<MetricKey, DataPoint[]>>
   actions: MotoActions
+  // Not read directly — included so React.memo re-renders the pane the
+  // instant graph history is cleared (the data lives in a mutable ref).
+  historyRevision: number
 }) {
   const cfg = METRIC_CONFIG[metricKey]
   const data = dataRef.current[metricKey]
@@ -3277,6 +3331,25 @@ const actionBtn = (bg: string, fg: string, compact = false): React.CSSProperties
   justifyContent: 'center'
 })
 
+// Invisible 80x80 tap zone (~8.6mm at this display's ~235 DPI — glove-friendly)
+// wrapped around a smaller visible face, Apple-style: the hit area grows, the
+// artwork doesn't. Offsets at the call sites keep each face where it was.
+const cornerHitArea: React.CSSProperties = {
+  position: 'absolute',
+  zIndex: 20,
+  width: 80,
+  height: 80,
+  background: 'transparent',
+  border: 0,
+  padding: 0,
+  cursor: 'pointer',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  touchAction: 'manipulation',
+  WebkitTapHighlightColor: 'transparent'
+}
+
 const closeBtn: React.CSSProperties = {
   background: 'rgba(255,255,255,0.07)',
   border: '2px solid rgba(255,255,255,0.22)',
@@ -3286,7 +3359,7 @@ const closeBtn: React.CSSProperties = {
   height: 56,
   fontSize: 22,
   fontWeight: 700,
-  cursor: 'pointer',
+  boxSizing: 'border-box',
   display: 'inline-flex',
   alignItems: 'center',
   justifyContent: 'center',
@@ -3295,30 +3368,25 @@ const closeBtn: React.CSSProperties = {
 }
 
 const graphSettingsBtn: React.CSSProperties = {
-  position: 'absolute',
-  top: 10,
-  left: 12,
-  zIndex: 20,
   width: 48,
   height: 48,
   borderRadius: 12,
   border: '2px solid rgba(255,255,255,0.22)',
   background: 'rgba(255,255,255,0.07)',
   color: 'white',
+  boxSizing: 'border-box',
   display: 'inline-flex',
   alignItems: 'center',
   justifyContent: 'center',
-  padding: 0,
-  cursor: 'pointer',
-  touchAction: 'manipulation',
-  WebkitTapHighlightColor: 'transparent'
+  padding: 0
 }
 
 export function ProjectionSensorOverlay() {
   const settings = useLiviStore((s) => s.settings)
   const { pathname } = useLocation()
   const motoSettings = settings as MotoSettings | null
-  const { telemetry, activeGraph, dataRef, actions } = useMotoTelemetry(motoSettings)
+  const { telemetry, activeGraph, dataRef, actions, historyRevision } =
+    useMotoTelemetry(motoSettings)
 
   React.useEffect(() => {
     if (pathname !== '/') actions.closeMetric()
@@ -3406,6 +3474,7 @@ export function ProjectionSensorOverlay() {
           settings={motoSettings}
           dataRef={dataRef}
           actions={actions}
+          historyRevision={historyRevision}
         />
       )}
     </div>
