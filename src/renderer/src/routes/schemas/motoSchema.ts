@@ -36,6 +36,13 @@ const advancedSchema: SettingsNode<Config> = {
       labelKey: 'settings.settingsColorMode',
       path: 'darkMode'
     },
+    // Rarely touched (rounded corners are always kept on by the background
+    // modes); lives here instead of the main Background section.
+    {
+      type: 'checkbox',
+      label: 'Round Corners',
+      path: 'roundedCornerMaskEnabled'
+    },
     {
       type: 'route',
       label: 'Settings Menu Colors',
@@ -205,13 +212,6 @@ export const motoSettingsSchema: SettingsNode<Config> = {
       sectionKey: 'settings.sectionBackground',
       path: '',
       component: BackgroundModeControl
-    },
-    {
-      type: 'checkbox',
-      label: 'Round Corners',
-      section: 'Background',
-      sectionKey: 'settings.sectionBackground',
-      path: 'roundedCornerMaskEnabled'
     },
     // ── Phone Appearance (light / dark) ──────────────────────────────────────
     {

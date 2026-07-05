@@ -47,6 +47,12 @@ type WaitingStatusNotice = {
 
 const STATUS_NOTICE_TTL_MS = 14_000
 
+// Power warnings surface only LIVE problems. The old version also showed the
+// `*Occurred` bits from `vcgencmd get_throttled`, but those latch forever
+// after any momentary dip (e.g. cranking the engine at boot) — so every ride
+// carried a permanent amber "POWER DIP SEEN". Healthy power shows nothing at
+// all: no news is good news. A dip observed while the pane is open is
+// surfaced separately (and expires) via the pane's recent-dip tracking.
 const describeWaitingPower = (power: PowerStatus | null | undefined): WaitingPowerInfo => {
   if (!power) return null
   const volts =
@@ -56,40 +62,33 @@ const describeWaitingPower = (power: PowerStatus | null | undefined): WaitingPow
         ? `${power.coreVolts.toFixed(2)}V`
         : null
   if (power.underVoltageNow) {
-    return { text: `LOW POWER${volts ? ` ${volts}` : ''}`, tone: '#ef5350' }
+    return { text: `Low power${volts ? ` · ${volts}` : ''}`, tone: '#ff453a' }
   }
   if (power.throttledNow) {
-    return { text: `THROTTLED${volts ? ` ${volts}` : ''}`, tone: '#ef5350' }
+    return { text: `Throttled${volts ? ` · ${volts}` : ''}`, tone: '#ff453a' }
   }
-  if (power.underVoltageOccurred || power.throttledOccurred) {
-    return { text: `POWER DIP SEEN${volts ? ` ${volts}` : ''}`, tone: '#ffca28' }
-  }
-  return { text: `POWER OK${volts ? ` ${volts}` : ''}`, tone: '#66bb6a' }
+  return null
 }
 
 // USB power budget for the connected devices (dongle etc.). On the Pi 5 the
 // firmware only unlocks the full 1.6A USB budget when it trusts a 5A supply;
 // otherwise the ports are capped to 600mA which can starve a CarPlay dongle.
-// Under-voltage on the input rail also means the ports can't deliver full power.
+// Only problems are reported — a healthy budget stays silent.
 export const describeWaitingUsbPower = (
   power: PowerStatus | null | undefined
 ): WaitingPowerInfo => {
   if (!power) return null
   if (power.underVoltageNow) {
-    return { text: 'USB POWER LOW', tone: '#ef5350' }
+    return { text: 'USB power low', tone: '#ff453a' }
   }
   if (power.usbHighCurrent === false) {
-    return { text: 'USB POWER LIMITED (600mA)', tone: '#ffca28' }
+    return { text: 'USB power limited to 600 mA', tone: '#ff9f0a' }
   }
-  if (power.usbHighCurrent === true) {
-    return { text: 'USB POWER FULL (1.6A)', tone: '#66bb6a' }
-  }
-  // usbHighCurrent unknown: fall back to the input-rail health as a proxy.
-  if (power.underVoltageOccurred) {
-    return { text: 'USB POWER DIP SEEN', tone: '#ffca28' }
-  }
-  return { text: 'USB POWER OK', tone: '#66bb6a' }
+  return null
 }
+
+// How long a live power dip keeps its amber "Power dip" note on screen.
+const POWER_DIP_NOTE_MS = 10 * 60 * 1000
 
 // Three-dot indicator that fills progressively to signal CarPlay is imminent
 // during the ~3s gap between phone-linked and the first video frame.
@@ -186,6 +185,9 @@ function WaitingProjectionPane({
   const [now, setNow] = useState(() => new Date())
   const [power, setPower] = useState<WaitingPowerInfo>(null)
   const [usbPower, setUsbPower] = useState<WaitingPowerInfo>(null)
+  // Timestamp of the last LIVE under-voltage/throttle sample seen while this
+  // pane was open; drives the expiring amber "Power dip" note.
+  const [lastDipTs, setLastDipTs] = useState<number | null>(null)
   const [confirmReboot, setConfirmReboot] = useState(false)
   const [researching, setResearching] = useState(false)
   const researchTimerRef = useRef<number | null>(null)
@@ -216,6 +218,9 @@ function WaitingProjectionPane({
         if (alive) {
           setPower(describeWaitingPower(stats?.power))
           setUsbPower(describeWaitingUsbPower(stats?.power))
+          if (stats?.power?.underVoltageNow || stats?.power?.throttledNow) {
+            setLastDipTs(Date.now())
+          }
         }
       } catch {
         // keep the pane passive on a failed sample
@@ -314,39 +319,42 @@ function WaitingProjectionPane({
           phone: 'Searching for iPhone',
           phoneActive: true
         }
-  const pill = (label: string, active: boolean, tone: string, testId: string) => (
-    <div
-      data-testid={testId}
-      data-tone={tone}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 8,
-        minHeight: 36,
-        padding: '0 16px',
-        borderRadius: 999,
-        border: `1px solid ${active ? `${tone}55` : theme.surfaceBorder}`,
-        background: active ? `${tone}1f` : theme.surface,
-        color: active ? theme.text : theme.textDim,
-        fontSize: 13,
-        fontWeight: 600,
-        letterSpacing: 0.2,
-        whiteSpace: 'nowrap'
-      }}
-    >
-      <span
-        data-testid={`${testId}-dot`}
-        style={{
-          width: 8,
-          height: 8,
-          borderRadius: '50%',
-          background: active ? tone : theme.textFaint,
-          flex: '0 0 auto'
-        }}
-      />
-      {label}
-    </div>
-  )
+  // One quiet status line instead of two bordered chips — the lock-screen
+  // look keeps the clock dominant and states only what matters right now.
+  const statusLine = !adapterFound
+    ? { text: 'Adapter missing', tone: '#ff453a', active: true }
+    : videoStarting || phoneLinked
+      ? { text: 'iPhone connected', tone: '#34c759', active: true }
+      : { text: 'Searching for iPhone…', tone: theme.textDim, active: false }
+
+  // Expiring note for a dip that happened while this pane was open (live
+  // problems render via `power` instead).
+  const dipAgeMs = lastDipTs != null ? now.getTime() - lastDipTs : null
+  const recentDip = power == null && dipAgeMs != null && dipAgeMs < POWER_DIP_NOTE_MS
+  const dipMinutes = dipAgeMs != null ? Math.max(1, Math.round(dipAgeMs / 60000)) : 0
+
+  const roundIconBtn = (primary: boolean): React.CSSProperties => ({
+    width: 72,
+    height: 72,
+    borderRadius: '50%',
+    border: primary ? 'none' : `1px solid ${theme.surfaceBorder}`,
+    background: primary ? '#0a84ff' : theme.surface,
+    color: primary ? '#ffffff' : theme.text,
+    display: 'grid',
+    placeItems: 'center',
+    padding: 0,
+    cursor: 'pointer',
+    touchAction: 'manipulation',
+    WebkitTapHighlightColor: 'transparent'
+  })
+
+  const iconBtnLabel: React.CSSProperties = {
+    marginTop: 8,
+    fontSize: 13,
+    fontWeight: 600,
+    letterSpacing: 0.2,
+    color: theme.textDim
+  }
 
   return (
     <div
@@ -368,37 +376,6 @@ function WaitingProjectionPane({
         color: theme.text
       }}
     >
-      <button
-        type="button"
-        aria-label="Open settings"
-        data-testid="projection-waiting-settings-button"
-        onPointerDown={(event) => event.stopPropagation()}
-        onClick={(event) => {
-          event.stopPropagation()
-          onOpenSettings()
-        }}
-        style={{
-          position: 'absolute',
-          top: 16,
-          right: 16,
-          width: 52,
-          height: 52,
-          borderRadius: 999,
-          border: `1px solid ${theme.surfaceBorder}`,
-          background: theme.surface,
-          color: theme.text,
-          display: 'grid',
-          placeItems: 'center',
-          padding: 0,
-          cursor: 'pointer',
-          pointerEvents: 'auto',
-          touchAction: 'manipulation',
-          WebkitTapHighlightColor: 'transparent',
-          zIndex: 8
-        }}
-      >
-        <SettingsOutlinedIcon style={{ fontSize: 29 }} />
-      </button>
       <div
         data-testid="projection-waiting-content"
         style={{
@@ -420,50 +397,55 @@ function WaitingProjectionPane({
           data-testid="projection-waiting-date"
           style={{
             color: theme.textDim,
-            fontSize: 17,
-            fontWeight: 600,
+            fontSize: 21,
+            fontWeight: 500,
             letterSpacing: 0.2,
-            marginBottom: 2
+            marginBottom: 4
           }}
         >
           {dateLabel}
         </div>
+        {/* Lock-screen clock: huge and thin (Inter weight 200), the visual
+            anchor of the whole pane. */}
         <div
           data-testid="projection-waiting-clock"
           style={{
             color: theme.text,
-            fontSize: 112,
-            fontWeight: 700,
+            fontSize: 168,
+            fontWeight: 200,
             lineHeight: 1.0,
-            letterSpacing: -2,
+            letterSpacing: -5,
             fontVariantNumeric: 'tabular-nums'
           }}
         >
           {clock}
         </div>
-        <div style={{ height: 26 }} />
+        <div style={{ height: 22 }} />
         <div
-          data-testid="projection-waiting-status-pills"
+          data-testid="projection-waiting-status"
+          data-tone={statusLine.tone}
           style={{
             display: 'flex',
-            justifyContent: 'center',
-            flexWrap: 'wrap',
+            alignItems: 'center',
             gap: 10,
-            maxWidth: '100%'
+            color: statusLine.active ? statusLine.tone : theme.textDim,
+            fontSize: 20,
+            fontWeight: 500,
+            letterSpacing: 0.2
           }}
         >
-          {pill(
-            status.adapter,
-            adapterFound,
-            status.adapterTone,
-            'projection-waiting-adapter-pill'
+          {statusLine.active && (
+            <span
+              style={{
+                width: 10,
+                height: 10,
+                borderRadius: '50%',
+                background: statusLine.tone,
+                flex: '0 0 auto'
+              }}
+            />
           )}
-          {pill(
-            status.phone,
-            status.phoneActive,
-            status.phoneTone,
-            'projection-waiting-phone-pill'
-          )}
+          {statusLine.text}
         </div>
         {statusNotice && (
           <div
@@ -490,15 +472,15 @@ function WaitingProjectionPane({
                 alignItems: 'center',
                 gap: 8,
                 color: statusNotice.tone,
-                fontSize: 14,
+                fontSize: 17,
                 fontWeight: 700,
                 letterSpacing: 0.2
               }}
             >
               <span
                 style={{
-                  width: 9,
-                  height: 9,
+                  width: 10,
+                  height: 10,
                   borderRadius: '50%',
                   background: statusNotice.tone,
                   flex: '0 0 auto'
@@ -509,7 +491,7 @@ function WaitingProjectionPane({
             <div
               style={{
                 color: theme.textDim,
-                fontSize: 12.5,
+                fontSize: 15,
                 fontWeight: 500,
                 textAlign: 'center',
                 lineHeight: 1.35
@@ -547,7 +529,7 @@ function WaitingProjectionPane({
               <div
                 style={{
                   color: theme.textDim,
-                  fontSize: 13,
+                  fontSize: 16,
                   fontWeight: 600,
                   letterSpacing: 0.2
                 }}
@@ -557,24 +539,26 @@ function WaitingProjectionPane({
             </>
           )}
         </div>
+        {/* Power: silent when healthy. Red for a live problem, amber for a
+            dip observed in the last 10 minutes or a capped USB budget. */}
         {power && (
           <div
             data-testid="projection-waiting-power"
             style={{
-              marginTop: 6,
+              marginTop: 8,
               display: 'flex',
               alignItems: 'center',
-              gap: 7,
+              gap: 8,
               color: power.tone,
-              fontSize: 13,
+              fontSize: 16,
               fontWeight: 600,
               letterSpacing: 0.2
             }}
           >
             <span
               style={{
-                width: 8,
-                height: 8,
+                width: 9,
+                height: 9,
                 borderRadius: '50%',
                 background: power.tone,
                 flex: '0 0 auto'
@@ -583,25 +567,51 @@ function WaitingProjectionPane({
             {power.text}
           </div>
         )}
-        {usbPower && (
+        {recentDip && (
           <div
-            data-testid="projection-waiting-usb-power"
-            data-tone={usbPower.tone}
+            data-testid="projection-waiting-power-dip"
             style={{
-              marginTop: 6,
+              marginTop: 8,
               display: 'flex',
               alignItems: 'center',
-              gap: 7,
-              color: usbPower.tone,
-              fontSize: 13,
+              gap: 8,
+              color: '#ff9f0a',
+              fontSize: 16,
               fontWeight: 600,
               letterSpacing: 0.2
             }}
           >
             <span
               style={{
-                width: 8,
-                height: 8,
+                width: 9,
+                height: 9,
+                borderRadius: '50%',
+                background: '#ff9f0a',
+                flex: '0 0 auto'
+              }}
+            />
+            {`Power dip ${dipMinutes} min ago`}
+          </div>
+        )}
+        {usbPower && (
+          <div
+            data-testid="projection-waiting-usb-power"
+            data-tone={usbPower.tone}
+            style={{
+              marginTop: 8,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              color: usbPower.tone,
+              fontSize: 16,
+              fontWeight: 600,
+              letterSpacing: 0.2
+            }}
+          >
+            <span
+              style={{
+                width: 9,
+                height: 9,
                 borderRadius: '50%',
                 background: usbPower.tone,
                 flex: '0 0 auto'
@@ -610,83 +620,78 @@ function WaitingProjectionPane({
             {usbPower.text}
           </div>
         )}
+        {/* Camera-app style action row: three 72px circular icon buttons
+            (~7.8mm gloved taps) with quiet labels. Settings moved here from
+            the top-right corner so the clock owns the top of the glass. */}
         <div
           data-testid="projection-waiting-actions"
           style={{
-            marginTop: 24,
+            marginTop: 30,
             display: 'flex',
             justifyContent: 'center',
-            gap: 12,
+            alignItems: 'flex-start',
+            gap: 44,
             pointerEvents: 'auto',
             zIndex: 8
           }}
         >
-          <button
-            type="button"
-            aria-label="Re-search for dongle and phone"
-            data-testid="projection-waiting-research-button"
-            disabled={researching}
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={(event) => {
-              event.stopPropagation()
-              handleResearch()
-            }}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              height: 48,
-              padding: '0 22px',
-              borderRadius: 999,
-              border: 'none',
-              background: researching ? theme.surface : '#0a84ff',
-              color: researching ? theme.textDim : '#ffffff',
-              fontSize: 15,
-              fontWeight: 600,
-              letterSpacing: 0.2,
-              cursor: researching ? 'default' : 'pointer',
-              touchAction: 'manipulation',
-              WebkitTapHighlightColor: 'transparent'
-            }}
-          >
-            <RefreshOutlinedIcon
-              style={{
-                fontSize: 21,
-                animation: researching ? 'livi-research-spin 1s linear infinite' : undefined
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <button
+              type="button"
+              aria-label="Re-search for dongle and phone"
+              data-testid="projection-waiting-research-button"
+              disabled={researching}
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={(event) => {
+                event.stopPropagation()
+                handleResearch()
               }}
-            />
-            {researching ? 'Searching' : 'Re-search'}
-          </button>
-          <button
-            type="button"
-            aria-label="Reboot Pi"
-            data-testid="projection-waiting-reboot-button"
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={(event) => {
-              event.stopPropagation()
-              setConfirmReboot(true)
-            }}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              height: 48,
-              padding: '0 22px',
-              borderRadius: 999,
-              border: `1px solid ${theme.surfaceBorder}`,
-              background: theme.surface,
-              color: theme.text,
-              fontSize: 15,
-              fontWeight: 600,
-              letterSpacing: 0.2,
-              cursor: 'pointer',
-              touchAction: 'manipulation',
-              WebkitTapHighlightColor: 'transparent'
-            }}
-          >
-            <PowerSettingsNewOutlinedIcon style={{ fontSize: 21 }} />
-            Reboot
-          </button>
+              style={{
+                ...roundIconBtn(!researching),
+                cursor: researching ? 'default' : 'pointer'
+              }}
+            >
+              <RefreshOutlinedIcon
+                style={{
+                  fontSize: 34,
+                  animation: researching ? 'livi-research-spin 1s linear infinite' : undefined
+                }}
+              />
+            </button>
+            <div style={iconBtnLabel}>{researching ? 'Searching' : 'Search'}</div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <button
+              type="button"
+              aria-label="Reboot Pi"
+              data-testid="projection-waiting-reboot-button"
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={(event) => {
+                event.stopPropagation()
+                setConfirmReboot(true)
+              }}
+              style={roundIconBtn(false)}
+            >
+              <PowerSettingsNewOutlinedIcon style={{ fontSize: 34 }} />
+            </button>
+            <div style={iconBtnLabel}>Reboot</div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <button
+              type="button"
+              aria-label="Open settings"
+              data-testid="projection-waiting-settings-button"
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={(event) => {
+                event.stopPropagation()
+                onOpenSettings()
+              }}
+              style={roundIconBtn(false)}
+            >
+              <SettingsOutlinedIcon style={{ fontSize: 34 }} />
+            </button>
+            <div style={iconBtnLabel}>Settings</div>
+          </div>
           <style>
             {`@keyframes livi-research-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}
           </style>
@@ -715,39 +720,21 @@ function WaitingProjectionPane({
         >
           <div
             style={{
-              width: 'min(320px, 100%)',
-              borderRadius: 20,
+              width: 'min(420px, 100%)',
+              borderRadius: 28,
               border: `1px solid ${theme.surfaceBorder}`,
               background: dark ? '#1c1c1e' : '#ffffff',
-              padding: 24,
+              padding: 32,
               textAlign: 'center'
             }}
           >
-            <div style={{ fontSize: 22, fontWeight: 700, lineHeight: 1.1, color: theme.text }}>
+            <div style={{ fontSize: 38, fontWeight: 700, lineHeight: 1.1, color: theme.text }}>
               Reboot Pi?
             </div>
-            <div style={{ marginTop: 8, color: theme.textDim, fontSize: 14, lineHeight: 1.35 }}>
+            <div style={{ marginTop: 10, color: theme.textDim, fontSize: 17, lineHeight: 1.35 }}>
               The display will go dark while the Pi restarts.
             </div>
-            <div
-              style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 22 }}
-            >
-              <button
-                type="button"
-                onClick={() => setConfirmReboot(false)}
-                style={{
-                  minHeight: 50,
-                  borderRadius: 14,
-                  border: `1px solid ${theme.surfaceBorder}`,
-                  background: theme.surface,
-                  color: theme.text,
-                  fontWeight: 600,
-                  fontSize: 16,
-                  cursor: 'pointer'
-                }}
-              >
-                Cancel
-              </button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 28 }}>
               <button
                 type="button"
                 onClick={() => {
@@ -755,17 +742,37 @@ function WaitingProjectionPane({
                   handleReboot()
                 }}
                 style={{
-                  minHeight: 50,
-                  borderRadius: 14,
+                  height: 76,
+                  borderRadius: 20,
                   border: 'none',
                   background: '#ff3b30',
                   color: '#ffffff',
                   fontWeight: 600,
-                  fontSize: 16,
-                  cursor: 'pointer'
+                  fontSize: 22,
+                  cursor: 'pointer',
+                  touchAction: 'manipulation',
+                  WebkitTapHighlightColor: 'transparent'
                 }}
               >
                 Reboot
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmReboot(false)}
+                style={{
+                  height: 76,
+                  borderRadius: 20,
+                  border: `1px solid ${theme.surfaceBorder}`,
+                  background: theme.surface,
+                  color: theme.text,
+                  fontWeight: 600,
+                  fontSize: 22,
+                  cursor: 'pointer',
+                  touchAction: 'manipulation',
+                  WebkitTapHighlightColor: 'transparent'
+                }}
+              >
+                Cancel
               </button>
             </div>
           </div>

@@ -112,6 +112,7 @@ describe('settings schemas', () => {
     const advanced = (settingsSchema.children as any[]).find((c) => c.route === 'advanced')
     expect(advanced.children.map((child: any) => child.label)).toEqual([
       'Settings Color Mode',
+      'Round Corners',
       'Settings Menu Colors',
       'Wi-Fi Frequency',
       'Auto Connect',

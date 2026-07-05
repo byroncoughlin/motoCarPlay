@@ -480,10 +480,10 @@ function deriveAttitude(telemetry: MotoTelemetry, settings: MotoSettings | null)
 // Label/value row shared by the GPS and ride-dynamics center panels.
 const stat = (label: string, value: string, color = 'white'): React.JSX.Element => (
   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
-    <span style={{ color: '#dcdcdc', fontSize: 14, fontWeight: 800, letterSpacing: 0.5 }}>
+    <span style={{ color: '#dcdcdc', fontSize: 15, fontWeight: 700, letterSpacing: 0.3 }}>
       {label}
     </span>
-    <span style={{ color, fontSize: 17, fontWeight: 900 }}>{value}</span>
+    <span style={{ color, fontSize: 19, fontWeight: 800 }}>{value}</span>
   </div>
 )
 
@@ -500,10 +500,10 @@ function PanelEmptyState({ title, detail }: { title: string; detail?: string }) 
       }}
     >
       <div style={{ textAlign: 'center' }}>
-        <div style={{ color: '#888', fontSize: 14, fontWeight: 800, letterSpacing: 2 }}>
+        <div style={{ color: '#999', fontSize: 18, fontWeight: 700, letterSpacing: 1 }}>
           {title}
         </div>
-        {detail && <div style={{ color: '#555', fontSize: 11, marginTop: 6 }}>{detail}</div>}
+        {detail && <div style={{ color: '#777', fontSize: 14, marginTop: 8 }}>{detail}</div>}
       </div>
     </div>
   )
@@ -1051,6 +1051,9 @@ function TopArcImpl({ telemetry, actions }: { telemetry: MotoTelemetry; actions:
       style={{ position: 'relative', width: '100%', height: '100%', background: 'transparent' }}
       data-testid="projection-top-arc"
     >
+      {/* Cardinal only, as big as the band allows \u2014 the exact degrees live in
+          the heading graph a tap away. A one-line "SW 249\u00b0" pill cannot grow
+          without either poking the glass or colliding with a 3-digit speed. */}
       <button
         type="button"
         onClick={() => actions.openMetric('heading')}
@@ -1058,7 +1061,7 @@ function TopArcImpl({ telemetry, actions }: { telemetry: MotoTelemetry; actions:
           ...bandBase,
           left: 70,
           width: '24%',
-          paddingBottom: 16,
+          paddingBottom: 6,
           border: 0,
           background: 'transparent'
         }}
@@ -1069,15 +1072,11 @@ function TopArcImpl({ telemetry, actions }: { telemetry: MotoTelemetry; actions:
             ...pill,
             display: 'flex',
             alignItems: 'baseline',
-            gap: 6,
             textShadow: NUM_SHADOW
           }}
         >
-          <span style={{ fontSize: 34, fontWeight: 800, color: 'white', lineHeight: 1 }}>
+          <span style={{ fontSize: 42, fontWeight: 800, color: 'white', lineHeight: 1 }}>
             {cardinal ?? '--'}
-          </span>
-          <span style={{ fontSize: 18, fontWeight: 800, color: 'rgba(255,255,255,0.78)' }}>
-            {heading != null ? `${heading}\u00b0` : ''}
           </span>
         </span>
       </button>
@@ -1090,7 +1089,7 @@ function TopArcImpl({ telemetry, actions }: { telemetry: MotoTelemetry; actions:
           ...bandBase,
           left: '30%',
           right: '30%',
-          paddingBottom: 10,
+          paddingBottom: 8,
           border: 0,
           background: 'transparent'
         }}
@@ -1109,7 +1108,7 @@ function TopArcImpl({ telemetry, actions }: { telemetry: MotoTelemetry; actions:
           >
             <span
               style={{
-                fontSize: 72,
+                fontSize: 76,
                 fontWeight: 800,
                 color: 'white',
                 lineHeight: 1,
@@ -1121,7 +1120,7 @@ function TopArcImpl({ telemetry, actions }: { telemetry: MotoTelemetry; actions:
             </span>
             <span
               style={{
-                fontSize: 18,
+                fontSize: 20,
                 fontWeight: 800,
                 color: 'rgba(255,255,255,0.78)',
                 letterSpacing: 2,
@@ -1188,6 +1187,9 @@ function TopArcImpl({ telemetry, actions }: { telemetry: MotoTelemetry; actions:
         )}
       </button>
 
+      {/* Bare degree glyph (F implied, matching the CHT pills). Drops to 34px
+          at 3-digit readings so the pill can't reach the 3-digit speed pill
+          or the glass edge. */}
       <button
         type="button"
         onClick={() => actions.openMetric('ambientTemp')}
@@ -1195,7 +1197,7 @@ function TopArcImpl({ telemetry, actions }: { telemetry: MotoTelemetry; actions:
           ...bandBase,
           right: 70,
           width: '24%',
-          paddingBottom: 16,
+          paddingBottom: 6,
           border: 0,
           background: 'transparent'
         }}
@@ -1205,15 +1207,19 @@ function TopArcImpl({ telemetry, actions }: { telemetry: MotoTelemetry; actions:
             ...pill,
             display: 'flex',
             alignItems: 'baseline',
-            gap: 6,
             textShadow: NUM_SHADOW
           }}
         >
-          <span style={{ fontSize: 34, fontWeight: 800, color: 'white', lineHeight: 1 }}>
+          <span
+            style={{
+              fontSize: telemetry.ambientF != null && telemetry.ambientF >= 100 ? 34 : 38,
+              fontWeight: 800,
+              color: 'white',
+              lineHeight: 1,
+              fontVariantNumeric: 'tabular-nums'
+            }}
+          >
             {telemetry.ambientF != null ? `${telemetry.ambientF}\u00b0` : '--'}
-          </span>
-          <span style={{ fontSize: 18, fontWeight: 800, color: 'rgba(255,255,255,0.78)' }}>
-            {telemetry.ambientF != null ? 'F' : ''}
           </span>
         </span>
       </button>
@@ -1269,7 +1275,7 @@ function ChtGaugeImpl({
   const numPillCX = textCX + inwardSign * 7
   const numPillCY = barY + barH + 16
   const numPillW = 66
-  const numPillH = 24
+  const numPillH = 26
 
   return (
     <button
@@ -1338,7 +1344,7 @@ function ChtGaugeImpl({
           y={numPillCY + 8}
           textAnchor="middle"
           fill={!hasData ? 'white' : showStale ? '#c9a227' : color}
-          fontSize={22}
+          fontSize={24}
           fontWeight="bold"
           opacity={showStale ? 0.85 : 1}
           style={{ filter: SVG_TEXT_SHADOW }}
@@ -1414,19 +1420,23 @@ function BottomArc({
   // so nothing is clipped by the round display. ALT (left) and G (right)
   // mirror each other on the same top row; lean sits in a matching capsule
   // centered under the horizon. Same height + radius.
+  // 2026-07 size-max pass: every capsule grown to the largest size that keeps
+  // ~8px+ clearance from the round glass (capsule arc-center model), a 2px+
+  // gap below the CarPlay square (band top), and no overlap between the ALT/G
+  // row (y ~696–750) and the lean pill row (y ~751–789).
   const rowCY = 30 // vertical center of the ALT / G row
   const rowH = 54 // capsule height
-  const rowW = 128 // capsule width
-  const altCX = 169 // ALT capsule center (left) — sized so the outer-bottom
-  // corner keeps ~12px clearance from the round display edge at max content
+  const rowW = 142 // capsule width
+  const altCX = 180 // ALT capsule center (left) — moved inward with the wider
+  // capsule so the outer corner keeps ~13px clearance at max content
   // ("18,000 FT"); see the circle-safe geometry model.
   const gCX = w - altCX // G capsule center (right) — exact mirror of ALT
-  const leanW = 104
-  const leanCY = 76 // raised so the centered lean pill keeps ~12px clearance
-  // from the bottom of the round display (was riding ~2px from the edge)
-  const leanH = 34
-  const pitchCY = 18 // pitch chip center / height
-  const pitchH = 26
+  const leanW = 112
+  const leanCY = 77 // keeps ~9px clearance from the bottom of the glass at
+  // the taller pill height
+  const leanH = 38
+  const pitchCY = 17 // pitch chip center / height
+  const pitchH = 30
   // Tap zones derived from the capsule geometry so moving a capsule can't
   // orphan its hit area (they were hand-tuned pixels before, and the top of
   // the lean pill actually landed in the pitch zone). Each boundary is the
@@ -1541,13 +1551,13 @@ function BottomArc({
           strokeWidth={3.5}
           strokeLinecap="round"
         />
-        <GaugePill cx={cx} cy={pitchCY} width={64} height={pitchH} />
+        <GaugePill cx={cx} cy={pitchCY} width={74} height={pitchH} />
         <text
           x={cx}
-          y={23}
+          y={pitchCY + 6}
           textAnchor="middle"
           fill={telemetry.pitchDeg != null ? ref : 'white'}
-          fontSize={16}
+          fontSize={18}
           fontWeight="bold"
         >
           {telemetry.pitchDeg != null
@@ -1561,10 +1571,10 @@ function BottomArc({
           <GaugePill cx={altCX} cy={rowCY} width={rowW} height={rowH} />
           <text
             x={altCX}
-            y={rowCY - 11}
+            y={rowCY - 12}
             textAnchor="middle"
             fill="rgba(255,255,255,0.75)"
-            fontSize={14}
+            fontSize={15}
             fontWeight="bold"
             letterSpacing={2}
           >
@@ -1572,14 +1582,14 @@ function BottomArc({
           </text>
           <text
             x={altCX}
-            y={rowCY + 16}
+            y={rowCY + 17}
             textAnchor="middle"
             fill={altValue != null ? '#f0f0f0' : 'white'}
-            fontSize={24}
+            fontSize={26}
             fontWeight="bold"
           >
             {altFt}
-            <tspan fontSize={14} fill="rgba(255,255,255,0.7)" dx={4}>
+            <tspan fontSize={15} fill="rgba(255,255,255,0.7)" dx={4}>
               FT
             </tspan>
             {gpsStale && (
@@ -1604,7 +1614,7 @@ function BottomArc({
               y={leanCY + 5}
               textAnchor="middle"
               fill="#ffca28"
-              fontSize={13}
+              fontSize={14}
               fontWeight="bold"
               letterSpacing={1}
             >
@@ -1619,10 +1629,10 @@ function BottomArc({
           ) : (
             <text
               x={cx}
-              y={leanCY + 7}
+              y={leanCY + 8}
               textAnchor="middle"
               fill="white"
-              fontSize={21}
+              fontSize={24}
               fontWeight="bold"
             >
               {hasLean ? (absLean > 0 ? `${absLean}\u00b0 ${side}` : `0\u00b0`) : '--'}
@@ -1634,9 +1644,9 @@ function BottomArc({
           <GaugePill cx={gCX} cy={rowCY} width={rowW} height={rowH} />
           <text
             x={gCX}
-            y={rowCY - 11}
+            y={rowCY - 12}
             textAnchor="middle"
-            fontSize={14}
+            fontSize={15}
             fontWeight="bold"
             letterSpacing={2}
           >
@@ -1649,10 +1659,10 @@ function BottomArc({
           </text>
           <text
             x={gCX}
-            y={rowCY + 16}
+            y={rowCY + 17}
             textAnchor="middle"
             fill={hasG ? gTextColor : 'white'}
-            fontSize={24}
+            fontSize={26}
             fontWeight="bold"
           >
             {hasG ? gVal.toFixed(1) : '--'}
@@ -2772,38 +2782,39 @@ function MetricGraph({
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: 8
+            gap: 10
           }}
         >
           <div
             style={{
               color: 'white',
-              fontSize: 26,
-              fontWeight: 800,
-              letterSpacing: 0.5
+              fontSize: 44,
+              fontWeight: 700,
+              letterSpacing: 0.2,
+              textAlign: 'center'
             }}
           >
             Quit motoCarPlay?
           </div>
-          <div style={{ color: '#888', fontSize: 12, marginBottom: 18 }}>
-            this closes the dashboard app
+          <div style={{ color: 'rgba(235,235,245,0.6)', fontSize: 17, marginBottom: 26 }}>
+            This closes the dashboard
           </div>
-          <div style={{ display: 'flex', gap: 16 }}>
-            <button
-              type="button"
-              onClick={() => setConfirmQuit(false)}
-              style={actionBtn('#2a2a2a', '#ccc')}
-            >
-              Cancel
-            </button>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: 320 }}>
             <button
               type="button"
               onClick={() => {
                 void window.projection.quit()
               }}
-              style={actionBtn('#5c1010', '#ff6b6b')}
+              style={bigAlertBtn('#e0322e', '#ffffff')}
             >
               Quit
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirmQuit(false)}
+              style={bigAlertBtn('rgba(255,255,255,0.1)', '#ffffff')}
+            >
+              Cancel
             </button>
           </div>
         </div>
@@ -3262,6 +3273,27 @@ export function motoGraphPaneGeometry(compact: boolean) {
   const svgH = cy + ch + (compact ? 38 : 64)
   return { svgW, svgH, cx, cy, cw, ch }
 }
+
+// Full-size alert buttons (Apple action-sheet style): stacked, wide, 76px
+// tall — the biggest tap targets on the screen, for the decisions that
+// matter (Quit / Reboot).
+const bigAlertBtn = (bg: string, fg: string): React.CSSProperties => ({
+  background: bg,
+  border: 0,
+  color: fg,
+  borderRadius: 20,
+  height: 76,
+  width: '100%',
+  fontSize: 22,
+  fontWeight: 600,
+  letterSpacing: 0.2,
+  cursor: 'pointer',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  touchAction: 'manipulation',
+  WebkitTapHighlightColor: 'transparent'
+})
 
 // Dialog/action buttons: >=56px tall (6mm+ gloved tap), title-case labels,
 // no letter-spacing — Apple button voice rather than terminal CAPS.

@@ -294,7 +294,7 @@ describe('Projection page', () => {
 
     const topArc = screen.getByTestId('projection-top-arc')
     const bottomArc = screen.getByTestId('projection-bottom-arc')
-    expect(topArc).toHaveTextContent('90\u00b0')
+    expect(topArc).toHaveTextContent('E')
     expect(bottomArc).toHaveTextContent('1,000')
 
     act(() => {
@@ -303,7 +303,7 @@ describe('Projection page', () => {
 
     // Heading + altitude keep their last values rather than blanking, and pick
     // up the slow-blink class / animation.
-    expect(topArc).toHaveTextContent('90\u00b0')
+    expect(topArc).toHaveTextContent('E')
     expect(topArc.querySelector('.moto-gps-stale')).not.toBeNull()
     expect(bottomArc).toHaveTextContent('1,000')
     expect(bottomArc.querySelector('animate')).not.toBeNull()
@@ -682,10 +682,7 @@ describe('Projection page', () => {
         backgroundColor: '#f2f2f7'
       })
       expect(screen.getByTestId('projection-waiting-clock')).toHaveTextContent('5:07')
-      expect(screen.getByTestId('projection-waiting-status-pills')).toHaveTextContent(
-        'Adapter found'
-      )
-      expect(screen.getByTestId('projection-waiting-status-pills')).toHaveTextContent(
+      expect(screen.getByTestId('projection-waiting-status')).toHaveTextContent(
         'Searching for iPhone'
       )
 
@@ -751,7 +748,7 @@ describe('Projection page', () => {
     render(<Projection {...baseProps({ receivingVideo: false })} />)
 
     const pane = screen.getByTestId('projection-waiting-pane')
-    expect(pane).toHaveTextContent('iPhone linked')
+    expect(pane).toHaveTextContent('iPhone connected')
     expect(pane).toHaveTextContent('Starting CarPlay')
   })
 
@@ -761,12 +758,8 @@ describe('Projection page', () => {
 
     render(<Projection {...baseProps({ receivingVideo: false })} />)
 
-    expect(screen.getByTestId('projection-waiting-status-pills')).toHaveTextContent(
-      'Adapter missing'
-    )
-    expect(screen.getByTestId('projection-waiting-status-pills')).toHaveTextContent(
-      'iPhone search paused'
-    )
+    expect(screen.getByTestId('projection-waiting-status')).toHaveTextContent('Adapter missing')
+    expect(screen.getByTestId('projection-waiting-status')).toHaveAttribute('data-tone', '#ff453a')
   })
 
   test('renders waiting pane from custom projection view area outside the round default', () => {
@@ -990,16 +983,8 @@ describe('Projection page', () => {
     render(<Projection {...baseProps({ receivingVideo: false })} />)
 
     expect(screen.getByTestId('projection-waiting-pane')).toBeInTheDocument()
-    expect(screen.getByTestId('projection-waiting-status-pills')).toHaveTextContent('Adapter found')
-    expect(screen.getByTestId('projection-waiting-status-pills')).toHaveTextContent('iPhone linked')
-    expect(screen.getByTestId('projection-waiting-adapter-pill')).toHaveAttribute(
-      'data-tone',
-      '#34c759'
-    )
-    expect(screen.getByTestId('projection-waiting-phone-pill')).toHaveAttribute(
-      'data-tone',
-      '#34c759'
-    )
+    expect(screen.getByTestId('projection-waiting-status')).toHaveTextContent('iPhone connected')
+    expect(screen.getByTestId('projection-waiting-status')).toHaveAttribute('data-tone', '#34c759')
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 
@@ -1044,8 +1029,7 @@ describe('Projection page', () => {
     })
 
     expect(screen.getByTestId('projection-waiting-pane')).toBeInTheDocument()
-    expect(screen.getByTestId('projection-waiting-status-pills')).toHaveTextContent('Adapter found')
-    expect(screen.getByTestId('projection-waiting-status-pills')).toHaveTextContent(
+    expect(screen.getByTestId('projection-waiting-status')).toHaveTextContent(
       'Searching for iPhone'
     )
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
@@ -2633,30 +2617,24 @@ describe('describeWaitingUsbPower', () => {
     expect(describeWaitingUsbPower(undefined)).toBeNull()
   })
 
-  test('reports full USB budget when the firmware unlocked high current', () => {
-    expect(describeWaitingUsbPower({ ...base, usbHighCurrent: true })).toEqual({
-      text: 'USB POWER FULL (1.6A)',
-      tone: '#66bb6a'
-    })
+  test('stays silent when the firmware unlocked the full USB budget', () => {
+    expect(describeWaitingUsbPower({ ...base, usbHighCurrent: true })).toBeNull()
   })
 
   test('warns when the USB budget is capped to 600mA', () => {
     expect(describeWaitingUsbPower({ ...base, usbHighCurrent: false })).toEqual({
-      text: 'USB POWER LIMITED (600mA)',
-      tone: '#ffca28'
+      text: 'USB power limited to 600 mA',
+      tone: '#ff9f0a'
     })
   })
 
   test('reports low USB power while the input rail is under-voltage', () => {
     expect(
       describeWaitingUsbPower({ ...base, underVoltageNow: true, usbHighCurrent: true })
-    ).toEqual({ text: 'USB POWER LOW', tone: '#ef5350' })
+    ).toEqual({ text: 'USB power low', tone: '#ff453a' })
   })
 
-  test('falls back to OK when the USB budget is unknown and the rail is healthy', () => {
-    expect(describeWaitingUsbPower({ ...base, usbHighCurrent: null })).toEqual({
-      text: 'USB POWER OK',
-      tone: '#66bb6a'
-    })
+  test('stays silent when the USB budget is unknown and the rail is healthy', () => {
+    expect(describeWaitingUsbPower({ ...base, usbHighCurrent: null })).toBeNull()
   })
 })
