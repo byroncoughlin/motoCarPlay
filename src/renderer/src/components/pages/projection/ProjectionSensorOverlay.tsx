@@ -285,6 +285,28 @@ function emptyLog(): Record<MetricKey, DataPoint[]> {
   return log
 }
 
+// Graph history and MAX peaks live at MODULE scope, not in per-mount refs:
+// the whole Projection page (and this overlay with it) unmounts whenever the
+// rider opens Settings, and per-mount storage silently wiped all logging on
+// every visit. These survive for the renderer session; only the explicit
+// Reset actions / clear-history event empty them. Shaped as {current} so
+// they slot in wherever a React ref is expected.
+const persistentDataRef: { current: Record<MetricKey, DataPoint[]> } = { current: emptyLog() }
+const persistentLastSampleRef: { current: Partial<Record<MetricKey, number>> } = { current: {} }
+const persistentPeaks = {
+  imu: { leanL: 0, leanR: 0, g: 0 },
+  cht: { left: 0, right: 0 }
+}
+
+// Test hook: jsdom suites mount the page many times in one module instance,
+// so leaked history would bleed between test cases.
+export function resetMotoGraphHistoryForTests(): void {
+  persistentDataRef.current = emptyLog()
+  persistentLastSampleRef.current = {}
+  persistentPeaks.imu = { leanL: 0, leanR: 0, g: 0 }
+  persistentPeaks.cht = { left: 0, right: 0 }
+}
+
 function initialTelemetry(): MotoTelemetry {
   return {
     speedMph: null,
@@ -302,8 +324,10 @@ function initialTelemetry(): MotoTelemetry {
     gForceY: null,
     piCpuC: null,
     imuRecalibrating: false,
-    imuPeak: { leanL: 0, leanR: 0, g: 0 },
-    chtPeak: { left: 0, right: 0 },
+    // Re-seed peaks from the module store so MAX values survive a
+    // settings-visit remount.
+    imuPeak: { ...persistentPeaks.imu },
+    chtPeak: { ...persistentPeaks.cht },
     chtLeftLastC: null,
     chtRightLastC: null,
     chtLeftResponding: true,
@@ -627,8 +651,11 @@ function useMotoTelemetry(settings: MotoSettings | null): {
   // memoized GraphPane so a clear redraws it immediately instead of waiting
   // for the next 1 Hz nowMs tick (dataRef mutations are invisible to memo).
   const [historyRevision, setHistoryRevision] = React.useState(0)
-  const dataRef = React.useRef<Record<MetricKey, DataPoint[]>>(emptyLog())
-  const lastSampleRef = React.useRef<Partial<Record<MetricKey, number>>>({})
+  // Module-scope stores (see persistentDataRef above): plain {current}
+  // objects, ref-shaped, so downstream MutableRefObject consumers are
+  // unaffected — but history survives this component unmounting.
+  const dataRef = persistentDataRef
+  const lastSampleRef = persistentLastSampleRef
   const settingsRef = React.useRef(settings)
   const stableRef = React.useRef({
     speed: { shown: null, moving: false, aboveSince: null } as SpeedState,
@@ -911,6 +938,9 @@ function useMotoTelemetry(settings: MotoSettings | null): {
         ) {
           next.chtPeak = { ...next.chtPeak, right: next.chtRightC }
         }
+        // Mirror peaks into the module store so a remount re-seeds them.
+        persistentPeaks.imu = next.imuPeak
+        persistentPeaks.cht = next.chtPeak
 
         logFromState(next, patch, now)
         return changed(
@@ -979,9 +1009,14 @@ function useMotoTelemetry(settings: MotoSettings | null): {
         lastSampleRef.current[key] = 0
         setHistoryRevision((v) => v + 1)
       },
-      resetImuPeak: () =>
-        setTelemetry((prev) => ({ ...prev, imuPeak: { leanL: 0, leanR: 0, g: 0 } })),
-      resetChtPeak: () => setTelemetry((prev) => ({ ...prev, chtPeak: { left: 0, right: 0 } }))
+      resetImuPeak: () => {
+        persistentPeaks.imu = { leanL: 0, leanR: 0, g: 0 }
+        setTelemetry((prev) => ({ ...prev, imuPeak: { leanL: 0, leanR: 0, g: 0 } }))
+      },
+      resetChtPeak: () => {
+        persistentPeaks.cht = { left: 0, right: 0 }
+        setTelemetry((prev) => ({ ...prev, chtPeak: { left: 0, right: 0 } }))
+      }
     }),
     []
   )

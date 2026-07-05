@@ -2,7 +2,7 @@ import { PhoneType } from '@shared/types/Config'
 import { AudioCommand, CommandMapping } from '@shared/types/ProjectionEnums'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { describeWaitingUsbPower, Projection } from '../Projection'
-import { motoGraphPaneGeometry } from '../ProjectionSensorOverlay'
+import { motoGraphPaneGeometry, resetMotoGraphHistoryForTests } from '../ProjectionSensorOverlay'
 
 const navigateMock = jest.fn()
 let mockPathname = '/'
@@ -122,6 +122,9 @@ describe('Projection page', () => {
     navigateMock.mockReset()
     mockPathname = '/'
     telemetryCb = undefined
+    // Graph history now lives at module scope (survives Projection unmounts
+    // in the app); clear it so it can't bleed between test cases.
+    resetMotoGraphHistoryForTests()
 
     statusState.isStreaming = true
     statusState.isDongleConnected = true
