@@ -1066,7 +1066,9 @@ function TopArcImpl({ telemetry, actions }: { telemetry: MotoTelemetry; actions:
           ...bandBase,
           left: 70,
           width: '24%',
-          paddingBottom: 6,
+          // 4px (not 6) from the square: two-letter cardinals ("NE") need the
+          // extra 2px of lower, wider circle to hold ~9px glass clearance.
+          paddingBottom: 4,
           border: 0,
           background: 'transparent'
         }}
