@@ -50,7 +50,7 @@ doesn't pay the same cost.
 | Pi node / pnpm | Node **20**, `~/bin/pnpm` wrapper = pnpm **9.15.9** |
 
 Git remotes (Mac):
-- `origin` = `https://github.com/byroncoughlin/LIVI.git` — **has push access, push here** (`git push origin main`).
+- `origin` = `https://github.com/byroncoughlin/motoCarPlay.git` (repo renamed from LIVI 2026-07-05; old URL redirects) — **has push access, push here** (`git push origin main`).
 - `upstream` = `https://github.com/f-io/LIVI.git` — no push access.
   (Note: the *round-carplay* repo uses a `fork` remote; LIVI does **not** — don't
   `git push fork` in LIVI, it will fail.)
@@ -390,7 +390,7 @@ npx jest Projection                                 # just the projection/overla
 
 ## 11. Git
 
-- Push to **`origin`**: `git push origin main` (byroncoughlin/LIVI, has access).
+- Push to **`origin`**: `git push origin main` (byroncoughlin/motoCarPlay, has access).
 - Do NOT `git push fork` in LIVI (that's a round-carplay convention; LIVI has no
   `fork` remote).
 - Only commit when asked. Never commit `.claude/` (untracked helper dir).
