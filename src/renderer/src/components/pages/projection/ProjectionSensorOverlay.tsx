@@ -1367,15 +1367,21 @@ function ChtGaugeImpl({
             opacity={showStale ? 0.55 : 1}
           />
         )}
-        {/* Zone thresholds as short edge ticks (Apple-quiet) instead of
-            dashed lines across the whole bar. */}
-        {CHT_THRESHOLDS.map((t, i) => {
+        {/* Zone division lines: full-width, one quiet monochrome color — a
+            "how close am I to the next line" reference (Byron), not a color
+            signal (the fill color already carries the zone). */}
+        {CHT_THRESHOLDS.map((t) => {
           const y = barY + barH - (t / maxTemp) * barH
           return (
-            <g key={t} stroke={CHT_ZONES[i + 1].color} strokeWidth={2.5} opacity={0.9}>
-              <line x1={barX} y1={y} x2={barX + 8} y2={y} />
-              <line x1={barX + barW - 8} y1={y} x2={barX + barW} y2={y} />
-            </g>
+            <line
+              key={t}
+              x1={barX}
+              y1={y}
+              x2={barX + barW}
+              y2={y}
+              stroke="rgba(255,255,255,0.4)"
+              strokeWidth={1.5}
+            />
           )
         })}
         {readoutInBar ? (
@@ -2726,35 +2732,45 @@ function MetricGraph({
         pointerEvents: 'auto'
       }}
     >
-      <button
-        type="button"
-        aria-label="Close graph"
-        onPointerDown={closeHoldStart}
-        onPointerUp={closeHoldEnd}
-        onPointerLeave={closeHoldCancel}
-        style={{ ...cornerHitArea, top: 0, right: 0 }}
-        title={'tap to close \u00b7 hold to quit app'}
+      {/* Sheet-style header strip (Apple Maps/Health sheets): the gear and
+          close button get their own row ABOVE the cards, so they can never
+          float over card content (GPS stats, MAX/MIN columns, panel labels). */}
+      <div
+        style={{
+          flexShrink: 0,
+          display: 'flex',
+          justifyContent: 'flex-end',
+          alignItems: 'center',
+          gap: 12,
+          padding: '8px 12px 0'
+        }}
       >
-        <span style={closeBtn}>{'\u2715'}</span>
-      </button>
-
-      {showSettingsShortcut && (
+        {showSettingsShortcut && (
+          <button
+            type="button"
+            aria-label="Open settings from graph"
+            data-testid="projection-graph-settings-button"
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={openSettings}
+            style={headerBtnWrap}
+          >
+            <span style={graphSettingsBtn}>
+              <SettingsOutlinedIcon style={{ fontSize: 27 }} />
+            </span>
+          </button>
+        )}
         <button
           type="button"
-          aria-label="Open settings from graph"
-          data-testid="projection-graph-settings-button"
-          onPointerDown={(event) => event.stopPropagation()}
-          onClick={openSettings}
-          // Sits just left of the close ✕ (Byron: right side is the natural
-          // reach). right:80 keeps the two 80px hit areas exactly adjacent,
-          // zero overlap (measured on-device).
-          style={{ ...cornerHitArea, top: 0, right: 80 }}
+          aria-label="Close graph"
+          onPointerDown={closeHoldStart}
+          onPointerUp={closeHoldEnd}
+          onPointerLeave={closeHoldCancel}
+          style={headerBtnWrap}
+          title={'tap to close \u00b7 hold to quit app'}
         >
-          <span style={graphSettingsBtn}>
-            <SettingsOutlinedIcon style={{ fontSize: 27 }} />
-          </span>
+          <span style={closeBtn}>{'\u2715'}</span>
         </button>
-      )}
+      </div>
 
       {topPanel && (
         <div style={{ ...graphCard, marginBottom: 0 }}>
@@ -2772,8 +2788,6 @@ function MetricGraph({
           metricKey={key}
           nowMs={nowMs}
           compact={compact}
-          first={topPanel === null && index === 0}
-          reserveLeadingAction={showSettingsShortcut && index === 0}
           dataRef={dataRef}
           actions={actions}
           historyRevision={historyRevision}
@@ -2840,16 +2854,12 @@ function GraphPaneImpl({
   metricKey,
   nowMs,
   compact,
-  first,
-  reserveLeadingAction,
   dataRef,
   actions
 }: {
   metricKey: MetricKey
   nowMs: number
   compact: boolean
-  first: boolean
-  reserveLeadingAction?: boolean
   dataRef: React.MutableRefObject<Record<MetricKey, DataPoint[]>>
   actions: MotoActions
   // Not read directly — included so React.memo re-renders the pane the
@@ -2935,12 +2945,7 @@ function GraphPaneImpl({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          // First pane: card margin 10 + 0 top padding puts the Reset
-          // capsule's center on the same line as the floating gear/✕ faces
-          // (both at 40px from the pane top); right padding reserves the
-          // corner actions with an even ~16px gap (168px with the gear,
-          // 70px with ✕ alone). Verified by on-device measurement.
-          padding: first ? `0 ${reserveLeadingAction ? 168 : 70}px 0 14px` : '8px 14px 0',
+          padding: '8px 14px 0',
           flexShrink: 0
         }}
       >
@@ -3361,14 +3366,11 @@ const actionBtn = (bg: string, fg: string, compact = false): React.CSSProperties
   WebkitTapHighlightColor: 'transparent'
 })
 
-// Invisible 80x80 tap zone (~8.6mm at this display's ~235 DPI — glove-friendly)
-// wrapped around a smaller visible face, Apple-style: the hit area grows, the
-// artwork doesn't. Offsets at the call sites keep each face where it was.
-const cornerHitArea: React.CSSProperties = {
-  position: 'absolute',
-  zIndex: 20,
-  width: 80,
-  height: 80,
+// In-flow header-strip button: 76x64 tap zone (glove-friendly) around the
+// smaller visible face — the hit area grows, the artwork doesn't.
+const headerBtnWrap: React.CSSProperties = {
+  width: 76,
+  height: 64,
   background: 'transparent',
   border: 0,
   padding: 0,

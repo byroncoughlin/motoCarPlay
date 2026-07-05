@@ -10,7 +10,7 @@ import IconButton from '@mui/material/IconButton'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
 import type { ReactElement, ReactNode } from 'react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 import { ROUTES } from '../../constants'
 import { SettingsLayoutProps } from './types'
@@ -199,6 +199,13 @@ function ConfirmOverlay({
   )
 }
 
+// Scroll offset per settings route (module scope so it survives layout
+// remounts): entering a page for the first time starts at the TOP, going
+// back restores where you were — iOS Settings behavior. Without this the
+// shared scroll container carried the landing page's offset into subpages
+// (tapping Advanced at the bottom of the list opened Advanced at the bottom).
+const settingsScrollMemory = new Map<string, number>()
+
 export const SettingsLayout = ({
   children,
   title,
@@ -209,6 +216,16 @@ export const SettingsLayout = ({
   const location = useLocation()
   const clock = useSettingsClock()
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    el.scrollTop = settingsScrollMemory.get(location.pathname) ?? 0
+    return () => {
+      settingsScrollMemory.set(location.pathname, el.scrollTop)
+    }
+  }, [location.pathname])
 
   const isSettingsRoot = location.pathname === ROUTES.SETTINGS
   const showBack = !isSettingsRoot
@@ -416,6 +433,7 @@ export const SettingsLayout = ({
       )}
 
       <Box
+        ref={scrollRef}
         sx={{
           flex: '1 1 auto',
           minHeight: 0,
