@@ -122,11 +122,14 @@ achieved this project: speed 17.9px, ALT/G ~12px, lean 12.3px, CHT pills 8.1px.
   First connect may need `-o StrictHostKeyChecking=accept-new`.
 - `.claude/settings.local.json` here has `permissions.defaultMode: "bypassPermissions"`
   (Byron's choice). Never commit `.claude/`.
-- **`git push` does NOT work from a background session in this container**: origin is
-  HTTPS, there are no github.com credentials (the gh token is github.hioscar.com only),
-  the VS Code credential helper only works with an attached VS Code window, and the
-  forwarded SSH key is not registered with GitHub. Commit locally, then Byron pushes
-  from a VS Code terminal attached to the container (or the Mac clone).
+- **`git push origin main` works from this container**: `gh` is logged in to
+  github.com as byroncoughlin (device-flow, 2026-07-04) and `~/.gitconfig` routes
+  github.com credentials through `gh auth git-credential` (an empty `helper =`
+  entry first resets the broken VS Code helpers inherited from /etc/gitconfig).
+  If auth ever breaks again: `gh auth login -h github.com` needs a pty — drive it
+  with a python `pty.fork()` script that answers `\x1b[6n` cursor queries with
+  `\x1b[1;1R` and the prompts with `y\r` / `\r`, then have Byron enter the
+  one-time code at github.com/login/device.
 
 ### Forcing gauge states for screenshots (no CDP needed)
 - The Pi has **python-socketio**; `sio.emit("telemetry:push", {...})` on :4000 merges
