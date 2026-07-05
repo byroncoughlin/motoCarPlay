@@ -114,6 +114,7 @@ describe('settings schemas', () => {
       'Settings Color Mode',
       'Round Corners',
       'CHT Readout In Gauge',
+      'Lean Ruler',
       'Settings Menu Colors',
       'Wi-Fi Frequency',
       'Auto Connect',

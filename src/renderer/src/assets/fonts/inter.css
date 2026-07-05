@@ -2,8 +2,8 @@
  * DejaVu. The dashboard aims for an Apple-like look: SF Pro is not
  * licensable off Apple hardware, and Inter is the closest open metric match. */
 @font-face {
-  font-family: 'Inter';
-  src: url('./InterVariable.woff2') format('woff2-variations');
+  font-family: "Inter";
+  src: url("./InterVariable.woff2") format("woff2-variations");
   font-weight: 100 900;
   font-style: normal;
   font-display: swap;
@@ -14,6 +14,6 @@
  * this replaces the old terminal-monospace look. font-variant-numeric is
  * inherited, so it reaches SVG <text> nodes too. */
 .moto-overlay {
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: "Inter", system-ui, sans-serif;
   font-variant-numeric: tabular-nums;
 }

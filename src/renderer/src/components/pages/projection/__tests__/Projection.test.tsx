@@ -530,7 +530,6 @@ describe('Projection page', () => {
     expect(graph).toHaveTextContent('12\u00b0')
     expect(graph).toHaveTextContent('WARM')
     expect(graph).toHaveTextContent('HOT')
-    expect(graph).toHaveTextContent('Reset Max')
     expect(graph).toHaveTextContent('CHT LEFT')
     expect(graph).toHaveTextContent('LIVE')
     expect(graph).toHaveTextContent('151')

@@ -81,6 +81,7 @@ export const DEFAULT_CONFIG: Config = {
   reversePitch: false,
   diagnosticMode: false,
   chtReadoutInBar: true,
+  leanRulerEnabled: false,
   startPage: 'home',
   language: 'en',
   kiosk: { main: true, dash: false, aux: false },

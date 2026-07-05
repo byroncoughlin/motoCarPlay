@@ -50,6 +50,12 @@ const advancedSchema: SettingsNode<Config> = {
       label: 'CHT Readout In Gauge',
       path: 'chtReadoutInBar'
     },
+    // Fixed reference wings over the bottom-band horizon (off by default).
+    {
+      type: 'checkbox',
+      label: 'Lean Ruler',
+      path: 'leanRulerEnabled'
+    },
     {
       type: 'route',
       label: 'Settings Menu Colors',

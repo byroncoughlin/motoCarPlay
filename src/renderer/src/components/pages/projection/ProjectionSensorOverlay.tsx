@@ -99,6 +99,7 @@ type MotoSettings = Pick<
   | 'reversePitch'
   | 'diagnosticMode'
   | 'chtReadoutInBar'
+  | 'leanRulerEnabled'
 >
 
 type MetricZone = {
@@ -1163,10 +1164,9 @@ function TopArcImpl({ telemetry, actions }: { telemetry: MotoTelemetry; actions:
             <span
               style={{
                 fontSize: 20,
-                fontWeight: 800,
+                fontWeight: 700,
                 color: 'rgba(255,255,255,0.78)',
-                letterSpacing: 2,
-                textTransform: 'uppercase'
+                letterSpacing: 0.3
               }}
             >
               mph
@@ -1367,20 +1367,15 @@ function ChtGaugeImpl({
             opacity={showStale ? 0.55 : 1}
           />
         )}
+        {/* Zone thresholds as short edge ticks (Apple-quiet) instead of
+            dashed lines across the whole bar. */}
         {CHT_THRESHOLDS.map((t, i) => {
           const y = barY + barH - (t / maxTemp) * barH
           return (
-            <line
-              key={t}
-              x1={barX}
-              y1={y}
-              x2={barX + barW}
-              y2={y}
-              stroke={CHT_ZONES[i + 1].color}
-              strokeWidth={1.5}
-              strokeDasharray="4 4"
-              opacity={0.7}
-            />
+            <g key={t} stroke={CHT_ZONES[i + 1].color} strokeWidth={2.5} opacity={0.9}>
+              <line x1={barX} y1={y} x2={barX + 8} y2={y} />
+              <line x1={barX + barW - 8} y1={y} x2={barX + barW} y2={y} />
+            </g>
           )
         })}
         {readoutInBar ? (
@@ -1472,7 +1467,8 @@ function BottomArc({
   const cx = w / 2
   const pitchScale = 2.5
   const refY = h / 2
-  const ref = '#ffd700'
+  const ref = 'rgba(255,255,255,0.55)'
+  const showLeanRuler = settings?.leanRulerEnabled === true
   const {
     lean: leanVal,
     pitch: pitchVal,
@@ -1597,48 +1593,54 @@ function BottomArc({
             ))}
           </g>
         </g>
-        <line
-          x1={cx - 72}
-          y1={refY}
-          x2={cx - 12}
-          y2={refY}
-          stroke={ref}
-          strokeWidth={3.5}
-          strokeLinecap="round"
-        />
-        <line
-          x1={cx - 72}
-          y1={refY}
-          x2={cx - 72}
-          y2={refY + 9}
-          stroke={ref}
-          strokeWidth={3.5}
-          strokeLinecap="round"
-        />
-        <line
-          x1={cx + 12}
-          y1={refY}
-          x2={cx + 72}
-          y2={refY}
-          stroke={ref}
-          strokeWidth={3.5}
-          strokeLinecap="round"
-        />
-        <line
-          x1={cx + 72}
-          y1={refY}
-          x2={cx + 72}
-          y2={refY + 9}
-          stroke={ref}
-          strokeWidth={3.5}
-          strokeLinecap="round"
-        />
+        {/* Fixed ADI reference wings: monochrome (color = state only) and
+            off by default — Advanced > "Lean Ruler" brings them back. */}
+        {showLeanRuler && (
+          <>
+            <line
+              x1={cx - 72}
+              y1={refY}
+              x2={cx - 12}
+              y2={refY}
+              stroke={ref}
+              strokeWidth={3.5}
+              strokeLinecap="round"
+            />
+            <line
+              x1={cx - 72}
+              y1={refY}
+              x2={cx - 72}
+              y2={refY + 9}
+              stroke={ref}
+              strokeWidth={3.5}
+              strokeLinecap="round"
+            />
+            <line
+              x1={cx + 12}
+              y1={refY}
+              x2={cx + 72}
+              y2={refY}
+              stroke={ref}
+              strokeWidth={3.5}
+              strokeLinecap="round"
+            />
+            <line
+              x1={cx + 72}
+              y1={refY}
+              x2={cx + 72}
+              y2={refY + 9}
+              stroke={ref}
+              strokeWidth={3.5}
+              strokeLinecap="round"
+            />
+          </>
+        )}
         <GaugePill cx={cx} cy={pitchCY} width={74} height={pitchH} />
         <text
           x={cx}
           y={pitchCY + 6}
           textAnchor="middle"
-          fill={telemetry.pitchDeg != null ? ref : 'white'}
+          fill="white"
           fontSize={18}
           fontWeight="bold"
         >
@@ -2428,9 +2430,6 @@ function RideDynamicsPanel({
           telemetry.imuPeak.g > 0.05 ? telemetry.imuPeak.g.toFixed(2) : '\u2014',
           '#ffb300'
         )}
-        <div style={{ marginTop: 4, alignSelf: 'flex-end' }}>
-          <ResetMaxButton onReset={actions.resetImuPeak} width={132} />
-        </div>
       </div>
     </div>
   )
@@ -2627,86 +2626,8 @@ function CylinderHeadsPanel({
         >
           {delta !== null ? `${delta}\u00b0` : '\u2014'}
         </span>
-        <div style={{ marginTop: 8 }}>
-          <ResetMaxButton onReset={actions.resetChtPeak} width={116} />
-        </div>
       </div>
       {side(right, 1)}
-    </div>
-  )
-}
-
-function ResetMaxButton({ onReset, width = 120 }: { onReset: () => void; width?: number }) {
-  const [confirm, setConfirm] = React.useState(false)
-  // Apple tinted capsules, matching the graph-header actions.
-  const base: React.CSSProperties = {
-    cursor: 'pointer',
-    fontWeight: 600,
-    letterSpacing: 0.2,
-    borderRadius: 999,
-    border: 0,
-    textAlign: 'center',
-    userSelect: 'none',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    touchAction: 'manipulation',
-    WebkitTapHighlightColor: 'transparent',
-    width
-  }
-
-  if (!confirm) {
-    return (
-      <button
-        type="button"
-        onClick={() => setConfirm(true)}
-        style={{
-          ...base,
-          minHeight: 60,
-          padding: '11px 14px',
-          fontSize: 17,
-          color: '#ff453a',
-          background: 'rgba(255,69,58,0.16)'
-        }}
-      >
-        Reset Max
-      </button>
-    )
-  }
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width }}>
-      <button
-        type="button"
-        onClick={() => {
-          onReset()
-          setConfirm(false)
-        }}
-        style={{
-          ...base,
-          minHeight: 60,
-          padding: '10px 12px',
-          fontSize: 17,
-          color: '#ffffff',
-          background: '#e0322e'
-        }}
-      >
-        Confirm
-      </button>
-      <button
-        type="button"
-        onClick={() => setConfirm(false)}
-        style={{
-          ...base,
-          minHeight: 60,
-          padding: '9px 12px',
-          fontSize: 17,
-          color: '#ffffff',
-          background: 'rgba(255,255,255,0.12)'
-        }}
-      >
-        Cancel
-      </button>
     </div>
   )
 }

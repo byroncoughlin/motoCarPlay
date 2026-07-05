@@ -214,6 +214,10 @@ export type Config = {
    *  number in a darkened base segment of the thermometer bar; false renders
    *  a centered pill below a slightly shorter bar. */
   chtReadoutInBar?: boolean
+  /** Show the fixed reference brackets over the bottom-band artificial
+   *  horizon (aircraft-ADI style wings). Hidden by default — the lean pill
+   *  carries the number; the brackets are extra chrome at a glance. */
+  leanRulerEnabled?: boolean
 
   // Camera + dashboards + media slots
   cameraId: string
