@@ -352,7 +352,7 @@ describe('Projection page', () => {
       svgH: 222,
       cx: 58,
       cy: 8,
-      cw: 518,
+      cw: 462,
       ch: 176
     })
     expect(motoGraphPaneGeometry(false)).toEqual({
@@ -360,7 +360,7 @@ describe('Projection page', () => {
       svgH: 454,
       cx: 58,
       cy: 8,
-      cw: 518,
+      cw: 462,
       ch: 382
     })
 
@@ -377,7 +377,7 @@ describe('Projection page', () => {
       '0 0 586 222'
     )
     expect(screen.getByTestId('projection-metric-graph-plot-speed')).toHaveAttribute('x', '58')
-    expect(screen.getByTestId('projection-metric-graph-plot-speed')).toHaveAttribute('width', '518')
+    expect(screen.getByTestId('projection-metric-graph-plot-speed')).toHaveAttribute('width', '462')
     expect(screen.getByTestId('projection-metric-graph-plot-speed')).toHaveAttribute(
       'height',
       '176'

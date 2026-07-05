@@ -3070,35 +3070,6 @@ function GraphPaneImpl({
             </span>
           )}
         </div>
-        {confirmReset ? (
-          <div style={{ display: 'flex', gap: 10 }}>
-            <button
-              type="button"
-              onClick={() => setConfirmReset(false)}
-              style={actionBtn('rgba(255,255,255,0.12)', '#ffffff', compact)}
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                resetMetric()
-                setConfirmReset(false)
-              }}
-              style={actionBtn('#e0322e', '#ffffff', compact)}
-            >
-              Confirm
-            </button>
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setConfirmReset(true)}
-            style={actionBtn('rgba(255,69,58,0.16)', '#ff453a', compact)}
-          >
-            Reset
-          </button>
-        )}
       </div>
       <div
         style={{
@@ -3364,6 +3335,52 @@ function GraphPaneImpl({
             )
           })()}
       </svg>
+      {/* Reset lives in the card's bottom-right corner — the chart is
+          centered in the card, so this band is empty (the capsule is slimmed
+          so it clears the plot box; the confirm pair stacks in place). */}
+      {confirmReset ? (
+        <div
+          style={{
+            position: 'absolute',
+            right: 12,
+            bottom: 12,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 8
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => {
+              resetMetric()
+              setConfirmReset(false)
+            }}
+            style={graphResetBtn('#e0322e', '#ffffff')}
+          >
+            Confirm
+          </button>
+          <button
+            type="button"
+            onClick={() => setConfirmReset(false)}
+            style={graphResetBtn('rgba(255,255,255,0.12)', '#ffffff')}
+          >
+            Cancel
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setConfirmReset(true)}
+          style={{
+            ...graphResetBtn('rgba(255,69,58,0.16)', '#ff453a'),
+            position: 'absolute',
+            right: 12,
+            bottom: 12
+          }}
+        >
+          Reset
+        </button>
+      )}
     </div>
   )
 }
@@ -3372,7 +3389,10 @@ export function motoGraphPaneGeometry(compact: boolean) {
   const svgW = MOTO_CENTER_SQUARE_SIZE
   const cx = 58
   const cy = 8
-  const cw = svgW - cx - 10
+  // 66-unit right margin (was 10): reserves the card's bottom-right corner
+  // for the floating Reset capsule so it never covers the newest data at
+  // the plot's right edge (verified ~11px gap on-device).
+  const cw = svgW - cx - 66
   const ch = compact ? 176 : 382
   const svgH = cy + ch + (compact ? 38 : 64)
   return { svgW, svgH, cx, cy, cw, ch }
@@ -3458,6 +3478,7 @@ const closeBtn: React.CSSProperties = {
 
 // Apple Health dark-mode surface: each graph/panel section is an elevated
 // #1c1c1e card on the black pane instead of a divider-separated void.
+// position:relative anchors the card's bottom-right Reset capsule.
 const graphCard: React.CSSProperties = {
   flex: 1,
   minHeight: 0,
@@ -3466,8 +3487,29 @@ const graphCard: React.CSSProperties = {
   margin: '10px 12px',
   background: '#1c1c1e',
   borderRadius: 20,
-  overflow: 'hidden'
+  overflow: 'hidden',
+  position: 'relative'
 }
+
+// Slim tinted capsule for the in-card Reset/confirm — narrower than the
+// dialog capsules so it fits the empty band right of the centered chart.
+const graphResetBtn = (bg: string, fg: string): React.CSSProperties => ({
+  background: bg,
+  border: 0,
+  color: fg,
+  borderRadius: 999,
+  height: 56,
+  padding: '0 22px',
+  fontSize: 16,
+  fontWeight: 600,
+  letterSpacing: 0.2,
+  cursor: 'pointer',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  touchAction: 'manipulation',
+  WebkitTapHighlightColor: 'transparent'
+})
 
 // Circular, matching the close ✕ face it now sits beside.
 const graphSettingsBtn: React.CSSProperties = {
