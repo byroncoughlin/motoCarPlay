@@ -116,6 +116,10 @@ const ARC_PCT = MOTO_ARC_PCT
 const GRAPH_WINDOW_MS = 5 * 60 * 1000
 const GRAPH_MAX_AGE_MS = 8 * 60 * 60 * 1000
 const GRAPH_SAMPLE_MS = 1000
+
+// Tests run the overlay under jsdom; timers/telemetry side channels stay off.
+const IS_JSDOM =
+  typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('jsdom')
 // Diagnostic Mode: how often to persist a snapshot, and how many raw telemetry
 // payloads to retain between flushes (bounded so the buffer can't grow forever).
 const DIAG_FLUSH_MS = 30 * 1000
@@ -172,7 +176,10 @@ function GaugePill({
 }
 
 // CHT color thresholds (°C): blue < 80 (cold), green 80–140 (normal),
-// yellow 140–150 (warm), red > 150 (hot).
+// yellow 140–150 (warm), red > 150 (hot). Single source of truth — the pill
+// colors, panel zone badges, gauge threshold lines and graph zones all derive
+// from this list. (Only WARM/HOT carry a `label`: the graph threshold lines
+// annotate just those.)
 const CHT_ZONES: MetricZone[] = [
   { max: 80, color: '#4fc3f7' },
   { max: 140, color: '#66bb6a' },
@@ -181,7 +188,7 @@ const CHT_ZONES: MetricZone[] = [
 ]
 
 // The zone boundaries, for drawing threshold divider lines on the L/R gauges.
-const CHT_THRESHOLDS = [80, 140, 150]
+const CHT_THRESHOLDS = CHT_ZONES.slice(0, -1).map((z) => z.max)
 
 const METRIC_CONFIG: Record<MetricKey, MetricConfig> = {
   speed: {
@@ -268,18 +275,9 @@ const IMU_KEYS: MetricKey[] = ['leanAngle', 'pitchAngle', 'gForce']
 const CHT_KEYS: MetricKey[] = ['chtLeft', 'chtRight']
 
 function emptyLog(): Record<MetricKey, DataPoint[]> {
-  return {
-    speed: [],
-    heading: [],
-    ambientTemp: [],
-    chtLeft: [],
-    chtRight: [],
-    altitude: [],
-    gForce: [],
-    leanAngle: [],
-    pitchAngle: [],
-    piTemp: []
-  }
+  const log = {} as Record<MetricKey, DataPoint[]>
+  for (const k of Object.keys(METRIC_CONFIG) as MetricKey[]) log[k] = []
+  return log
 }
 
 function initialTelemetry(): MotoTelemetry {
@@ -386,8 +384,10 @@ function readSensors(payload: unknown): Partial<MotoTelemetry> | null {
   const patch: Partial<MotoTelemetry> = {}
   const gps = asRecord(msg.gps)
 
+  // Not rounded here: stableSpeed rounds the displayed value, and its
+  // rise/fall thresholds compare more accurately against the raw mph.
   const speedKph = finiteNumber(msg.speedKph)
-  if (speedKph !== undefined) patch.speedMph = Math.max(0, Math.round(speedKph * 0.621371))
+  if (speedKph !== undefined) patch.speedMph = Math.max(0, speedKph * 0.621371)
 
   const heading = finiteNumber(gps?.heading)
   if (heading !== undefined) patch.headingDeg = Math.round(((heading % 360) + 360) % 360)
@@ -443,19 +443,70 @@ function toCardinal(deg: number): string {
   return cardinals[Math.round(deg / 45) % 8]
 }
 
-function tempColor(temp: number | null): string {
-  if (temp == null) return '#333'
-  if (temp < 80) return '#4fc3f7'
-  if (temp < 140) return '#66bb6a'
-  if (temp <= 150) return '#ffca28'
-  return '#ef5350'
+const CHT_ZONE_NAMES = ['COLD', 'NORMAL', 'WARM', 'HOT'] as const
+
+// Boundary semantics preserved from the original hand-rolled checks:
+// a value on a threshold belongs to the zone below only at 150 (<= WARM).
+function chtZone(temp: number): { label: string; color: string } {
+  const idx =
+    temp < CHT_ZONES[0].max ? 0 : temp < CHT_ZONES[1].max ? 1 : temp <= CHT_ZONES[2].max ? 2 : 3
+  return { label: CHT_ZONE_NAMES[idx], color: CHT_ZONES[idx].color }
 }
 
-function chtZone(temp: number): { label: string; color: string } {
-  if (temp < 80) return { label: 'COLD', color: '#4fc3f7' }
-  if (temp < 140) return { label: 'NORMAL', color: '#66bb6a' }
-  if (temp <= 150) return { label: 'WARM', color: '#ffca28' }
-  return { label: 'HOT', color: '#ef5350' }
+function tempColor(temp: number | null): string {
+  return temp == null ? '#333' : chtZone(temp).color
+}
+
+// Offset-corrected lean/pitch/G readouts shared by the bottom band and the
+// ride-dynamics panel (they previously derived these independently).
+function deriveAttitude(telemetry: MotoTelemetry, settings: MotoSettings | null) {
+  const lean = telemetry.leanDeg != null ? telemetry.leanDeg - (settings?.leanOffset ?? 0) : 0
+  const pitch = telemetry.pitchDeg != null ? telemetry.pitchDeg - (settings?.pitchOffset ?? 0) : 0
+  const totalG =
+    telemetry.gForceX != null && telemetry.gForceY != null
+      ? Math.sqrt(telemetry.gForceX ** 2 + telemetry.gForceY ** 2)
+      : null
+  return {
+    lean,
+    pitch,
+    totalG,
+    absLean: Math.abs(Math.round(lean)),
+    side: lean > 0.5 ? 'R' : lean < -0.5 ? 'L' : '',
+    absPitch: Math.abs(Math.round(pitch)),
+    pitchDir: pitch > 0.5 ? '▲' : pitch < -0.5 ? '▼' : ''
+  }
+}
+
+// Label/value row shared by the GPS and ride-dynamics center panels.
+const stat = (label: string, value: string, color = 'white'): React.JSX.Element => (
+  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
+    <span style={{ color: '#dcdcdc', fontSize: 14, fontWeight: 800, letterSpacing: 0.5 }}>
+      {label}
+    </span>
+    <span style={{ color, fontSize: 17, fontWeight: 900, fontFamily: 'monospace' }}>{value}</span>
+  </div>
+)
+
+// Centered placeholder shown by the center panels while a sensor has no data.
+function PanelEmptyState({ title, detail }: { title: string; detail?: string }) {
+  return (
+    <div
+      style={{
+        flex: 1,
+        minHeight: 0,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
+      }}
+    >
+      <div style={{ textAlign: 'center', fontFamily: 'monospace' }}>
+        <div style={{ color: '#888', fontSize: 14, fontWeight: 800, letterSpacing: 2 }}>
+          {title}
+        </div>
+        {detail && <div style={{ color: '#555', fontSize: 11, marginTop: 6 }}>{detail}</div>}
+      </div>
+    </div>
+  )
 }
 
 function leanColor(absLean: number): string {
@@ -673,9 +724,7 @@ function useMotoTelemetry(settings: MotoSettings | null): {
   // Entirely gated on the setting — when off, no interval, no listener, no push.
   React.useEffect(() => {
     if (!settings?.diagnosticMode) return
-    const isJsdom =
-      typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('jsdom')
-    if (isJsdom) return
+    if (IS_JSDOM) return
 
     const flush = () => {
       const send = window.projection?.ipc?.sendDiagnosticSnapshot
@@ -886,9 +935,7 @@ function useMotoTelemetry(settings: MotoSettings | null): {
   // dropped): the value never goes null, so flag "not responding" once the
   // last good reading is older than CHT_STALE_MS while still showing it.
   React.useEffect(() => {
-    const isJsdom =
-      typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('jsdom')
-    if (isJsdom) return
+    if (IS_JSDOM) return
     const id = window.setInterval(() => {
       const now = Date.now()
       setTelemetry((prev) => {
@@ -1264,7 +1311,7 @@ function ChtGaugeImpl({
             opacity={showStale ? 0.55 : 1}
           />
         )}
-        {CHT_THRESHOLDS.map((t) => {
+        {CHT_THRESHOLDS.map((t, i) => {
           const y = barY + barH - (t / maxTemp) * barH
           return (
             <line
@@ -1273,7 +1320,7 @@ function ChtGaugeImpl({
               y1={y}
               x2={barX + barW}
               y2={y}
-              stroke={tempColor(t + 0.1)}
+              stroke={CHT_ZONES[i + 1].color}
               strokeWidth={1.5}
               strokeDasharray="4 4"
               opacity={0.7}
@@ -1344,23 +1391,20 @@ function BottomArc({
   const pitchScale = 2.5
   const refY = h / 2
   const ref = '#ffd700'
-  const leanOffset = settings?.leanOffset ?? 0
-  const pitchOffset = settings?.pitchOffset ?? 0
-  const leanVal = telemetry.leanDeg != null ? telemetry.leanDeg - leanOffset : 0
-  const pitchVal = telemetry.pitchDeg != null ? telemetry.pitchDeg - pitchOffset : 0
+  const {
+    lean: leanVal,
+    pitch: pitchVal,
+    totalG,
+    absLean,
+    side,
+    absPitch,
+    pitchDir
+  } = deriveAttitude(telemetry, settings)
   const hasLean = telemetry.leanDeg != null
-  const absLean = Math.abs(Math.round(leanVal))
-  const side = leanVal > 0.5 ? 'R' : leanVal < -0.5 ? 'L' : ''
-  const absPitch = Math.abs(Math.round(pitchVal))
-  const pitchDir = pitchVal > 0.5 ? '\u25b2' : pitchVal < -0.5 ? '\u25bc' : ''
   const gpsLive = telemetry.gpsFix === true && telemetry.gpsResponding
   const gpsStale = !gpsLive && telemetry.altitudeFtLast != null
   const altValue = gpsLive ? telemetry.altitudeFt : telemetry.altitudeFtLast
   const altFt = altValue != null ? altValue.toLocaleString() : '--'
-  const totalG =
-    telemetry.gForceX != null && telemetry.gForceY != null
-      ? Math.sqrt(telemetry.gForceX ** 2 + telemetry.gForceY ** 2)
-      : null
   const hasG = totalG != null
   const gVal = totalG ?? 0
   const gTextColor = !hasG ? '#444' : gColor(gVal)
@@ -1676,26 +1720,14 @@ function GpsSkyPanel({ telemetry }: { telemetry: MotoTelemetry }) {
   const sweepId = useSvgId('gps-sweep')
   if (!sky) {
     return (
-      <div
-        style={{
-          flex: 1,
-          minHeight: 0,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center'
-        }}
-      >
-        <div style={{ textAlign: 'center', fontFamily: 'monospace' }}>
-          <div style={{ color: '#888', fontSize: 14, fontWeight: 800, letterSpacing: 2 }}>
-            {telemetry.gpsFix === null ? 'NO GPS RECEIVER' : 'WAITING FOR SATELLITES\u2026'}
-          </div>
-          <div style={{ color: '#555', fontSize: 11, marginTop: 6 }}>
-            {telemetry.gpsFix === null
-              ? 'check the USB GPS connection'
-              : `${telemetry.gpsSatellites} sat${telemetry.gpsSatellites === 1 ? '' : 's'} so far`}
-          </div>
-        </div>
-      </div>
+      <PanelEmptyState
+        title={telemetry.gpsFix === null ? 'NO GPS RECEIVER' : 'WAITING FOR SATELLITES\u2026'}
+        detail={
+          telemetry.gpsFix === null
+            ? 'check the USB GPS connection'
+            : `${telemetry.gpsSatellites} sat${telemetry.gpsSatellites === 1 ? '' : 's'} so far`
+        }
+      />
     )
   }
 
@@ -1735,16 +1767,6 @@ function GpsSkyPanel({ telemetry }: { telemetry: MotoTelemetry }) {
   const ordered = [...sky.sats].sort((a, b) => (b.snr ?? 0) - (a.snr ?? 0)).slice(0, 12)
   const yForSnr = (snr: number) => 64 - (Math.min(snr, 50) / 50) * 64
 
-  const stat = (label: string, value: string, color = 'white') => (
-    <div
-      style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}
-    >
-      <span style={{ color: '#dcdcdc', fontSize: 14, fontWeight: 800, letterSpacing: 0.5 }}>
-        {label}
-      </span>
-      <span style={{ color, fontSize: 17, fontWeight: 900, fontFamily: 'monospace' }}>{value}</span>
-    </div>
-  )
   const ttffRow = noFix
     ? sky.acquiring != null
       ? stat('ACQUIRING', fmtSecs(sky.acquiring), '#ffca28')
@@ -2015,51 +2037,14 @@ function RideDynamicsPanel({
   const attitudeClip = useSvgId('ride-attitude')
 
   if (telemetry.leanDeg === null && telemetry.gForceX === null) {
-    return (
-      <div
-        style={{
-          flex: 1,
-          minHeight: 0,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center'
-        }}
-      >
-        <div
-          style={{
-            color: '#888',
-            fontSize: 14,
-            fontWeight: 800,
-            letterSpacing: 2,
-            fontFamily: 'monospace'
-          }}
-        >
-          NO IMU DATA
-        </div>
-      </div>
-    )
+    return <PanelEmptyState title="NO IMU DATA" />
   }
 
-  const lean = telemetry.leanDeg != null ? telemetry.leanDeg - (settings?.leanOffset ?? 0) : 0
-  const pitch = telemetry.pitchDeg != null ? telemetry.pitchDeg - (settings?.pitchOffset ?? 0) : 0
+  const attitude = deriveAttitude(telemetry, settings)
+  const { lean, pitch, absLean, side, absPitch, pitchDir } = attitude
   const gx = telemetry.gForceX ?? 0
   const gy = telemetry.gForceY ?? 0
-  const totalG = Math.sqrt(gx ** 2 + gy ** 2)
-  const absLean = Math.abs(Math.round(lean))
-  const side = lean > 0.5 ? 'R' : lean < -0.5 ? 'L' : ''
-  const absPitch = Math.abs(Math.round(pitch))
-  const pitchDir = pitch > 0.5 ? '\u25b2' : pitch < -0.5 ? '\u25bc' : ''
-
-  const stat = (label: string, value: string, color = '#fff') => (
-    <div
-      style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}
-    >
-      <span style={{ color: '#dcdcdc', fontSize: 14, fontWeight: 800, letterSpacing: 0.5 }}>
-        {label}
-      </span>
-      <span style={{ color, fontSize: 17, fontWeight: 900, fontFamily: 'monospace' }}>{value}</span>
-    </div>
-  )
+  const totalG = attitude.totalG ?? 0
 
   const rim = (deg: number, r = 70) => {
     const a = (deg * Math.PI) / 180
@@ -2458,29 +2443,7 @@ function CylinderHeadsPanel({
   actions: MotoActions
 }) {
   if (telemetry.chtLeftC === null && telemetry.chtRightC === null) {
-    return (
-      <div
-        style={{
-          flex: 1,
-          minHeight: 0,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center'
-        }}
-      >
-        <div
-          style={{
-            color: '#888',
-            fontSize: 14,
-            fontWeight: 800,
-            letterSpacing: 2,
-            fontFamily: 'monospace'
-          }}
-        >
-          NO CYLINDER-HEAD DATA
-        </div>
-      </div>
-    )
+    return <PanelEmptyState title="NO CYLINDER-HEAD DATA" />
   }
 
   const reading = (label: string, temp: number | null, peak: number) => {
@@ -2822,7 +2785,7 @@ function MetricGraph({
       )}
       {topPanel === 'cht' && <CylinderHeadsPanel telemetry={telemetry} actions={actions} />}
 
-      {(topPanel ? [metricKey] : keys).map((key, index) => (
+      {keys.map((key, index) => (
         <GraphPane
           key={key}
           metricKey={key}
@@ -2952,8 +2915,8 @@ function GraphPaneImpl({
   }
   const isLive = viewOffset < 3000
   const current = data.length ? data[data.length - 1].val : null
-  const visMin = vals.length ? Math.min(...vals) : null
-  const visMax = vals.length ? Math.max(...vals) : null
+  const visMin = vals.length ? rawMin : null
+  const visMax = vals.length ? rawMax : null
   const zones = cfg.zones
   const zoneOf = (v: number) => zones?.find((z) => v <= z.max) ?? zones?.[zones.length - 1]
   const valueColor = zones && current !== null ? (zoneOf(current)?.color ?? cfg.color) : 'white'
