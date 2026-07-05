@@ -223,11 +223,10 @@ describe('Projection page', () => {
       telemetryCb?.({ chtLeftC: 151.2, chtRightC: 162.7 })
     })
 
-    expect(screen.getByLabelText('L cylinder head temperature')).toHaveTextContent('151')
-    expect(screen.getByLabelText('L cylinder head temperature')).toHaveTextContent('C')
+    // Strip pill reads "151\u00b0" \u2014 bare degree sign, no unit letter (Apple style).
+    expect(screen.getByLabelText('L cylinder head temperature')).toHaveTextContent('151\u00b0')
     expect(screen.getByLabelText('L cylinder head temperature')).not.toHaveTextContent('\u00b0C')
-    expect(screen.getByLabelText('R cylinder head temperature')).toHaveTextContent('163')
-    expect(screen.getByLabelText('R cylinder head temperature')).toHaveTextContent('C')
+    expect(screen.getByLabelText('R cylinder head temperature')).toHaveTextContent('163\u00b0')
     expect(screen.getByLabelText('R cylinder head temperature')).not.toHaveTextContent('\u00b0C')
 
     nowSpy.mockReturnValue(2000)
@@ -528,7 +527,7 @@ describe('Projection page', () => {
     expect(graph).toHaveTextContent('12\u00b0')
     expect(graph).toHaveTextContent('WARM')
     expect(graph).toHaveTextContent('HOT')
-    expect(graph).toHaveTextContent('RESET MAX')
+    expect(graph).toHaveTextContent('Reset Max')
     expect(graph).toHaveTextContent('CHT LEFT')
     expect(graph).toHaveTextContent('\u25cf LIVE')
     expect(graph).toHaveTextContent('151')
@@ -614,8 +613,8 @@ describe('Projection page', () => {
     expect(graph).toHaveTextContent('50')
 
     const graphScope = within(graph)
-    fireEvent.click(graphScope.getAllByText('RESET')[0])
-    fireEvent.click(graphScope.getByText('CONFIRM'))
+    fireEvent.click(graphScope.getAllByText('Reset')[0])
+    fireEvent.click(graphScope.getByText('Confirm'))
 
     expect(graph).toHaveTextContent('AMBIENT')
     expect(graph).toHaveTextContent('PI CPU')
@@ -644,7 +643,7 @@ describe('Projection page', () => {
 
     expect(screen.getByText('Quit motoCarPlay?')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByText('QUIT'))
+    fireEvent.click(screen.getByText('Quit'))
 
     expect((window as any).projection.quit).toHaveBeenCalledTimes(1)
 

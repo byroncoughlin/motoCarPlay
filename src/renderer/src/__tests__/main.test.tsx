@@ -126,6 +126,7 @@ jest.mock('@fontsource/roboto/300.css', () => ({}), { virtual: true })
 jest.mock('@fontsource/roboto/400.css', () => ({}), { virtual: true })
 jest.mock('@fontsource/roboto/500.css', () => ({}), { virtual: true })
 jest.mock('@fontsource/roboto/700.css', () => ({}), { virtual: true })
+jest.mock('../assets/fonts/inter.css', () => ({}), { virtual: true })
 jest.mock('../i18n', () => ({}))
 
 describe('renderer main bootstrap', () => {

@@ -1,0 +1,19 @@
+/* Inter variable font (100–900), bundled so the Pi never falls back to
+ * DejaVu. The dashboard aims for an Apple-like look: SF Pro is not
+ * licensable off Apple hardware, and Inter is the closest open metric match. */
+@font-face {
+  font-family: 'Inter';
+  src: url('./InterVariable.woff2') format('woff2-variations');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Dashboard surfaces (sensor overlay, waiting pane): Inter everywhere, with
+ * tabular (fixed-width) digits so live numeric readouts don't jitter —
+ * this replaces the old terminal-monospace look. font-variant-numeric is
+ * inherited, so it reaches SVG <text> nodes too. */
+.moto-overlay {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+}

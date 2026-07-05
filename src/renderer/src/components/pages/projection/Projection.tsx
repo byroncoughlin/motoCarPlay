@@ -330,7 +330,6 @@ function WaitingProjectionPane({
         color: active ? theme.text : theme.textDim,
         fontSize: 13,
         fontWeight: 600,
-        fontFamily: 'sans-serif',
         letterSpacing: 0.2,
         whiteSpace: 'nowrap'
       }}
@@ -353,6 +352,7 @@ function WaitingProjectionPane({
     <div
       data-testid="projection-waiting-pane"
       data-appearance={dark ? 'dark' : 'light'}
+      className="moto-overlay"
       style={{
         position: 'absolute',
         left: frame.left,
@@ -365,8 +365,7 @@ function WaitingProjectionPane({
         overflow: 'hidden',
         pointerEvents: 'none',
         zIndex: 2,
-        color: theme.text,
-        fontFamily: 'sans-serif'
+        color: theme.text
       }}
     >
       <button
@@ -423,7 +422,6 @@ function WaitingProjectionPane({
             color: theme.textDim,
             fontSize: 17,
             fontWeight: 600,
-            fontFamily: 'sans-serif',
             letterSpacing: 0.2,
             marginBottom: 2
           }}
@@ -494,7 +492,6 @@ function WaitingProjectionPane({
                 color: statusNotice.tone,
                 fontSize: 14,
                 fontWeight: 700,
-                fontFamily: 'sans-serif',
                 letterSpacing: 0.2
               }}
             >
@@ -514,7 +511,6 @@ function WaitingProjectionPane({
                 color: theme.textDim,
                 fontSize: 12.5,
                 fontWeight: 500,
-                fontFamily: 'sans-serif',
                 textAlign: 'center',
                 lineHeight: 1.35
               }}
@@ -553,7 +549,6 @@ function WaitingProjectionPane({
                   color: theme.textDim,
                   fontSize: 13,
                   fontWeight: 600,
-                  fontFamily: 'sans-serif',
                   letterSpacing: 0.2
                 }}
               >
@@ -573,7 +568,6 @@ function WaitingProjectionPane({
               color: power.tone,
               fontSize: 13,
               fontWeight: 600,
-              fontFamily: 'sans-serif',
               letterSpacing: 0.2
             }}
           >
@@ -601,7 +595,6 @@ function WaitingProjectionPane({
               color: usbPower.tone,
               fontSize: 13,
               fontWeight: 600,
-              fontFamily: 'sans-serif',
               letterSpacing: 0.2
             }}
           >
@@ -650,7 +643,6 @@ function WaitingProjectionPane({
               color: researching ? theme.textDim : '#ffffff',
               fontSize: 15,
               fontWeight: 600,
-              fontFamily: 'sans-serif',
               letterSpacing: 0.2,
               cursor: researching ? 'default' : 'pointer',
               touchAction: 'manipulation',
@@ -686,7 +678,6 @@ function WaitingProjectionPane({
               color: theme.text,
               fontSize: 15,
               fontWeight: 600,
-              fontFamily: 'sans-serif',
               letterSpacing: 0.2,
               cursor: 'pointer',
               touchAction: 'manipulation',
@@ -752,7 +743,6 @@ function WaitingProjectionPane({
                   color: theme.text,
                   fontWeight: 600,
                   fontSize: 16,
-                  fontFamily: 'sans-serif',
                   cursor: 'pointer'
                 }}
               >
@@ -772,7 +762,6 @@ function WaitingProjectionPane({
                   color: '#ffffff',
                   fontWeight: 600,
                   fontSize: 16,
-                  fontFamily: 'sans-serif',
                   cursor: 'pointer'
                 }}
               >

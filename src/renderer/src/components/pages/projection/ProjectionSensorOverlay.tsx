@@ -483,7 +483,7 @@ const stat = (label: string, value: string, color = 'white'): React.JSX.Element 
     <span style={{ color: '#dcdcdc', fontSize: 14, fontWeight: 800, letterSpacing: 0.5 }}>
       {label}
     </span>
-    <span style={{ color, fontSize: 17, fontWeight: 900, fontFamily: 'monospace' }}>{value}</span>
+    <span style={{ color, fontSize: 17, fontWeight: 900 }}>{value}</span>
   </div>
 )
 
@@ -499,7 +499,7 @@ function PanelEmptyState({ title, detail }: { title: string; detail?: string }) 
         justifyContent: 'center'
       }}
     >
-      <div style={{ textAlign: 'center', fontFamily: 'monospace' }}>
+      <div style={{ textAlign: 'center' }}>
         <div style={{ color: '#888', fontSize: 14, fontWeight: 800, letterSpacing: 2 }}>
           {title}
         </div>
@@ -1178,7 +1178,6 @@ function TopArcImpl({ telemetry, actions }: { telemetry: MotoTelemetry; actions:
                   fontWeight: 800,
                   letterSpacing: 1.2,
                   color: '#ccc',
-                  fontFamily: 'monospace',
                   whiteSpace: 'nowrap'
                 }}
               >
@@ -1341,14 +1340,10 @@ function ChtGaugeImpl({
           fill={!hasData ? 'white' : showStale ? '#c9a227' : color}
           fontSize={22}
           fontWeight="bold"
-          fontFamily="sans-serif"
           opacity={showStale ? 0.85 : 1}
           style={{ filter: SVG_TEXT_SHADOW }}
         >
-          {hasData ? Math.round(displayValue as number) : '--'}
-          <tspan fontSize={11} fill="rgba(255,255,255,0.7)" dx={2}>
-            C
-          </tspan>
+          {hasData ? `${Math.round(displayValue as number)}°` : '--'}
         </text>
         {showStale && (
           <text
@@ -1358,7 +1353,6 @@ function ChtGaugeImpl({
             fill="#ffca28"
             fontSize={12}
             fontWeight="bold"
-            fontFamily="sans-serif"
             letterSpacing={0.5}
           >
             NO RESP
@@ -1491,7 +1485,6 @@ function BottomArc({
                       textAnchor="end"
                       fill="white"
                       fontSize={8}
-                      fontFamily="sans-serif"
                       opacity={0.55}
                     >
                       {label}
@@ -1502,7 +1495,6 @@ function BottomArc({
                       textAnchor="start"
                       fill="white"
                       fontSize={8}
-                      fontFamily="sans-serif"
                       opacity={0.55}
                     >
                       {label}
@@ -1557,7 +1549,6 @@ function BottomArc({
           fill={telemetry.pitchDeg != null ? ref : 'white'}
           fontSize={16}
           fontWeight="bold"
-          fontFamily="monospace"
         >
           {telemetry.pitchDeg != null
             ? absPitch === 0
@@ -1575,7 +1566,6 @@ function BottomArc({
             fill="rgba(255,255,255,0.75)"
             fontSize={14}
             fontWeight="bold"
-            fontFamily="monospace"
             letterSpacing={2}
           >
             ALT
@@ -1587,7 +1577,6 @@ function BottomArc({
             fill={altValue != null ? '#f0f0f0' : 'white'}
             fontSize={24}
             fontWeight="bold"
-            fontFamily="monospace"
           >
             {altFt}
             <tspan fontSize={14} fill="rgba(255,255,255,0.7)" dx={4}>
@@ -1617,7 +1606,6 @@ function BottomArc({
               fill="#ffca28"
               fontSize={13}
               fontWeight="bold"
-              fontFamily="monospace"
               letterSpacing={1}
             >
               CALIBRATING
@@ -1636,7 +1624,6 @@ function BottomArc({
               fill="white"
               fontSize={21}
               fontWeight="bold"
-              fontFamily="sans-serif"
             >
               {hasLean ? (absLean > 0 ? `${absLean}\u00b0 ${side}` : `0\u00b0`) : '--'}
             </text>
@@ -1651,7 +1638,6 @@ function BottomArc({
             textAnchor="middle"
             fontSize={14}
             fontWeight="bold"
-            fontFamily="monospace"
             letterSpacing={2}
           >
             <tspan fill="rgba(255,255,255,0.75)">G</tspan>
@@ -1668,7 +1654,6 @@ function BottomArc({
             fill={hasG ? gTextColor : 'white'}
             fontSize={24}
             fontWeight="bold"
-            fontFamily="monospace"
           >
             {hasG ? gVal.toFixed(1) : '--'}
           </text>
@@ -1782,8 +1767,7 @@ function GpsSkyPanel({ telemetry }: { telemetry: MotoTelemetry }) {
         minHeight: 0,
         display: 'flex',
         gap: 8,
-        padding: '8px 12px 6px 10px',
-        fontFamily: 'sans-serif'
+        padding: '8px 12px 6px 10px'
       }}
     >
       <div style={{ flex: '0 0 45%', minWidth: 0, display: 'flex', justifyContent: 'center' }}>
@@ -1857,7 +1841,6 @@ function GpsSkyPanel({ telemetry }: { telemetry: MotoTelemetry }) {
               fill="rgba(255,255,255,0.45)"
               fontSize={11}
               fontWeight="bold"
-              fontFamily="monospace"
             >
               {t}
             </text>
@@ -1882,7 +1865,6 @@ function GpsSkyPanel({ telemetry }: { telemetry: MotoTelemetry }) {
                   fill="rgba(255,255,255,0.65)"
                   fontSize={8}
                   fontWeight={600}
-                  fontFamily="monospace"
                 >
                   {s.prn}
                 </text>
@@ -1898,7 +1880,6 @@ function GpsSkyPanel({ telemetry }: { telemetry: MotoTelemetry }) {
               fontSize={12}
               fontWeight={600}
               letterSpacing={1}
-              fontFamily="monospace"
             >
               {'SEARCHING\u2026'}
             </text>
@@ -1917,8 +1898,7 @@ function GpsSkyPanel({ telemetry }: { telemetry: MotoTelemetry }) {
               color: badge.color,
               fontSize: 18,
               fontWeight: 900,
-              letterSpacing: 1,
-              fontFamily: 'monospace'
+              letterSpacing: 1
             }}
           >
             {badge.label}
@@ -1947,7 +1927,6 @@ function GpsSkyPanel({ telemetry }: { telemetry: MotoTelemetry }) {
               fontSize: 11,
               fontWeight: 800,
               letterSpacing: 2,
-              fontFamily: 'monospace',
               marginBottom: 2
             }}
           >
@@ -1976,7 +1955,6 @@ function GpsSkyPanel({ telemetry }: { telemetry: MotoTelemetry }) {
                     fill="rgba(255,255,255,0.5)"
                     fontSize={8}
                     fontWeight={600}
-                    fontFamily="monospace"
                   >
                     {db}
                   </text>
@@ -2007,7 +1985,6 @@ function GpsSkyPanel({ telemetry }: { telemetry: MotoTelemetry }) {
                       fill="rgba(255,255,255,0.65)"
                       fontSize={9}
                       fontWeight={600}
-                      fontFamily="monospace"
                     >
                       {s.prn}
                     </text>
@@ -2062,8 +2039,7 @@ function RideDynamicsPanel({
         minHeight: 0,
         display: 'flex',
         gap: 6,
-        padding: '6px 12px 4px 8px',
-        fontFamily: 'sans-serif'
+        padding: '6px 12px 4px 8px'
       }}
     >
       <div style={{ flex: '0 0 33%', minWidth: 0, display: 'flex', justifyContent: 'center' }}>
@@ -2205,7 +2181,6 @@ function RideDynamicsPanel({
             fill={leanColor(absLean)}
             fontSize={34}
             fontWeight="900"
-            fontFamily="monospace"
           >
             {`${absLean}\u00b0${side}`}
           </text>
@@ -2217,7 +2192,6 @@ function RideDynamicsPanel({
             fontSize={12}
             fontWeight={800}
             letterSpacing={3}
-            fontFamily="monospace"
           >
             LEAN
           </text>
@@ -2269,7 +2243,6 @@ function RideDynamicsPanel({
             fill="rgba(255,255,255,0.55)"
             fontSize={9}
             fontWeight={700}
-            fontFamily="monospace"
           >
             BRAKE
           </text>
@@ -2280,7 +2253,6 @@ function RideDynamicsPanel({
             fill="rgba(255,255,255,0.55)"
             fontSize={9}
             fontWeight={700}
-            fontFamily="monospace"
           >
             ACCEL
           </text>
@@ -2320,7 +2292,6 @@ function RideDynamicsPanel({
             fill={gColor(totalG)}
             fontSize={30}
             fontWeight="900"
-            fontFamily="monospace"
           >
             {totalG.toFixed(2)}
           </text>
@@ -2332,7 +2303,6 @@ function RideDynamicsPanel({
             fontSize={12}
             fontWeight={800}
             letterSpacing={2}
-            fontFamily="monospace"
           >
             G-FORCE
           </text>
@@ -2477,8 +2447,7 @@ function CylinderHeadsPanel({
           color: '#dcdcdc',
           fontSize: 14,
           fontWeight: 900,
-          letterSpacing: 3,
-          fontFamily: 'monospace'
+          letterSpacing: 3
         }}
       >
         {s.label} HEAD
@@ -2490,28 +2459,24 @@ function CylinderHeadsPanel({
             color: s.has ? s.zone.color : '#fff',
             fontSize: 40,
             fontWeight: 900,
-            fontFamily: 'monospace',
             lineHeight: 1
           }}
         >
           {s.has ? Math.round(s.temp as number) : '--'}
         </span>
-        <span style={{ color: '#bbb', fontSize: 16, fontWeight: 700, fontFamily: 'monospace' }}>
-          {'\u00b0C'}
-        </span>
+        <span style={{ color: '#bbb', fontSize: 16, fontWeight: 700 }}>{'\u00b0C'}</span>
       </div>
       <div
         style={{
           color: s.has ? s.zone.color : '#777',
           fontSize: 14,
           fontWeight: 800,
-          letterSpacing: 2,
-          fontFamily: 'monospace'
+          letterSpacing: 2
         }}
       >
         {s.zone.label}
       </div>
-      <div style={{ color: '#aaa', fontSize: 12, fontWeight: 700, fontFamily: 'monospace' }}>
+      <div style={{ color: '#aaa', fontSize: 12, fontWeight: 700 }}>
         {s.peak > 0 ? `MAX ${Math.round(s.peak)}\u00b0` : ''}
       </div>
     </div>
@@ -2525,8 +2490,7 @@ function CylinderHeadsPanel({
         display: 'flex',
         alignItems: 'center',
         gap: 4,
-        padding: '8px 12px 4px',
-        fontFamily: 'sans-serif'
+        padding: '8px 12px 4px'
       }}
     >
       {side(left, -1)}
@@ -2545,8 +2509,7 @@ function CylinderHeadsPanel({
             color: '#888',
             fontSize: 11,
             fontWeight: 800,
-            letterSpacing: 2,
-            fontFamily: 'monospace'
+            letterSpacing: 2
           }}
         >
           {'\u25c4 BOXER \u25ba'}
@@ -2557,7 +2520,6 @@ function CylinderHeadsPanel({
             fontSize: 12,
             fontWeight: 800,
             letterSpacing: 2,
-            fontFamily: 'monospace',
             marginTop: 4
           }}
         >
@@ -2568,7 +2530,6 @@ function CylinderHeadsPanel({
             color: deltaColor,
             fontSize: 30,
             fontWeight: 900,
-            fontFamily: 'monospace',
             lineHeight: 1
           }}
         >
@@ -2587,15 +2548,16 @@ function ResetMaxButton({ onReset, width = 120 }: { onReset: () => void; width?:
   const [confirm, setConfirm] = React.useState(false)
   const base: React.CSSProperties = {
     cursor: 'pointer',
-    fontFamily: 'monospace',
-    fontWeight: 800,
-    letterSpacing: 1,
-    borderRadius: 10,
+    fontWeight: 700,
+    letterSpacing: 0.2,
+    borderRadius: 12,
     textAlign: 'center',
     userSelect: 'none',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
+    touchAction: 'manipulation',
+    WebkitTapHighlightColor: 'transparent',
     width
   }
 
@@ -2606,7 +2568,7 @@ function ResetMaxButton({ onReset, width = 120 }: { onReset: () => void; width?:
         onClick={() => setConfirm(true)}
         style={{
           ...base,
-          minHeight: 46,
+          minHeight: 56,
           padding: '11px 14px',
           fontSize: 15,
           color: '#ff9a9a',
@@ -2614,7 +2576,7 @@ function ResetMaxButton({ onReset, width = 120 }: { onReset: () => void; width?:
           border: '2px solid #ff6b6b66'
         }}
       >
-        RESET MAX
+        Reset Max
       </button>
     )
   }
@@ -2629,30 +2591,30 @@ function ResetMaxButton({ onReset, width = 120 }: { onReset: () => void; width?:
         }}
         style={{
           ...base,
-          minHeight: 44,
+          minHeight: 56,
           padding: '10px 12px',
-          fontSize: 14,
+          fontSize: 15,
           color: '#fff',
           background: '#7a1414',
           border: '2px solid #ff6b6b'
         }}
       >
-        CONFIRM
+        Confirm
       </button>
       <button
         type="button"
         onClick={() => setConfirm(false)}
         style={{
           ...base,
-          minHeight: 40,
+          minHeight: 56,
           padding: '9px 12px',
-          fontSize: 14,
+          fontSize: 15,
           color: '#ccc',
           background: '#242424',
           border: '2px solid #555'
         }}
       >
-        CANCEL
+        Cancel
       </button>
     </div>
   )
@@ -2818,13 +2780,12 @@ function MetricGraph({
               color: 'white',
               fontSize: 26,
               fontWeight: 800,
-              fontFamily: 'sans-serif',
               letterSpacing: 0.5
             }}
           >
             Quit motoCarPlay?
           </div>
-          <div style={{ color: '#888', fontSize: 12, fontFamily: 'monospace', marginBottom: 18 }}>
+          <div style={{ color: '#888', fontSize: 12, marginBottom: 18 }}>
             this closes the dashboard app
           </div>
           <div style={{ display: 'flex', gap: 16 }}>
@@ -2833,7 +2794,7 @@ function MetricGraph({
               onClick={() => setConfirmQuit(false)}
               style={actionBtn('#2a2a2a', '#ccc')}
             >
-              CANCEL
+              Cancel
             </button>
             <button
               type="button"
@@ -2842,7 +2803,7 @@ function MetricGraph({
               }}
               style={actionBtn('#5c1010', '#ff6b6b')}
             >
-              QUIT
+              Quit
             </button>
           </div>
         </div>
@@ -2974,8 +2935,7 @@ function GraphPaneImpl({
               fontSize: 16,
               fontWeight: 800,
               letterSpacing: 3,
-              color: cfg.color,
-              fontFamily: 'monospace'
+              color: cfg.color
             }}
           >
             {cfg.label}
@@ -2986,8 +2946,7 @@ function GraphPaneImpl({
                 fontSize: 15,
                 color: '#5fd0ff',
                 fontWeight: 800,
-                letterSpacing: 2,
-                fontFamily: 'monospace'
+                letterSpacing: 2
               }}
             >
               {'\u25cf LIVE'}
@@ -2998,8 +2957,7 @@ function GraphPaneImpl({
                 fontSize: 15,
                 color: '#fff',
                 fontWeight: 700,
-                letterSpacing: 1,
-                fontFamily: 'monospace'
+                letterSpacing: 1
               }}
             >
               {Math.round(viewOffset / 60000)}m ago
@@ -3013,7 +2971,7 @@ function GraphPaneImpl({
               onClick={() => setConfirmReset(false)}
               style={actionBtn('#2a2a2a', '#aaa', compact)}
             >
-              CANCEL
+              Cancel
             </button>
             <button
               type="button"
@@ -3023,7 +2981,7 @@ function GraphPaneImpl({
               }}
               style={actionBtn('#5c1010', '#ff6b6b', compact)}
             >
-              CONFIRM
+              Confirm
             </button>
           </div>
         ) : (
@@ -3032,7 +2990,7 @@ function GraphPaneImpl({
             onClick={() => setConfirmReset(true)}
             style={actionBtn('#2a0808', '#ff6b6b', compact)}
           >
-            RESET
+            Reset
           </button>
         )}
       </div>
@@ -3052,7 +3010,6 @@ function GraphPaneImpl({
               fontWeight: 900,
               color: valueColor,
               lineHeight: 0.88,
-              fontFamily: 'monospace',
               letterSpacing: 0
             }}
           >
@@ -3062,8 +3019,7 @@ function GraphPaneImpl({
             style={{
               fontSize: compact ? 20 : 26,
               fontWeight: 700,
-              color: '#e8e8e8',
-              fontFamily: 'monospace'
+              color: '#e8e8e8'
             }}
           >
             {cfg.unit}
@@ -3074,7 +3030,6 @@ function GraphPaneImpl({
             fontSize: 20,
             color: '#fff',
             fontWeight: 800,
-            fontFamily: 'monospace',
             textAlign: 'right',
             lineHeight: 1.35
           }}
@@ -3146,7 +3101,6 @@ function GraphPaneImpl({
                 fill="rgba(255,255,255,0.92)"
                 fontSize={15}
                 fontWeight={700}
-                fontFamily="monospace"
               >
                 {cfg.fmtVal(v)}
               </text>
@@ -3170,7 +3124,6 @@ function GraphPaneImpl({
               fill="rgba(255,255,255,0.92)"
               fontSize={15}
               fontWeight={700}
-              fontFamily="monospace"
             >
               {label}
             </text>
@@ -3227,7 +3180,6 @@ function GraphPaneImpl({
                 fill={z.color}
                 fontSize={14}
                 fontWeight={800}
-                fontFamily="monospace"
               >
                 {`${z.label} ${cfg.fmtVal(thr)}\u00b0`}
               </text>
@@ -3254,7 +3206,6 @@ function GraphPaneImpl({
             fontSize={19}
             fontWeight={700}
             letterSpacing={2}
-            fontFamily="monospace"
           >
             NO DATA IN WINDOW
           </text>
@@ -3312,22 +3263,25 @@ export function motoGraphPaneGeometry(compact: boolean) {
   return { svgW, svgH, cx, cy, cw, ch }
 }
 
+// Dialog/action buttons: >=56px tall (6mm+ gloved tap), title-case labels,
+// no letter-spacing — Apple button voice rather than terminal CAPS.
 const actionBtn = (bg: string, fg: string, compact = false): React.CSSProperties => ({
   background: bg,
   border: `2px solid ${fg}55`,
   color: fg,
   borderRadius: 16,
-  height: compact ? 50 : 64,
-  minWidth: compact ? 96 : 116,
+  height: compact ? 56 : 64,
+  minWidth: compact ? 104 : 124,
   padding: compact ? '0 18px' : '0 26px',
-  fontSize: compact ? 13 : 15,
-  fontWeight: 800,
-  letterSpacing: 2,
+  fontSize: compact ? 15 : 17,
+  fontWeight: 700,
+  letterSpacing: 0.2,
   cursor: 'pointer',
-  fontFamily: 'monospace',
   display: 'inline-flex',
   alignItems: 'center',
-  justifyContent: 'center'
+  justifyContent: 'center',
+  touchAction: 'manipulation',
+  WebkitTapHighlightColor: 'transparent'
 })
 
 // Invisible 80x80 tap zone (~8.6mm at this display's ~235 DPI — glove-friendly)
@@ -3394,6 +3348,7 @@ export function ProjectionSensorOverlay() {
   return (
     <div
       data-testid="projection-sensor-overlay"
+      className="moto-overlay"
       style={{
         position: 'absolute',
         inset: 0,

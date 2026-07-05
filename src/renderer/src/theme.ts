@@ -45,6 +45,11 @@ function buildTheme(mode: THEME.LIGHT | THEME.DARK, bg?: string) {
   const background = bg || (isLight ? themeColors.light : themeColors.dark)
 
   return createTheme({
+    // Inter (bundled, see assets/fonts/inter.css) for the Apple-like look;
+    // Roboto stays as the fallback while fontsource still ships it.
+    typography: {
+      fontFamily: "'Inter', Roboto, 'Helvetica Neue', Arial, sans-serif"
+    },
     breakpoints: {
       values: {
         xs: 0,
