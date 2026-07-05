@@ -64,8 +64,12 @@ const describeWaitingPower = (power: PowerStatus | null | undefined): WaitingPow
   if (power.underVoltageNow) {
     return { text: `Low power${volts ? ` · ${volts}` : ''}`, tone: '#ff453a' }
   }
+  // throttledNow WITHOUT under-voltage is thermal (the Pi crosses its 80°C
+  // soft limit under load, e.g. the CPU burst of an app restart) — report it
+  // as heat, never as a power problem. Verified on Byron's Pi: rail steady
+  // at ~4.97V while get_throttled showed temp-driven throttle bits (0xe0000).
   if (power.throttledNow) {
-    return { text: `Throttled${volts ? ` · ${volts}` : ''}`, tone: '#ff453a' }
+    return { text: 'Running hot · CPU throttled', tone: '#ff9f0a' }
   }
   return null
 }
@@ -218,7 +222,10 @@ function WaitingProjectionPane({
         if (alive) {
           setPower(describeWaitingPower(stats?.power))
           setUsbPower(describeWaitingUsbPower(stats?.power))
-          if (stats?.power?.underVoltageNow || stats?.power?.throttledNow) {
+          // Only a REAL voltage sag arms the dip note. throttledNow alone is
+          // thermal (see describeWaitingPower) and made every background-mode
+          // app restart show a phantom "Power dip".
+          if (stats?.power?.underVoltageNow) {
             setLastDipTs(Date.now())
           }
         }
