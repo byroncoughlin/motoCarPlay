@@ -2638,11 +2638,13 @@ function CylinderHeadsPanel({
 
 function ResetMaxButton({ onReset, width = 120 }: { onReset: () => void; width?: number }) {
   const [confirm, setConfirm] = React.useState(false)
+  // Apple tinted capsules, matching the graph-header actions.
   const base: React.CSSProperties = {
     cursor: 'pointer',
-    fontWeight: 700,
+    fontWeight: 600,
     letterSpacing: 0.2,
-    borderRadius: 12,
+    borderRadius: 999,
+    border: 0,
     textAlign: 'center',
     userSelect: 'none',
     display: 'flex',
@@ -2660,12 +2662,11 @@ function ResetMaxButton({ onReset, width = 120 }: { onReset: () => void; width?:
         onClick={() => setConfirm(true)}
         style={{
           ...base,
-          minHeight: 56,
+          minHeight: 60,
           padding: '11px 14px',
-          fontSize: 15,
-          color: '#ff9a9a',
-          background: 'rgba(255,107,107,0.12)',
-          border: '2px solid #ff6b6b66'
+          fontSize: 17,
+          color: '#ff453a',
+          background: 'rgba(255,69,58,0.16)'
         }}
       >
         Reset Max
@@ -2674,7 +2675,7 @@ function ResetMaxButton({ onReset, width = 120 }: { onReset: () => void; width?:
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, width }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width }}>
       <button
         type="button"
         onClick={() => {
@@ -2683,12 +2684,11 @@ function ResetMaxButton({ onReset, width = 120 }: { onReset: () => void; width?:
         }}
         style={{
           ...base,
-          minHeight: 56,
+          minHeight: 60,
           padding: '10px 12px',
-          fontSize: 15,
-          color: '#fff',
-          background: '#7a1414',
-          border: '2px solid #ff6b6b'
+          fontSize: 17,
+          color: '#ffffff',
+          background: '#e0322e'
         }}
       >
         Confirm
@@ -2698,12 +2698,11 @@ function ResetMaxButton({ onReset, width = 120 }: { onReset: () => void; width?:
         onClick={() => setConfirm(false)}
         style={{
           ...base,
-          minHeight: 56,
+          minHeight: 60,
           padding: '9px 12px',
-          fontSize: 15,
-          color: '#ccc',
-          background: '#242424',
-          border: '2px solid #555'
+          fontSize: 17,
+          color: '#ffffff',
+          background: 'rgba(255,255,255,0.12)'
         }}
       >
         Cancel
@@ -2825,7 +2824,10 @@ function MetricGraph({
           data-testid="projection-graph-settings-button"
           onPointerDown={(event) => event.stopPropagation()}
           onClick={openSettings}
-          style={{ ...cornerHitArea, top: -6, left: -4 }}
+          // Sits just left of the close ✕ (Byron: right side is the natural
+          // reach). right:80 keeps the two 80px hit areas exactly adjacent,
+          // zero overlap (measured on-device).
+          style={{ ...cornerHitArea, top: -2, right: 80 }}
         >
           <span style={graphSettingsBtn}>
             <SettingsOutlinedIcon style={{ fontSize: 27 }} />
@@ -3018,16 +3020,18 @@ function GraphPaneImpl({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: first ? `12px 70px 0 ${reserveLeadingAction ? 70 : 14}px` : '8px 14px 0',
+          // First pane reserves right-side header space for the corner
+          // actions: ✕ alone (70px) or ✕ + settings gear (150px).
+          padding: first ? `12px ${reserveLeadingAction ? 150 : 70}px 0 14px` : '8px 14px 0',
           flexShrink: 0
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <span
             style={{
-              fontSize: 16,
-              fontWeight: 800,
-              letterSpacing: 3,
+              fontSize: 18,
+              fontWeight: 700,
+              letterSpacing: 1.2,
               color: cfg.color
             }}
           >
@@ -3036,21 +3040,33 @@ function GraphPaneImpl({
           {isLive ? (
             <span
               style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
                 fontSize: 15,
-                color: '#5fd0ff',
-                fontWeight: 800,
-                letterSpacing: 2
+                color: 'rgba(235,235,245,0.6)',
+                fontWeight: 600,
+                letterSpacing: 0.3
               }}
             >
-              {'\u25cf LIVE'}
+              <span
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  background: '#30d158',
+                  flex: '0 0 auto'
+                }}
+              />
+              LIVE
             </span>
           ) : (
             <span
               style={{
                 fontSize: 15,
-                color: '#fff',
-                fontWeight: 700,
-                letterSpacing: 1
+                color: '#ffffff',
+                fontWeight: 600,
+                letterSpacing: 0.3
               }}
             >
               {Math.round(viewOffset / 60000)}m ago
@@ -3062,7 +3078,7 @@ function GraphPaneImpl({
             <button
               type="button"
               onClick={() => setConfirmReset(false)}
-              style={actionBtn('#2a2a2a', '#aaa', compact)}
+              style={actionBtn('rgba(255,255,255,0.12)', '#ffffff', compact)}
             >
               Cancel
             </button>
@@ -3072,7 +3088,7 @@ function GraphPaneImpl({
                 resetMetric()
                 setConfirmReset(false)
               }}
-              style={actionBtn('#5c1010', '#ff6b6b', compact)}
+              style={actionBtn('#e0322e', '#ffffff', compact)}
             >
               Confirm
             </button>
@@ -3081,7 +3097,7 @@ function GraphPaneImpl({
           <button
             type="button"
             onClick={() => setConfirmReset(true)}
-            style={actionBtn('#2a0808', '#ff6b6b', compact)}
+            style={actionBtn('rgba(255,69,58,0.16)', '#ff453a', compact)}
           >
             Reset
           </button>
@@ -3099,20 +3115,21 @@ function GraphPaneImpl({
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
           <span
             style={{
-              fontSize: compact ? 46 : 84,
-              fontWeight: 900,
+              fontSize: compact ? 50 : 92,
+              fontWeight: 800,
               color: valueColor,
               lineHeight: 0.88,
-              letterSpacing: 0
+              letterSpacing: compact ? 0 : -1,
+              fontVariantNumeric: 'tabular-nums'
             }}
           >
             {current !== null ? cfg.fmtVal(current) : '--'}
           </span>
           <span
             style={{
-              fontSize: compact ? 20 : 26,
-              fontWeight: 700,
-              color: '#e8e8e8'
+              fontSize: compact ? 20 : 28,
+              fontWeight: 600,
+              color: 'rgba(235,235,245,0.6)'
             }}
           >
             {cfg.unit}
@@ -3120,18 +3137,24 @@ function GraphPaneImpl({
         </div>
         <div
           style={{
-            fontSize: 20,
-            color: '#fff',
-            fontWeight: 800,
+            fontSize: 19,
+            color: 'rgba(235,235,245,0.6)',
+            fontWeight: 600,
             textAlign: 'right',
-            lineHeight: 1.35
+            lineHeight: 1.4,
+            fontVariantNumeric: 'tabular-nums'
           }}
         >
           {visMax !== null && <div>MAX {cfg.fmtVal(visMax)}</div>}
           {visMin !== null && <div>MIN {cfg.fmtVal(visMin)}</div>}
           {!compact && (
             <div
-              style={{ fontSize: 14, color: '#e0e0e0', fontWeight: 700, marginTop: 4 }}
+              style={{
+                fontSize: 13,
+                color: 'rgba(235,235,245,0.35)',
+                fontWeight: 600,
+                marginTop: 4
+              }}
             >{`${data.length} pts \u00b7 drag \u2190 \u2192`}</div>
           )}
         </div>
@@ -3172,8 +3195,8 @@ function GraphPaneImpl({
           y={cy}
           width={cw}
           height={ch}
-          fill="#080808"
-          rx={4}
+          fill="rgba(255,255,255,0.04)"
+          rx={8}
         />
         {yTicks.map((v, i) => {
           const y = yFor(v)
@@ -3184,16 +3207,17 @@ function GraphPaneImpl({
                 y1={y}
                 x2={cx + cw}
                 y2={y}
-                stroke="rgba(255,255,255,0.1)"
+                stroke="rgba(255,255,255,0.08)"
                 strokeWidth={1}
               />
               <text
                 x={cx - 5}
                 y={y + 5}
                 textAnchor="end"
-                fill="rgba(255,255,255,0.92)"
+                fill="rgba(235,235,245,0.55)"
                 fontSize={15}
-                fontWeight={700}
+                fontWeight={600}
+                style={{ fontVariantNumeric: 'tabular-nums' }}
               >
                 {cfg.fmtVal(v)}
               </text>
@@ -3207,16 +3231,17 @@ function GraphPaneImpl({
               y1={cy}
               x2={x}
               y2={cy + ch}
-              stroke="rgba(255,255,255,0.1)"
+              stroke="rgba(255,255,255,0.08)"
               strokeWidth={1}
             />
             <text
               x={x}
               y={cy + ch + 18}
               textAnchor="middle"
-              fill="rgba(255,255,255,0.92)"
+              fill="rgba(235,235,245,0.55)"
               fontSize={15}
-              fontWeight={700}
+              fontWeight={600}
+              style={{ fontVariantNumeric: 'tabular-nums' }}
             >
               {label}
             </text>
@@ -3377,18 +3402,18 @@ const bigAlertBtn = (bg: string, fg: string): React.CSSProperties => ({
   WebkitTapHighlightColor: 'transparent'
 })
 
-// Dialog/action buttons: >=56px tall (6mm+ gloved tap), title-case labels,
-// no letter-spacing — Apple button voice rather than terminal CAPS.
+// Graph-page action buttons: Apple tinted capsules — translucent tint fill,
+// no border, capsule radius, >=60px tall for gloved taps.
 const actionBtn = (bg: string, fg: string, compact = false): React.CSSProperties => ({
   background: bg,
-  border: `2px solid ${fg}55`,
+  border: 0,
   color: fg,
-  borderRadius: 16,
-  height: compact ? 56 : 64,
-  minWidth: compact ? 104 : 124,
-  padding: compact ? '0 18px' : '0 26px',
-  fontSize: compact ? 15 : 17,
-  fontWeight: 700,
+  borderRadius: 999,
+  height: compact ? 60 : 64,
+  minWidth: compact ? 116 : 132,
+  padding: compact ? '0 24px' : '0 28px',
+  fontSize: compact ? 17 : 18,
+  fontWeight: 600,
   letterSpacing: 0.2,
   cursor: 'pointer',
   display: 'inline-flex',
@@ -3434,10 +3459,11 @@ const closeBtn: React.CSSProperties = {
   flexShrink: 0
 }
 
+// Circular, matching the close ✕ face it now sits beside.
 const graphSettingsBtn: React.CSSProperties = {
-  width: 48,
-  height: 48,
-  borderRadius: 12,
+  width: 56,
+  height: 56,
+  borderRadius: '50%',
   border: '2px solid rgba(255,255,255,0.22)',
   background: 'rgba(255,255,255,0.07)',
   color: 'white',

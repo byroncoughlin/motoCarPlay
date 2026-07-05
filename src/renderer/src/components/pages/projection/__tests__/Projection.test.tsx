@@ -532,7 +532,7 @@ describe('Projection page', () => {
     expect(graph).toHaveTextContent('HOT')
     expect(graph).toHaveTextContent('Reset Max')
     expect(graph).toHaveTextContent('CHT LEFT')
-    expect(graph).toHaveTextContent('\u25cf LIVE')
+    expect(graph).toHaveTextContent('LIVE')
     expect(graph).toHaveTextContent('151')
     expect(graph).toHaveTextContent('MAX 151')
     expect(graph).toHaveTextContent('MIN 151')
@@ -592,7 +592,7 @@ describe('Projection page', () => {
     const graph = screen.getByTestId('projection-metric-graph')
     expect(graph).toHaveTextContent('AMBIENT')
     expect(graph).toHaveTextContent('PI CPU')
-    expect(graph).toHaveTextContent('\u25cf LIVE')
+    expect(graph).toHaveTextContent('LIVE')
 
     const settingsButton = screen.getByLabelText('Open settings from graph')
     expect(settingsButton).toBeInTheDocument()
