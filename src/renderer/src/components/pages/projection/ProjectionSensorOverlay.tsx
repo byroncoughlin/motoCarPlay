@@ -2881,7 +2881,39 @@ function GraphPaneImpl({
   const [viewOffset, setViewOffset] = React.useState(0)
   const [confirmReset, setConfirmReset] = React.useState(false)
   const panRef = React.useRef({ active: false, startX: 0, startOff: 0 })
-  const { svgW, svgH, cx, cy, cw, ch } = motoGraphPaneGeometry(compact)
+  // The chart's viewBox matches the MEASURED container, so the plot fills
+  // the card edge-to-edge at 1:1 pixels. The old fixed 586x222 viewBox with
+  // "meet" letterboxed the chart to ~half the card (scaled to fit height,
+  // centered with dead margins on both sides). jsdom (tests) measures 0x0
+  // and falls back to the legacy static geometry.
+  const chartBoxRef = React.useRef<HTMLDivElement>(null)
+  const [chartBox, setChartBox] = React.useState<{ w: number; h: number } | null>(null)
+  React.useEffect(() => {
+    const el = chartBoxRef.current
+    if (!el) return
+    const measure = () => {
+      const r = el.getBoundingClientRect()
+      if (r.width > 60 && r.height > 60) {
+        setChartBox((cur) => {
+          const w = Math.round(r.width)
+          const h = Math.round(r.height)
+          return cur && cur.w === w && cur.h === h ? cur : { w, h }
+        })
+      }
+    }
+    measure()
+    if (typeof ResizeObserver === 'undefined') return undefined
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+  const fallback = motoGraphPaneGeometry(compact)
+  const svgW = chartBox?.w ?? fallback.svgW
+  const svgH = chartBox?.h ?? fallback.svgH
+  const cx = chartBox ? 48 : fallback.cx
+  const cy = chartBox ? 10 : fallback.cy
+  const cw = chartBox ? svgW - cx - 14 : fallback.cw
+  const ch = chartBox ? svgH - cy - 32 : fallback.ch
   const windowEnd = nowMs - viewOffset
   const windowStart = windowEnd - GRAPH_WINDOW_MS
   const visible = data.filter((p) => p.ts >= windowStart - 5000 && p.ts <= windowEnd + 5000)
@@ -3042,284 +3074,261 @@ function GraphPaneImpl({
             {cfg.unit}
           </span>
         </div>
-        <div
-          style={{
-            fontSize: 19,
-            color: 'rgba(235,235,245,0.6)',
-            fontWeight: 600,
-            textAlign: 'right',
-            lineHeight: 1.4,
-            fontVariantNumeric: 'tabular-nums'
-          }}
-        >
-          {visMax !== null && <div>MAX {cfg.fmtVal(visMax)}</div>}
-          {visMin !== null && <div>MIN {cfg.fmtVal(visMin)}</div>}
-          {!compact && (
-            <div
-              style={{
-                fontSize: 13,
-                color: 'rgba(235,235,245,0.35)',
-                fontWeight: 600,
-                marginTop: 4
-              }}
-            >{`${data.length} pts \u00b7 drag \u2190 \u2192`}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <div
+            style={{
+              fontSize: 19,
+              color: 'rgba(235,235,245,0.6)',
+              fontWeight: 600,
+              textAlign: 'right',
+              lineHeight: 1.4,
+              fontVariantNumeric: 'tabular-nums'
+            }}
+          >
+            {visMax !== null && <div>MAX {cfg.fmtVal(visMax)}</div>}
+            {visMin !== null && <div>MIN {cfg.fmtVal(visMin)}</div>}
+          </div>
+          {confirmReset ? (
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                type="button"
+                onClick={() => setConfirmReset(false)}
+                style={graphResetBtn('rgba(255,255,255,0.12)', '#ffffff')}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  resetMetric()
+                  setConfirmReset(false)
+                }}
+                style={graphResetBtn('#e0322e', '#ffffff')}
+              >
+                Confirm
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setConfirmReset(true)}
+              style={graphResetBtn('rgba(255,69,58,0.16)', '#ff453a')}
+            >
+              Reset
+            </button>
           )}
         </div>
       </div>
-      <svg
-        data-testid={`projection-metric-graph-chart-${metricKey}`}
-        viewBox={`0 0 ${svgW} ${svgH}`}
-        style={{
-          flex: 1,
-          minHeight: 0,
-          display: 'block',
-          cursor: 'ew-resize',
-          touchAction: 'none'
-        }}
-        preserveAspectRatio="xMidYMid meet"
-        onPointerDown={onPtrDown}
-        onPointerMove={onPtrMove}
-        onPointerUp={onPtrUp}
-        onPointerLeave={onPtrUp}
-      >
-        <defs>
-          <clipPath id={clipId}>
-            <rect x={cx} y={cy} width={cw} height={ch} />
-          </clipPath>
-          <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={cfg.color} stopOpacity="0.42" />
-            <stop offset="100%" stopColor={cfg.color} stopOpacity="0.05" />
-          </linearGradient>
-          {zones && areaPath && (
-            <clipPath id={areaId}>
-              <path d={areaPath} />
+      <div ref={chartBoxRef} style={{ flex: 1, minHeight: 0 }}>
+        <svg
+          data-testid={`projection-metric-graph-chart-${metricKey}`}
+          viewBox={`0 0 ${svgW} ${svgH}`}
+          width="100%"
+          height="100%"
+          style={{
+            display: 'block',
+            cursor: 'ew-resize',
+            touchAction: 'none'
+          }}
+          preserveAspectRatio="xMidYMid meet"
+          onPointerDown={onPtrDown}
+          onPointerMove={onPtrMove}
+          onPointerUp={onPtrUp}
+          onPointerLeave={onPtrUp}
+        >
+          <defs>
+            <clipPath id={clipId}>
+              <rect x={cx} y={cy} width={cw} height={ch} />
             </clipPath>
-          )}
-        </defs>
-        <rect
-          data-testid={`projection-metric-graph-plot-${metricKey}`}
-          x={cx}
-          y={cy}
-          width={cw}
-          height={ch}
-          fill="rgba(255,255,255,0.04)"
-          rx={8}
-        />
-        {yTicks.map((v, i) => {
-          const y = yFor(v)
-          return (
-            <g key={i}>
+            <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={cfg.color} stopOpacity="0.42" />
+              <stop offset="100%" stopColor={cfg.color} stopOpacity="0.05" />
+            </linearGradient>
+            {zones && areaPath && (
+              <clipPath id={areaId}>
+                <path d={areaPath} />
+              </clipPath>
+            )}
+          </defs>
+          <rect
+            data-testid={`projection-metric-graph-plot-${metricKey}`}
+            x={cx}
+            y={cy}
+            width={cw}
+            height={ch}
+            fill="rgba(255,255,255,0.04)"
+            rx={8}
+          />
+          {yTicks.map((v, i) => {
+            const y = yFor(v)
+            return (
+              <g key={i}>
+                <line
+                  x1={cx}
+                  y1={y}
+                  x2={cx + cw}
+                  y2={y}
+                  stroke="rgba(255,255,255,0.08)"
+                  strokeWidth={1}
+                />
+                <text
+                  x={cx - 5}
+                  y={y + 5}
+                  textAnchor="end"
+                  fill="rgba(235,235,245,0.55)"
+                  fontSize={15}
+                  fontWeight={600}
+                  style={{ fontVariantNumeric: 'tabular-nums' }}
+                >
+                  {cfg.fmtVal(v)}
+                </text>
+              </g>
+            )
+          })}
+          {xLabels.map(({ x, label }) => (
+            <g key={`${x}:${label}`}>
               <line
-                x1={cx}
-                y1={y}
-                x2={cx + cw}
-                y2={y}
+                x1={x}
+                y1={cy}
+                x2={x}
+                y2={cy + ch}
                 stroke="rgba(255,255,255,0.08)"
                 strokeWidth={1}
               />
               <text
-                x={cx - 5}
-                y={y + 5}
-                textAnchor="end"
+                x={x}
+                y={cy + ch + 18}
+                textAnchor="middle"
                 fill="rgba(235,235,245,0.55)"
                 fontSize={15}
                 fontWeight={600}
                 style={{ fontVariantNumeric: 'tabular-nums' }}
               >
-                {cfg.fmtVal(v)}
+                {label}
               </text>
             </g>
-          )
-        })}
-        {xLabels.map(({ x, label }) => (
-          <g key={`${x}:${label}`}>
-            <line
-              x1={x}
-              y1={cy}
-              x2={x}
-              y2={cy + ch}
-              stroke="rgba(255,255,255,0.08)"
-              strokeWidth={1}
-            />
-            <text
-              x={x}
-              y={cy + ch + 18}
-              textAnchor="middle"
-              fill="rgba(235,235,245,0.55)"
-              fontSize={15}
-              fontWeight={600}
-              style={{ fontVariantNumeric: 'tabular-nums' }}
-            >
-              {label}
-            </text>
-          </g>
-        ))}
-        {areaPath && zones && (
-          <g clipPath={`url(#${clipId})`}>
-            <g clipPath={`url(#${areaId})`}>
-              {zones.map((z, i) => {
-                const lo = i === 0 ? yMin : zones[i - 1].max
-                const vTop = Math.min(z.max, yMax)
-                const vBot = Math.max(lo, yMin)
-                if (vTop <= vBot) return null
-                const yT = yFor(vTop)
-                return (
-                  <rect
-                    key={i}
-                    x={cx}
-                    width={cw}
-                    y={yT}
-                    height={yFor(vBot) - yT}
-                    fill={z.color}
-                    opacity={0.3}
-                  />
-                )
-              })}
+          ))}
+          {areaPath && zones && (
+            <g clipPath={`url(#${clipId})`}>
+              <g clipPath={`url(#${areaId})`}>
+                {zones.map((z, i) => {
+                  const lo = i === 0 ? yMin : zones[i - 1].max
+                  const vTop = Math.min(z.max, yMax)
+                  const vBot = Math.max(lo, yMin)
+                  if (vTop <= vBot) return null
+                  const yT = yFor(vTop)
+                  return (
+                    <rect
+                      key={i}
+                      x={cx}
+                      width={cw}
+                      y={yT}
+                      height={yFor(vBot) - yT}
+                      fill={z.color}
+                      opacity={0.3}
+                    />
+                  )
+                })}
+              </g>
             </g>
-          </g>
-        )}
-        {areaPath && !zones && (
-          <path d={areaPath} fill={`url(#${gradId})`} clipPath={`url(#${clipId})`} />
-        )}
-        {zones?.map((z, i) => {
-          if (i === 0 || !z.label) return null
-          const thr = zones[i - 1].max
-          if (thr <= yMin || thr >= yMax) return null
-          const y = yFor(thr)
-          return (
-            <g key={`thr-${i}`}>
-              <line
-                x1={cx}
-                y1={y}
-                x2={cx + cw}
-                y2={y}
-                stroke={z.color}
-                strokeWidth={1}
-                strokeDasharray="4 4"
-                opacity={0.55}
-              />
-              <text
-                x={cx + cw - 4}
-                y={y - 5}
-                textAnchor="end"
-                fill={z.color}
-                fontSize={14}
-                fontWeight={800}
-              >
-                {`${z.label} ${cfg.fmtVal(thr)}\u00b0`}
-              </text>
-            </g>
-          )
-        })}
-        {linePath && (
-          <path
-            d={linePath}
-            fill="none"
-            stroke={zones ? 'rgba(255,255,255,0.9)' : cfg.color}
-            strokeWidth={2}
-            strokeLinejoin="round"
-            strokeLinecap="round"
-            clipPath={`url(#${clipId})`}
-          />
-        )}
-        {visible.length < 2 && (
-          <text
-            x={cx + cw / 2}
-            y={cy + ch / 2 + 6}
-            textAnchor="middle"
-            fill="rgba(255,255,255,0.6)"
-            fontSize={19}
-            fontWeight={700}
-            letterSpacing={2}
-          >
-            NO DATA IN WINDOW
-          </text>
-        )}
-        <rect
-          x={cx}
-          y={cy}
-          width={cw}
-          height={ch}
-          fill="none"
-          stroke="rgba(255,255,255,0.08)"
-          strokeWidth={0.5}
-          rx={4}
-        />
-        {data.length > 0 &&
-          (() => {
-            const totalRange = Math.max(data[data.length - 1].ts - data[0].ts, GRAPH_WINDOW_MS)
-            const barW = Math.max(24, cw * (GRAPH_WINDOW_MS / totalRange))
-            const maxOff = Math.max(0, totalRange - GRAPH_WINDOW_MS)
-            const barX = cx + cw - (viewOffset / Math.max(1, maxOff)) * (cw - barW) - barW
+          )}
+          {areaPath && !zones && (
+            <path d={areaPath} fill={`url(#${gradId})`} clipPath={`url(#${clipId})`} />
+          )}
+          {zones?.map((z, i) => {
+            if (i === 0 || !z.label) return null
+            const thr = zones[i - 1].max
+            if (thr <= yMin || thr >= yMax) return null
+            const y = yFor(thr)
             return (
-              <>
-                <rect
-                  x={cx}
-                  y={cy + ch + 30}
-                  width={cw}
-                  height={4}
-                  fill="rgba(255,255,255,0.05)"
-                  rx={2}
+              <g key={`thr-${i}`}>
+                <line
+                  x1={cx}
+                  y1={y}
+                  x2={cx + cw}
+                  y2={y}
+                  stroke={z.color}
+                  strokeWidth={1}
+                  strokeDasharray="4 4"
+                  opacity={0.55}
                 />
-                <rect
-                  x={barX}
-                  y={cy + ch + 30}
-                  width={barW}
-                  height={4}
-                  fill={cfg.color}
-                  rx={2}
-                  opacity={0.45}
-                />
-              </>
+                <text
+                  x={cx + cw - 4}
+                  y={y - 5}
+                  textAnchor="end"
+                  fill={z.color}
+                  fontSize={14}
+                  fontWeight={800}
+                >
+                  {`${z.label} ${cfg.fmtVal(thr)}\u00b0`}
+                </text>
+              </g>
             )
-          })()}
-      </svg>
-      {/* Reset lives in the card's bottom-right corner — the chart is
-          centered in the card, so this band is empty (the capsule is slimmed
-          so it clears the plot box; the confirm pair stacks in place). */}
-      {confirmReset ? (
-        <div
-          style={{
-            position: 'absolute',
-            right: 12,
-            bottom: 12,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 8
-          }}
-        >
-          <button
-            type="button"
-            onClick={() => {
-              resetMetric()
-              setConfirmReset(false)
-            }}
-            style={graphResetBtn('#e0322e', '#ffffff')}
-          >
-            Confirm
-          </button>
-          <button
-            type="button"
-            onClick={() => setConfirmReset(false)}
-            style={graphResetBtn('rgba(255,255,255,0.12)', '#ffffff')}
-          >
-            Cancel
-          </button>
-        </div>
-      ) : (
-        <button
-          type="button"
-          onClick={() => setConfirmReset(true)}
-          style={{
-            ...graphResetBtn('rgba(255,69,58,0.16)', '#ff453a'),
-            position: 'absolute',
-            right: 12,
-            bottom: 12
-          }}
-        >
-          Reset
-        </button>
-      )}
+          })}
+          {linePath && (
+            <path
+              d={linePath}
+              fill="none"
+              stroke={zones ? 'rgba(255,255,255,0.9)' : cfg.color}
+              strokeWidth={2}
+              strokeLinejoin="round"
+              strokeLinecap="round"
+              clipPath={`url(#${clipId})`}
+            />
+          )}
+          {visible.length < 2 && (
+            <text
+              x={cx + cw / 2}
+              y={cy + ch / 2 + 6}
+              textAnchor="middle"
+              fill="rgba(255,255,255,0.6)"
+              fontSize={19}
+              fontWeight={700}
+              letterSpacing={2}
+            >
+              NO DATA IN WINDOW
+            </text>
+          )}
+          <rect
+            x={cx}
+            y={cy}
+            width={cw}
+            height={ch}
+            fill="none"
+            stroke="rgba(255,255,255,0.08)"
+            strokeWidth={0.5}
+            rx={4}
+          />
+          {data.length > 0 &&
+            (() => {
+              const totalRange = Math.max(data[data.length - 1].ts - data[0].ts, GRAPH_WINDOW_MS)
+              const barW = Math.max(24, cw * (GRAPH_WINDOW_MS / totalRange))
+              const maxOff = Math.max(0, totalRange - GRAPH_WINDOW_MS)
+              const barX = cx + cw - (viewOffset / Math.max(1, maxOff)) * (cw - barW) - barW
+              return (
+                <>
+                  <rect
+                    x={cx}
+                    y={cy + ch + 30}
+                    width={cw}
+                    height={4}
+                    fill="rgba(255,255,255,0.05)"
+                    rx={2}
+                  />
+                  <rect
+                    x={barX}
+                    y={cy + ch + 30}
+                    width={barW}
+                    height={4}
+                    fill={cfg.color}
+                    rx={2}
+                    opacity={0.45}
+                  />
+                </>
+              )
+            })()}
+        </svg>
+      </div>
     </div>
   )
 }
