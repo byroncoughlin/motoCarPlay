@@ -345,6 +345,14 @@ reachable from `Runtime.evaluate`, but **prototype patching works**
   does — 15s ignition-off fixed it with zero wiring changes. Next hardware
   step if this recurs often: GPIO-controlled load switch on BNO VIN (a
   power-cycle rung for the ladder), or replace with BNO085.
+- **Not a failure — Pi reboot on start**: sometimes the crank reboots the
+  whole Pi. That path is GOOD (BNO gets a clean power-on). But beware the
+  crank rail gate in imu.py: this bike's EXT5V rail is 4.73-4.86V STEADY
+  with the engine running (its normal healthy state). A gate threshold of
+  4.85V made every engine-on boot hold IMU init for the full 45s max-wait,
+  which reads as "no data / not fixed" on the dash. Threshold is now 4.65V
+  (settle 6s, max-wait 15s) — genuine crank sags go below 4.6V. Do not
+  raise it back.
 - **Mode C — parked false-positive**: a healthy DEAD-STILL bike with sys-cal
   0 can hold bit-identical Euler 30s+ (side stand, garage). The parked-freeze
   detector now stands down after 2 parked resets until real gyro motion or
