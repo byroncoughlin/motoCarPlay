@@ -52,18 +52,18 @@ describe('DiagnosticLogger', () => {
     expect(files().length).toBeGreaterThanOrEqual(1)
   })
 
-  test('clear() removes every diagnostic file', () => {
+  test('clear() removes every diagnostic file and reports counts', () => {
     const logger = new DiagnosticLogger({ dir })
     logger.write({ ts: 1000 })
     logger.write({ ts: 2000 })
     expect(files().length).toBeGreaterThan(0)
-    logger.clear()
+    expect(logger.clear()).toEqual({ deleted: 2, remaining: 0 })
     expect(files()).toHaveLength(0)
   })
 
   test('clear() on a missing folder is a no-op (no throw)', () => {
     const logger = new DiagnosticLogger({ dir: path.join(dir, 'does-not-exist') })
-    expect(() => logger.clear()).not.toThrow()
+    expect(logger.clear()).toEqual({ deleted: 0, remaining: 0 })
   })
 
   test('usageBytes() sums file sizes', () => {

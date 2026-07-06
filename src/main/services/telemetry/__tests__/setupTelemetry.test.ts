@@ -192,15 +192,18 @@ describe('setupTelemetry', () => {
     expect(diagnosticWriteMock).toHaveBeenCalledTimes(1)
   })
 
-  test('diagnostics:clear invokes the logger clear', () => {
+  test('diagnostics:clear invokes the logger clear and reports the real outcome', () => {
     const store = new TelemetryStore()
     setupTelemetry({ store, initialConfig: {} as Config })
     const handler = registerIpcHandleMock.mock.calls.find(
       (c) => c[0] === 'diagnostics:clear'
     )![1] as () => unknown
-    const res = handler()
-    expect(diagnosticClearMock).toHaveBeenCalled()
-    expect(res).toEqual({ ok: true })
+
+    diagnosticClearMock.mockReturnValueOnce({ deleted: 3, remaining: 0 })
+    expect(handler()).toEqual({ ok: true, deleted: 3, remaining: 0 })
+
+    diagnosticClearMock.mockReturnValueOnce({ deleted: 1, remaining: 2 })
+    expect(handler()).toEqual({ ok: false, deleted: 1, remaining: 2 })
   })
 
   test('initialConfig.lastKnownGps hydrates the store', () => {

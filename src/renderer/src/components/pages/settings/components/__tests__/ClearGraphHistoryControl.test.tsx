@@ -46,13 +46,18 @@ describe('ClearGraphHistoryControl', () => {
 
       fireEvent.click(button)
       expect(handler).toHaveBeenCalledTimes(1)
+      expect(button).toHaveTextContent('Cleared')
+
+      act(() => {
+        jest.advanceTimersByTime(4000)
+      })
       expect(button).toHaveTextContent('Clear Log')
     } finally {
       window.removeEventListener(MOTO_CLEAR_GRAPH_HISTORY_EVENT, handler)
     }
   })
 
-  test('arming reverts after timeout without dispatching', () => {
+  test('armed state never expires — confirm still works after a long pause', () => {
     const handler = jest.fn()
     window.addEventListener(MOTO_CLEAR_GRAPH_HISTORY_EVENT, handler)
 
@@ -64,11 +69,15 @@ describe('ClearGraphHistoryControl', () => {
       expect(button).toHaveTextContent('Tap to Confirm')
 
       act(() => {
-        jest.advanceTimersByTime(3000)
+        jest.advanceTimersByTime(60_000)
       })
 
       expect(handler).not.toHaveBeenCalled()
-      expect(button).toHaveTextContent('Clear Log')
+      expect(button).toHaveTextContent('Tap to Confirm')
+
+      fireEvent.click(button)
+      expect(handler).toHaveBeenCalledTimes(1)
+      expect(button).toHaveTextContent('Cleared')
     } finally {
       window.removeEventListener(MOTO_CLEAR_GRAPH_HISTORY_EVENT, handler)
     }

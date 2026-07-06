@@ -57,13 +57,20 @@ export class DiagnosticLogger {
     }
   }
 
-  /** Delete every diagnostic file. Used by the "Clear diagnostic data" button. */
-  clear(): void {
+  /**
+   * Delete every diagnostic file. Used by the "Clear diagnostic data" button.
+   * Returns what actually happened — `remaining` is a fresh re-listing of the
+   * folder after the deletes, so the UI can show true success/failure instead
+   * of assuming.
+   */
+  clear(): { deleted: number; remaining: number } {
+    let deleted = 0
     try {
-      if (!fs.existsSync(this.dir)) return
+      if (!fs.existsSync(this.dir)) return { deleted: 0, remaining: 0 }
       for (const f of this.listFiles()) {
         try {
           fs.unlinkSync(path.join(this.dir, f.name))
+          deleted += 1
         } catch (e) {
           console.warn('[DiagnosticLogger] unlink failed (ignored)', f.name, e)
         }
@@ -71,6 +78,7 @@ export class DiagnosticLogger {
     } catch (e) {
       console.warn('[DiagnosticLogger] clear failed (ignored)', e)
     }
+    return { deleted, remaining: this.listFiles().length }
   }
 
   /** Total bytes currently used by the diagnostics folder. */

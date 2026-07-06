@@ -240,7 +240,8 @@ const api = {
     getTelemetrySnapshot: (): Promise<unknown> => ipcRenderer.invoke('telemetry:snapshot'),
     sendDiagnosticSnapshot: (snapshot: unknown): void =>
       ipcRenderer.send('diagnostics:snapshot', snapshot),
-    clearDiagnostics: (): Promise<{ ok: true }> => ipcRenderer.invoke('diagnostics:clear')
+    clearDiagnostics: (): Promise<{ ok: boolean; deleted: number; remaining: number }> =>
+      ipcRenderer.invoke('diagnostics:clear')
   }
 }
 

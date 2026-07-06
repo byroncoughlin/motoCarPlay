@@ -17,7 +17,10 @@
 
 import { registerIpcHandle, registerIpcOn } from '@main/ipc/register'
 import { configEvents } from '@main/ipc/utils'
-import { DiagnosticLogger, type DiagnosticSnapshot } from '@main/services/diagnostics/DiagnosticLogger'
+import {
+  DiagnosticLogger,
+  type DiagnosticSnapshot
+} from '@main/services/diagnostics/DiagnosticLogger'
 import type { ProjectionService } from '@main/services/projection/services/ProjectionService'
 import { getAllRendererWebContents } from '@main/window/broadcast'
 import type { Config } from '@shared/types'
@@ -64,10 +67,13 @@ export function setupTelemetry({
     if (!currentConfig?.diagnosticMode || !snapshot) return
     diagnosticLogger.write(snapshot)
   })
-  registerIpcHandle('diagnostics:clear', (): { ok: true } => {
-    diagnosticLogger.clear()
-    return { ok: true }
-  })
+  registerIpcHandle(
+    'diagnostics:clear',
+    (): { ok: boolean; deleted: number; remaining: number } => {
+      const result = diagnosticLogger.clear()
+      return { ok: result.remaining === 0, ...result }
+    }
+  )
 
   // ── Initial seed: appearanceMode + persisted GPS ────────────────────────
 

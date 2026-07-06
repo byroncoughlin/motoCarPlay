@@ -191,7 +191,7 @@ declare global {
         offTelemetry(handler: (payload: unknown) => void): void
         getTelemetrySnapshot(): Promise<unknown>
         sendDiagnosticSnapshot(snapshot: unknown): void
-        clearDiagnostics(): Promise<{ ok: true }>
+        clearDiagnostics(): Promise<{ ok: boolean; deleted: number; remaining: number }>
 
         setVisualizerEnabled(enabled: boolean): void
 
