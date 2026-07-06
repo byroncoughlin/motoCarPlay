@@ -335,7 +335,23 @@ reachable from `Runtime.evaluate`, but **prototype patching works**
   and `systemctl --user restart <svc>` — no app rebuild/reboot. (LIVI's sensor
   wiring may differ; check before assuming.)
 
-### BNO055 crank-wedge + hardware reset line (learned 2026-07-05)
+### BNO055 crank failures — THREE modes, not one (updated 2026-07-05 night)
+- **Mode A — fusion wedge** (the two lost rides): UART ACKs, Euler frozen,
+  sys-cal 0, dash stuck CALIBRATING. RST_SYS can't clear it; the GPIO17
+  hardware RST pulse can.
+- **Mode B — full latch-up** (proven by experiment): a crank brownout can
+  leave the chip silent on EVERY bus (UART and I2C both dead, probed with
+  proper pullups). The RST pin does NOT recover this. ONLY removing power
+  does — 15s ignition-off fixed it with zero wiring changes. Next hardware
+  step if this recurs often: GPIO-controlled load switch on BNO VIN (a
+  power-cycle rung for the ladder), or replace with BNO085.
+- **Mode C — parked false-positive**: a healthy DEAD-STILL bike with sys-cal
+  0 can hold bit-identical Euler 30s+ (side stand, garage). The parked-freeze
+  detector now stands down after 2 parked resets until real gyro motion or
+  sys>0 — do not "fix" the churn by re-arming it off the healthy-ladder
+  clear; those two cycle against each other (observed).
+
+### BNO055 hardware reset line (learned 2026-07-05)
 - **Failure:** engine cranking sags the 12V rail → partial brownout wedges the
   BNO055's internal fusion core: UART still ACKs, raw sensors read, but Euler
   freezes bit-identical with sys-cal stuck 0. Dash shows CALIBRATING forever,
