@@ -335,6 +335,25 @@ reachable from `Runtime.evaluate`, but **prototype patching works**
   and `systemctl --user restart <svc>` — no app rebuild/reboot. (LIVI's sensor
   wiring may differ; check before assuming.)
 
+### BNO055 crank-wedge + hardware reset line (learned 2026-07-05)
+- **Failure:** engine cranking sags the 12V rail → partial brownout wedges the
+  BNO055's internal fusion core: UART still ACKs, raw sensors read, but Euler
+  freezes bit-identical with sys-cal stuck 0. Dash shows CALIBRATING forever,
+  lean/G graphs empty. **Register reset (RST_SYS) can NOT clear a hard wedge**,
+  and a Pi reboot doesn't either (3V3 stays up). Historically only a physical
+  power pull recovered it.
+- **Fix:** BNO RST pin is jumpered to **GPIO17 (physical pin 11)**. `imu.py`
+  runs an escalation ladder: 2× RST_SYS → hardware RST pulse (validated live:
+  the pulse recovered a real hard wedge on 2026-07-05) → after 3 failed pulses,
+  declares hard-wedge (honest status, no fake CALIBRATING, 120s retries).
+  Ladder clears after 60s of healthy output.
+- GPIO via Pi 5's `pinctrl` (no python GPIO deps): assert = `pinctrl set 17 op
+  dl`, release = `pinctrl set 17 ip pu`. The service pins GPIO17 input+pull-up
+  at startup — **a floating RST line causes random resets**.
+- Manual test: pulse per above; imu.service logs "chip left NDOF" and
+  re-initializes in place with live telemetry back within ~15s.
+- Backups of pre-change script: `~/sensors/imu.py.bak-preRST-*`.
+
 ---
 
 ## 8. Restore clean Pi state (ALWAYS do this at the end)
