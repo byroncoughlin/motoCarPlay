@@ -335,7 +335,33 @@ reachable from `Runtime.evaluate`, but **prototype patching works**
   and `systemctl --user restart <svc>` — no app rebuild/reboot. (LIVI's sensor
   wiring may differ; check before assuming.)
 
-### BNO085 (CURRENT CHIP, installed 2026-07-08) — UART-RVC driver
+### ⚠️ BNO085 board #1 KILLED by 5V on VIN (2026-07-08 late) — READ BEFORE WIRING #2
+- **NEVER feed this Adafruit BNO085 breakout (4754) 5V on VIN.** Its P0/P1
+  mode-select solder jumpers tie the pins to **VIN directly** (measured: P0
+  = VIN exactly), so VIN=5V puts 5V on a 3.3V-max mode pin. Board #1 ran
+  perfectly on 3V3-VIN for ~30 min, spent minutes on 5V (attempted crank-
+  brownout mitigation), then went permanently mute on EVERY supply incl.
+  wall power. Post-mortem meter readings: P1 floating at 1.42V (should be
+  0 via pulldown), RST dragged to 2.1V through its own 10k pullup (~120µA
+  leak) = damaged I/O ring. Green power LED proves only the regulator.
+- Diagnostic technique that worked (remote, via pinctrl): RX(GPIO15) pull-
+  DOWN probe — stays hi = TX wire attached; RST(GPIO17) pull-down probe —
+  hi = board powered (its 10k pullup wins); RST reads LOW even with Pi
+  pull-UP = board UNPOWERED (ESD clamp) → check VIN/GND wires first.
+- While VIN is pulled for a latch-up power-cycle, the Pi's GPIO pull-ups
+  (RX + RST) trickle-feed the dead board and can hold the chip above true
+  zero — disable them first (`pinctrl set 15 pn; pinctrl set 17 ip pn`,
+  stop imu.service so it doesn't re-arm them) for a genuine cold discharge.
+- Bike-supply observation (pre-damage, still to solve for board #2): chip
+  powering up TOGETHER with the Pi on bike power failed twice; powering it
+  up AFTER the Pi was fully booted (hot VIN replug) worked. Plan for #2:
+  keep VIN on 3V3 (pin 1), add small series resistors (~330-470Ω) in SDA
+  and RST wires, and a GPIO-controlled load switch on VIN so the driver
+  can sequence power AND auto-power-cycle as the final ladder rung.
+- Interim: BNO055 can be rewired (VIN pin1, GND, SDA→pin10, SCL→pin8, PS1
+  high, RST→pin11); restore its driver from `~/sensors/imu.py.bak-bno055-final`.
+
+### BNO085 (target architecture, board #1 installed then lost 2026-07-08) — UART-RVC driver
 - The BNO055 was RETIRED 2026-07-08 (see its sections below for history) and
   replaced with a BNO085 running **UART-RVC mode**: streams 19-byte frames at
   100 Hz/115200 from the instant it has power — no init, no calibration state,
