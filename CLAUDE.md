@@ -335,7 +335,37 @@ reachable from `Runtime.evaluate`, but **prototype patching works**
   and `systemctl --user restart <svc>` — no app rebuild/reboot. (LIVI's sensor
   wiring may differ; check before assuming.)
 
-### BNO055 crank failures — THREE modes, not one (updated 2026-07-05 night)
+### BNO085 (CURRENT CHIP, installed 2026-07-08) — UART-RVC driver
+- The BNO055 was RETIRED 2026-07-08 (see its sections below for history) and
+  replaced with a BNO085 running **UART-RVC mode**: streams 19-byte frames at
+  100 Hz/115200 from the instant it has power — no init, no calibration state,
+  no CALIBRATING on the dash ever, brownout = ~1s stream gap that self-heals.
+- Wiring: VIN→pin1 (3V3), GND, SDA→pin10 (RVC TX), RST→pin11 (GPIO17, ladder
+  kept). **P0 solder jumper bridged on the board back selects RVC; P1 open.**
+  (BNO055 tied PS1 high — do NOT carry that wire pattern over.)
+- Driver: `~/sensors/imu.py` (container archive `~/LIVI-sensor-backups/
+  imu.py-bno085-rvc-2026-07-08`; BNO055 final = `imu.py.bak-bno055-final` on
+  Pi). Emits the same events (`lean`/`pitch`/`gforce`/`imu-status`), 10 Hz.
+- **Empirical RVC conventions on this board (measured, do not "fix" from a
+  datasheet):** bike lean lives on RVC *roll*, bike pitch on RVC *pitch*
+  (mounted chip-up, VIN edge forward), BUT gravity pairs OPPOSITE to
+  aerospace ZYX: gravity_in_body = (−sin r·cos p, +sin p·cos r, cos r·cos p).
+  RVC accel is RAW (gravity included) unlike BNO055 LIA — the driver
+  subtracts analytically; **install check: parked G must read 0.00 at any
+  lean** (verified 2026-07-08). Frame parser must advance ONE byte on
+  checksum failure (stray 0xAA overlaps eat real frames otherwise).
+- Display sign flips / zeroing are APP-side and persist in config.json:
+  Reverse Tilt, Reverse Pitch toggles + Tilt Calibration "Set Level"
+  (settings). Byron tuned these himself 2026-07-08 — don't override in the
+  driver (LEAN_SIGN/PITCH_SIGN stay +1).
+- Watchdog: no frames 3s → reopen serial ×2 → GPIO17 RST pulse ×3 → declare
+  dead, honest status, 30s retries. Validated live: detected a dead board
+  (unplugged VIN during mounting) and recovered the instant power returned.
+  Unpowered-board signature via pinctrl: RX (GPIO15) idles LOW and GPIO17
+  reads LOW even with Pi pull-up (ESD clamp) — that means NO POWER, check
+  VIN/GND before software.
+
+### BNO055 crank failures — THREE modes, not one (RETIRED CHIP — history)
 - **Mode A — fusion wedge** (the two lost rides): UART ACKs, Euler frozen,
   sys-cal 0, dash stuck CALIBRATING. RST_SYS can't clear it; the GPIO17
   hardware RST pulse can.
