@@ -1518,7 +1518,11 @@ function BottomArc({
   const gVal = totalG ?? 0
   const gTextColor = !hasG ? '#444' : gColor(gVal)
   const horizonY = refY + pitchVal * pitchScale
-  const rot = `rotate(${leanVal}, ${cx}, ${horizonY})`
+  // Artificial-horizon convention: the world rotates OPPOSITE the vehicle's
+  // bank. Lean left (negative) must show the ground climbing on the LEFT,
+  // so the ground graphic rotates by -lean (rotating by +lean rendered the
+  // horizon backwards — ground climbed right on a left lean).
+  const rot = `rotate(${-leanVal}, ${cx}, ${horizonY})`
   const pitchLines = [-15, -10, -5, 5, 10, 15].map((p) => ({
     y: horizonY - p * pitchScale,
     len: Math.abs(p) % 10 === 0 ? 120 : 70,
