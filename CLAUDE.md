@@ -335,7 +335,43 @@ reachable from `Runtime.evaluate`, but **prototype patching works**
   and `systemctl --user restart <svc>` — no app rebuild/reboot. (LIVI's sensor
   wiring may differ; check before assuming.)
 
-### ⚠️ BNO085 board #1 KILLED by 5V on VIN (2026-07-08 late) — READ BEFORE WIRING #2
+### WT901C-485 (CURRENT IMU, installed 2026-07-11) — USB Modbus driver
+- Third-generation IMU: WitMotion WT901C-485 over a WitMotion USB-RS485
+  converter (CH340). NO GPIO involvement at all — powered from USB VBUS,
+  differential RS485 signaling, immune to the crank/rail failure classes
+  that killed both BNO chips. Modbus is stateless: brownout → sensor
+  reboots → next poll answers. No calibration state; CALIBRATING can
+  never appear on the dash.
+- Port: `/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0` (GPS owns the
+  CP2102N by-id path; never use bare ttyUSBn). Sensor configured and
+  SAVED at 115200 baud, Modbus addr 0x50; driver auto-heals a
+  factory-reset sensor found at 9600 back up to 115200.
+- Driver `~/sensors/imu.py` (archive `~/LIVI-sensor-backups/
+  imu.py-wt901c-modbus-2026-07-11`): polls regs 0x34..0x3F (acc/gyro/
+  mag/angles) at 50 Hz, emits the same events at 10 Hz. ⚠️ Angles are the
+  LAST 3 of the 12 regs — regs[9:12]. An off-by-one ([8:11]) shipped the
+  magnetometer Z as "roll" (dash read a rock-steady ~140° lean).
+- Mounting: label up, X arrow to the headlight. ⚠️ The X axis must NEVER
+  point vertically — that parks the Euler output on its gimbal
+  singularity (first mount attempt did this: pitch pinned ~76-90°, roll
+  flailing). Calibrated signs (left-tilt test): WitMotion roll+ = LEFT
+  lean → LEAN_SIGN −1; +Y = bike-left → GX_SIGN −1; X fwd → GY_SIGN +1.
+  Gravity model is standard aerospace (−sin p, sin r cos p, cos r cos p),
+  verified <0.5% residual; install check: parked G = 0.00 at any lean
+  (verified at 16° on the side stand).
+- Dash: both Reverse toggles OFF + Set Level re-tapped 2026-07-11 (any
+  Set Level done before the slice fix stored garbage offsets).
+- USB ports are FULL (dongle, GPS, display, IMU). Display gets POWER over
+  USB → never power-cycle USB ports automatically (screen goes dark);
+  manual last resort only, with on-screen warning if ever automated.
+- Bottom-arc horizon: ground rotates by −lean (artificial-horizon
+  convention). If it ever reads backwards check the driver's LEAN_SIGN
+  first (fixed 2026-07-11 after being backwards since the fork).
+- Phase 2 (not yet built): heading fusion — learn IMU-yaw↔GPS-course
+  offset at speed, use corrected yaw at low speed; mag regs 0x3A-0x3C
+  already polled.
+
+### ⚠️ BNO085 board #1 KILLED by 5V on VIN (2026-07-08 late) — HISTORY (chip replaced by WT901C)
 - **NEVER feed this Adafruit BNO085 breakout (4754) 5V on VIN.** Its P0/P1
   mode-select solder jumpers tie the pins to **VIN directly** (measured: P0
   = VIN exactly), so VIN=5V puts 5V on a 3.3V-max mode pin. Board #1 ran
