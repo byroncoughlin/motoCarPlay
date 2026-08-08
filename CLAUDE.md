@@ -335,6 +335,46 @@ reachable from `Runtime.evaluate`, but **prototype patching works**
   and `systemctl --user restart <svc>` — no app rebuild/reboot. (LIVI's sensor
   wiring may differ; check before assuming.)
 
+### Reading sensor-service logs (non-obvious)
+- `journalctl --user -u <svc>` returns **nothing** over SSH. Use
+  `journalctl _SYSTEMD_USER_UNIT=cht-temp.service` instead.
+- The journal is **volatile** (`/var/log/journal` empty, one boot retained), so
+  a reboot destroys the evidence for any boot-time fault. Drivers that need
+  forensics must write their own file — `cht_temp.py` logs faults to
+  `~/sensors/logs/cht-faults.log` (256 KB cap, one `.1` rotation).
+
+### CHT thermocouples — MAX31856 ×2 on SPI0 (right-board cold-boot wedge)
+- Adafruit Universal Thermocouple Amplifier (MAX31856), left = CE0/pin 24,
+  right = CE1/pin 26; SCK/SDO/SDI shared on pins 23/21/19. Right board VIN pin 4,
+  GND pin 25.
+- **Symptom (open, under investigation 2026-08-08):** after a long full power-off,
+  the RIGHT board boots unresponsive. It recovers ONLY when VIN and GND are
+  pulled **at the same time** and replugged. One wire alone does nothing;
+  moving VIN to 3V3 and changing the GND pin changed nothing.
+- **Mechanism:** the breakout level-shifts every logic pin against VIN, so
+  SCK/SDI/SDO/CS — all driven or pulled to 3.3V by the Pi — back-feed the VIN
+  node through the shifters' clamp diodes. MAX31856 **V_POR is only 2.7–2.85V**
+  (datasheet), so that back-feed parks the rail above the reset threshold: the
+  chip stays powered and never re-POSTs. Pulling both wires isolates the board
+  so the caps drain below V_POR. Same reason a VIN-only load switch would NOT
+  fix this — the SPI lines must be tri-stated during the cut.
+- **Current draw (settled, no meter needed):** MAX31856 is 1.2 mA typ / 2 mA max
+  active, 5.25 µA standby; board total ≈2 mA with the LDO + shifter. A Pi 5 GPIO
+  sources 8 mA default (16 mA max), so **VIN can be driven straight from a GPIO** —
+  no MOSFET. Free pull-down GPIOs: 12, 13, 16, 17–27 (13/pin 33 is nearest the
+  existing pin 25/26 cluster and defaults low, so the board stays off until the
+  driver enables it).
+- Driver `cht_temp.py` is instrumented (archive `~/LIVI-sensor-backups/
+  cht_temp.py-instrumented-2026-08-08`): classifies each read `ok` / `probe`
+  (thermocouple fault — must NEVER escalate) / `dead` via the POR-constant
+  registers MASK=FF CJHF=7F CJLF=C0, dumps the 16-register block on any death,
+  and climbs an SPI-only ladder (rewrite config → 100 kHz + bus flush → mode 3
+  + bus flush) before declaring offline with 60 s retries. Healthy dump for
+  reference: `90 03 FF 7F C0 7F FF 80 00 00 1E 30 01 97 40 00`.
+- `power_cycle()` is written and unit-tested but **inert** until `POWER_GPIO`
+  is populated — that's the pending hardware step (move right VIN off pin 4).
+  It tri-states GPIO 7,8,9,10,11 first, drops VIN, then restores `a0` on 9/10/11.
+
 ### WT901C-485 (CURRENT IMU, installed 2026-07-11) — USB Modbus driver
 - Third-generation IMU: WitMotion WT901C-485 over a WitMotion USB-RS485
   converter (CH340). NO GPIO involvement at all — powered from USB VBUS,
