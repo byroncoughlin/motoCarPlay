@@ -963,8 +963,9 @@ describe('Projection page', () => {
     })
 
     const bottomArc = screen.getByTestId('projection-bottom-arc')
-    // Current G is sqrt(0.36 + 0.64) = 1.0, rendered with its "G" unit.
-    expect(bottomArc).toHaveTextContent('1.0')
+    // Current G is sqrt(0.36 + 0.64) = 1.0 real G, read out at 10x as "10.0"
+    // (see G_DISPLAY_SCALE), rendered with its "G" unit.
+    expect(bottomArc).toHaveTextContent('10.0')
     expect(bottomArc.textContent ?? '').toMatch(/G/)
     // The peak is latched and shown with the triangle marker.
     act(() => {

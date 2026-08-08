@@ -201,6 +201,19 @@ const CHT_ZONES: MetricZone[] = [
 // The zone boundaries, for drawing threshold divider lines on the L/R gauges.
 const CHT_THRESHOLDS = CHT_ZONES.slice(0, -1).map((z) => z.max)
 
+// G-force is READ OUT at 10x so a corner shows "3.2" instead of "0.32" — the
+// small numbers were hard to take in at a glance on the bike. This is a display
+// convention only: every stored value, threshold, color band and gauge
+// geometry below stays in real G, and `formatG` is the single place the shift
+// happens. One decimal on the scaled number == 0.01 G, which is exactly the
+// quantization telemetry already arrives at (`roundTo(gForce*, 0.01)`), so no
+// precision is invented and none is lost.
+const G_DISPLAY_SCALE = 10
+
+function formatG(g: number): string {
+  return (g * G_DISPLAY_SCALE).toFixed(1)
+}
+
 const METRIC_CONFIG: Record<MetricKey, MetricConfig> = {
   speed: {
     label: 'SPEED',
@@ -250,8 +263,10 @@ const METRIC_CONFIG: Record<MetricKey, MetricConfig> = {
     label: 'G-FORCE',
     unit: 'G',
     color: '#ffca28',
+    // minRange is in raw data units (real G), not display units — the plotted
+    // series is real G and only the axis/value labels are scaled by formatG.
     minRange: 0.3,
-    fmtVal: (v) => v.toFixed(2)
+    fmtVal: formatG
   },
   leanAngle: {
     label: 'LEAN',
@@ -1772,7 +1787,7 @@ function BottomArc({
             <tspan fill="rgba(255,255,255,0.75)">G</tspan>
             {hasG && telemetry.imuPeak.g > 0.05 && (
               <tspan fill="rgba(255,170,0,0.92)" dx={8} letterSpacing={0}>
-                {`\u25b2${telemetry.imuPeak.g.toFixed(1)}`}
+                {`\u25b2${formatG(telemetry.imuPeak.g)}`}
               </tspan>
             )}
           </text>
@@ -1784,7 +1799,7 @@ function BottomArc({
             fontSize={26}
             fontWeight="bold"
           >
-            {hasG ? gVal.toFixed(1) : '--'}
+            {hasG ? formatG(gVal) : '--'}
           </text>
         </g>
 
@@ -2422,7 +2437,7 @@ function RideDynamicsPanel({
             fontSize={30}
             fontWeight="900"
           >
-            {totalG.toFixed(2)}
+            {formatG(totalG)}
           </text>
           <text
             x={75}
@@ -2462,7 +2477,7 @@ function RideDynamicsPanel({
         )}
         {stat(
           'PEAK G',
-          telemetry.imuPeak.g > 0.05 ? telemetry.imuPeak.g.toFixed(2) : '\u2014',
+          telemetry.imuPeak.g > 0.05 ? formatG(telemetry.imuPeak.g) : '\u2014',
           '#ffb300'
         )}
       </div>
