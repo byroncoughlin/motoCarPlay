@@ -343,7 +343,15 @@ reachable from `Runtime.evaluate`, but **prototype patching works**
   forensics must write their own file — `cht_temp.py` logs faults to
   `~/sensors/logs/cht-faults.log` (256 KB cap, one `.1` rotation).
 
-### CHT thermocouples — MAX31856 ×2 on SPI0 (right-board cold-boot wedge)
+### CHT thermocouples — MAX31856 ×2 on SPI0
+Two DISTINCT faults live here — keep them apart. (a) the cold-boot wedge below
+(still open, hardware), and (b) in-flight register corruption (root-caused and
+fixed in software 2026-08-08, see the sub-section further down).
+
+Both boards are on the **5 V** rail (pin 2 left, pin 4 right) — so rail sag can
+never explain a left-vs-right asymmetry.
+
+#### Cold-boot wedge on the RIGHT board (OPEN — hardware)
 - Adafruit Universal Thermocouple Amplifier (MAX31856), left = CE0/pin 24,
   right = CE1/pin 26; SCK/SDO/SDI shared on pins 23/21/19. Right board VIN pin 4,
   GND pin 25.
@@ -364,13 +372,55 @@ reachable from `Runtime.evaluate`, but **prototype patching works**
   no MOSFET. Free pull-down GPIOs: 12, 13, 16, 17–27 (13/pin 33 is nearest the
   existing pin 25/26 cluster and defaults low, so the board stays off until the
   driver enables it).
-- Driver `cht_temp.py` is instrumented (archive `~/LIVI-sensor-backups/
-  cht_temp.py-instrumented-2026-08-08`): classifies each read `ok` / `probe`
-  (thermocouple fault — must NEVER escalate) / `dead` via the POR-constant
-  registers MASK=FF CJHF=7F CJLF=C0, dumps the 16-register block on any death,
-  and climbs an SPI-only ladder (rewrite config → 100 kHz + bus flush → mode 3
-  + bus flush) before declaring offline with 60 s retries. Healthy dump for
-  reference: `90 03 FF 7F C0 7F FF 80 00 00 1E 30 01 97 40 00`.
+- Driver `cht_temp.py` (archive `~/LIVI-sensor-backups/
+  cht_temp.py-spurious-write-selfheal-2026-08-08`): classifies each read `ok` /
+  `probe` (thermocouple fault — must NEVER escalate) / `dead`, dumps the
+  16-register block on any death, and climbs an SPI-only ladder (restore config
+  → 100 kHz + flush → 50 kHz + flush) before declaring offline with 60 s
+  retries. Healthy dump for reference:
+  `90 03 FF 7F C0 7F FF 80 00 00 1E 30 01 97 40 00`.
+
+#### ⚠️ In-flight register corruption — spurious SPI write (root-caused 2026-08-08)
+- **Symptom:** after a ride, both cylinders dropped out intermittently, the
+  right one permanently (`--` on the dash). The right board was **NOT dead** —
+  it was reading 123.4 °C the whole time, matching the left.
+- **Damage:** registers `0x02`–`0x09` zeroed. That is *exactly* the chip's
+  writable range; read-only `0x0A`–`0x0F` were untouched. That asymmetry is the
+  fingerprint of a **spurious burst write**, not a bad read. **MAX31856 command
+  byte bit 7 selects WRITE** — so one corrupted address byte turns a register
+  dump (`0x00` + sixteen zero bytes) into a write of zeros across the whole
+  config block. CJHF=0 and LTHFT=0 then alarm on every valid reading (SR=0x28
+  = CJHIGH|TCHIGH).
+- **Fix is a register write, NOT an unplug.** Burst-write the defaults back:
+  `spi.xfer2([0x82, 0xFF,0x7F,0xC0,0x7F,0xFF,0x80,0x00,0x00])`. This is a
+  *different fault* from the cold-boot wedge above — don't conflate them.
+- **Three driver bugs turned it into a dead gauge; all fixed.** Do not
+  reintroduce any of them:
+  1. `_decode()` rejected on **any** nonzero SR. `TCLOW/TCHIGH/CJLOW/CJHIGH`
+     (0x2C) are user-threshold alarms, **not** data-validity faults — the
+     conversion is still good. Only `OPEN|OVUV|TCRANGE|CJRANGE` (0xC3) are fatal.
+  2. `_chip_alive()` fingerprinted on MASK/CJHF/CJLF — **writable** registers,
+     so the one event that corrupts them also declares a healthy board dead.
+     Liveness now rests only on read-only `0x0A`–`0x0F` (reserved low bits of
+     CJTL/LTCBL read 0, cold junction plausible and not exactly 0x0000).
+  3. `_write_config()` only rewrote CR0/CR1, so the driver could see the damage
+     forever and never repair it. It now burst-writes the **entire** `0x00`–`0x09`
+     block, and `read_board()` verifies all ten bytes every poll → one missing
+     sample instead of a dead cylinder.
+- **Removed the `SPI mode 3` recovery rung.** This is a mode-1 part; the wrong
+  clock edge misframes the command byte and can *forge the very write* it was
+  meant to recover from. **Never talk mode 3 to the MAX31856** — escalate by
+  slowing down, never by changing mode.
+- **Trigger is ignition EMI.** Faults cluster only with the engine running, hit
+  *both* boards (SCK/SDI/SDO are shared), boards are cool (cold junction
+  35–40 °C), and `vcgencmd get_throttled` = `0x0`. Points-and-coil airhead +
+  long unshielded Dupont jumpers. Software now survives it; the real fix is at
+  the wiring (shorter/shielded leads routed away from the plug leads).
+- **Reproduce it on demand:** `python3 ~/sensors/break_cht.py <0|1>` on the Pi
+  forges the burst write and dumps registers once a second; the driver should
+  restore the block within one 2 s poll and never lose a sample. Verified live
+  on both boards. Read-only forensics: `~/sensors/probe_cht.py`. Offline unit
+  checks (stubs spidev/socketio, runs anywhere): `python3 ~/sensors/test_cht.py`.
 - `power_cycle()` is written and unit-tested but **inert** until `POWER_GPIO`
   is populated — that's the pending hardware step (move right VIN off pin 4).
   It tri-states GPIO 7,8,9,10,11 first, drops VIN, then restores `a0` on 9/10/11.
