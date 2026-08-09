@@ -33,7 +33,16 @@ def read_temp(path):
             lines = f.readlines()
         if len(lines) >= 2 and 'YES' in lines[0]:
             t = int(lines[1].split('t=')[1].strip())
-            return round(t / 1000.0, 2)
+            c = round(t / 1000.0, 2)
+            # DS18B20 power-on reset default is exactly +85.0°C. On a marginal
+            # power/data connection the sensor returns this default with a valid
+            # CRC — the classic "85°C bug" (shows up as a ~185°F spike). A real
+            # ambient reading is never 85.0°C, so reject a raw 85000 (allow a
+            # tiny tolerance for the LSB) and treat it as a bad sample.
+            if t == 85000 or abs(c - 85.0) < 0.06:
+                print('[ambient] Ignoring 85.0°C power-on-default (bad probe power?)')
+                return None
+            return c
     except Exception as e:
         print(f'[ambient] Read error: {e}')
     return None
