@@ -111,6 +111,12 @@ drops supplementary groups, and byron needs `video`, `render` and `input` to
 reach `/dev/dri` — so the cgroup comes from `systemd-run` and the credential
 comes from `sudo -u byron` inside it.
 
+**There is still no way for the rider to recover the dash by hand.** The
+touchscreen is one of the devices that drops, so tapping is out, and SSH needs a
+laptop. `ESCAPE-HATCH.md` proposes the options — a handlebar power cut and a GPIO
+button — with a matrix of which failure modes each one actually reaches. **None of
+it is implemented**; it is waiting on Byron's decision.
+
 **Nothing else on this machine restarts the app.** CLAUDE.md used to say it
 respawns after a kill; it does not. There is no supervising unit, no cron, and
 no compositor autostart — the XDG autostart entry runs once at login. Before
