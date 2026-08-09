@@ -20,9 +20,13 @@ doesn't pay the same cost.
    `Page.captureScreenshot` only captures the DOM/overlay layer; the CarPlay
    video is composited *underneath* the Wayland surface and shows as
    white/black in CDP even when it is actually working (see §6).
-3. **Never `pkill` the app/compositor.** It churns the Wayland session, drops
-   your SSH (exit 255), and the app respawns. Deploy with an **atomic mv +
-   reboot** instead (see §4).
+3. **Never `pkill` the app/compositor.** It churns the Wayland session and drops
+   your SSH (exit 255). Deploy with an **atomic mv + reboot** instead (see §4).
+   ⚠️ **Correction (2026-08-09): the app does NOT respawn.** This file claimed it
+   did; nothing supervises it — no cron, no unit, no compositor autostart, only a
+   one-shot XDG autostart at login. Before `livi-freeze-watch` (§13) a killed app
+   meant a dead dash until someone rebooted. Relaunching by hand is not obvious
+   either — see §13 for the three traps.
 4. **Do NOT rebuild `gst-video` on the Pi.** The wrong rebuild links too many
    libs and SIGBUS-crashes the whole app. Reuse the known-good binary (see §3).
 5. **After any Mac electron-builder run, `git checkout -- package.json`.**
@@ -640,3 +644,76 @@ Healthy = 4000 UP, 9222 closed, no debug flag, `GStreamer <ver>` (not "load
 failed"), codecs with `sw=true`/`hw=true`, FirstFrame present, crashes 0. Then
 `grim` to confirm CarPlay renders in the center square.
 
+
+---
+
+## 13. Pi resilience services (added 2026-08-09)
+
+Three root services now watch the dashboard on the bike. Source, install recipe
+and the full policy rationale: **`pi/health/README.md`** — read that before
+changing any of them. Summary here so you know they exist and don't fight them.
+
+| Unit | Does |
+|---|---|
+| `livi-health-recorder` | 1 Hz flight recorder → `/var/log/livi-health/health.csv` |
+| `livi-usb-guard` | Recovers a USB device that has gone missing |
+| `livi-freeze-watch` | Restarts the app on a userspace freeze; reboots if that fails |
+
+Logs: `/var/log/livi-health/{health.csv,events.log,state.json,freeze-state.json}`.
+Per-boot app logs: `~/LIVI/logs/` (`~/LIVI/LIVI.log` symlinks to the newest).
+Cores: `~/LIVI/cores/`. The journal is now **persistent** (it used to be volatile,
+which destroyed the evidence for every boot-time fault).
+
+**Before debugging anything on the Pi, stand these down** rather than stopping the
+units — they keep recording but take no action:
+```bash
+sudo touch /etc/livi-usb-guard.disabled /etc/livi-freeze-watch.disabled
+# …debug…
+sudo rm -f /etc/livi-usb-guard.disabled /etc/livi-freeze-watch.disabled
+```
+Otherwise a long CDP session or a deliberate app kill can trip a restart or a
+reboot underneath you.
+
+### Relaunching the app by hand (three traps)
+`LIVI.AppImage` **re-execs itself with `--ozone-platform=wayland` and the first
+process exits** — a healthy dash shows a bare `LIVI.AppImage` *and* an
+`--ozone-platform=wayland` one, both reparented to init. Consequences:
+1. `Type=simple` (the systemd-run default) sees that exit ~800 ms in, declares
+   the unit finished, and tears down the cgroup — killing the real app while the
+   journal reports `Finished with result: success`. Use **`Type=forking`**.
+2. `setsid --fork` changes the session but **not the cgroup**, so it dies the
+   same way when the caller's unit exits (`Gdk-Message: Error reading events
+   from display: Broken pipe`).
+3. `systemd-run --uid=1000` **drops supplementary groups**; byron needs
+   `video(44)`, `render(992)`, `input(996)` for `/dev/dri`. Without them the app
+   writes one log line and exits silently.
+
+The command that works:
+```bash
+sudo systemd-run --collect --unit livi-app --property=Type=forking \
+  --property=LimitCORE=infinity \
+  -- sudo -u byron env XDG_RUNTIME_DIR=/run/user/1000 WAYLAND_DISPLAY=wayland-0 \
+     DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus HOME=/home/byron \
+     PATH=/usr/local/bin:/usr/bin:/bin /home/byron/LIVI/run-livi.sh
+```
+
+### ⚠️ Never rebind the bus-1 USB controller
+`xhci-hcd.0` / bus 1 = CarPlay dongle `1-1` + touch panel `1-2`. Video is HDMI
+but the panel's **power comes up the USB cable**, so a controller rebind blanks
+the screen. Bus-1 devices get device-scoped actions only. `xhci-hcd.1` / bus 3 =
+IMU `3-1` (CH340) + GPS `3-2` (CP2102N) — rebinding that one is safe and proven
+live (both re-enumerated; the sensor drivers reopened without logging anything).
+
+### A kernel hang is already covered — don't build for it
+`/usr/lib/systemd/system.conf.d/40-rpi-enable-watchdog.conf` arms the BCM2835
+hardware watchdog (`RuntimeWatchdogSec=1m`); PID 1 holds `/dev/watchdog0` and
+pets it (`wdctl` shows ~5 s left of 60). **A genuine kernel hang self-resets in
+60 s.** So any freeze that required a power-cycle was **userspace**, not a hang.
+
+### Reading the dongle's disconnect count correctly
+`USB-GONE dongle (1-1)` in a tight ~13 s cycle means **the app is not running**,
+not that the dongle is faulty. With nothing driving it the dongle re-enumerates
+on its own; 65 of the 67 recorded events were of this kind, every one of them
+starting ~1 s after `APP LOST telemetry port 4000`. Zero dongle drops have been
+recorded while the app was healthy. The guard's 25 s grace deliberately rides
+over the cycle, so it takes no action.
