@@ -81,6 +81,17 @@ jiffies per 15 s; exactly 0 is impossible on a live system. A freeze is declared
 only on the conjunction — 0 renderer CPU *and* an unchanging frame — held for
 120 s. Frame staleness on its own is recorded and never acted on.
 
+**`livi-freeze-watch` cannot see a panel-side freeze — a known blind spot.** It
+judges liveness from `grim`, which captures what the Pi *composites*, not what
+the touch panel *displays*. The panel takes its power over USB, so a sagging rail
+can hang its controller while the Pi carries on perfectly: grim keeps returning
+fresh changing frames, the watchdog correctly concludes all is well, and the
+screen in front of the rider is frozen anyway. Never read "the watchdog took no
+action" as "the dash was fine". The discriminator is `health.csv` at the minute
+of the reported freeze — if renderer CPU is healthy and frames were changing
+throughout, the Pi was alive and the panel was the thing that died. See
+`FAILURE-HYPOTHESES.md` § 2.
+
 **Restarts are tried before reboots, and both are budgeted.** Two restarts per
 30 min, then one reboot per 30 min, then a hard cap of three reboots per 24 h,
 after which it logs `FREEZE-NEEDS-HUMAN` and stops. The budgets live in

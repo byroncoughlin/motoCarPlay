@@ -5,149 +5,197 @@ USB devices repeatedly dropped — sometimes all four at once, recoverable only 
 killing bike power — and, on other occasions, the entire display froze including
 the clock and every sensor.
 
-This is a ranked set of hypotheses reasoned from the setup as it is actually
-installed, not from the logs: **no log evidence of the trip survives.** `LIVI.log`
-was truncated on every boot, the systemd journal was volatile, and core dumps
-landed in tmpfs. That gap is now closed (§ *Instruments*), so the value of this
-document is that each hypothesis below names the thing that would confirm or kill
-it and the instrument that will capture it next time.
+Revised the same day with Byron's answers, which changed the ranking materially.
+The originally-leading "transient rail collapse" and the third-ranked "thermal"
+turned out to be one hypothesis, not two.
+
+**No log evidence of the trip survives.** `LIVI.log` was truncated on every boot,
+the systemd journal was volatile, and core dumps landed in tmpfs. That gap is now
+closed (§ *What is now instrumented*), so the value of this document is that each
+hypothesis names the thing that would confirm or kill it, and the instrument that
+will capture it next time.
+
+## What Byron reported
+
+| Question | Answer | What it does to the ranking |
+|---|---|---|
+| Engine running at each failure? | **Always.** Never with the engine off | Keeps EMI alive; adds engine heat and the charging system to every candidate |
+| Freezes and USB drops together? | **Sometimes separately** | Weakens "they are one event", does not kill it |
+| Ambient / sun? | **Very hot**, not direct sun | Thermal is live |
+| Supply | **5 V 5 A USB-C.** The Pi complains it is not 27 W, so the firmware override was set | See below — the override is a *warning suppressor*, not a capability |
+| Rough road? | **No correlation** | Effectively kills the vibration hypothesis |
+| Timing | Random through the trip, **but by the end it was re-freezing within 5–45 s of a reboot** | This is the strongest clue of the lot |
 
 ## The setup, as measured
 
 | | |
 |---|---|
-| Power | One 5 V feed off the bike. `psu_max_current` reports **unknown** — the firmware never negotiated or verified the supply's capability |
-| USB budget | `usb_max_current_enable=1` in `config.txt` — this **lifts** the Pi 5's default 600 mA USB cap to 1.6 A, regardless of whether the supply can source it |
+| Power | 5 V 5 A USB-C off the bike. `psu_max_current` reports **unknown** — the firmware never negotiated or verified the supply's capability |
+| USB budget | `usb_max_current_enable=1` in `config.txt`, set to silence the 27 W warning. It tells the firmware to **assume** 5 A is available and lifts the default 600 mA USB cap to 1.6 A. It does not verify anything |
 | Bus 1 (`xhci-hcd.0`) | CarPlay dongle `1-1` (Magic Communication "Auto Box", declares **bMaxPower 0 mA**), touch panel `1-2` (Waveshare 034-HD, declares 100 mA, **takes its power over this cable**) |
 | Bus 3 (`xhci-hcd.1`) | IMU `3-1` (CH340), GPS `3-2` (CP2102N), 100 mA each |
 | Hubs | None. All four devices are direct, all USB 2.0 |
 | Video | HDMI-A-1. Only the panel's *power* is USB |
-| Rail, engine off | 4.856–5.085 V over 4 065 samples; `throttled` = `0x0` throughout; `uv_ever` never set |
-| Rail cost of the app | Running the app lowers the minimum by ~120 mV (idle windows bottomed at 5.006, app-running windows at 4.856–4.900) |
-| SoC temp, garage | 52.9–61.7 °C |
+| Rail, engine off, garage | 4.856–5.085 V over 4 065 samples; `throttled` = `0x0` throughout; `uv_ever` never set |
+| Rail cost of the app | Running the app lowers the minimum by ~120 mV (idle windows bottomed at 5.006 V, app-running windows at 4.856–4.900 V) |
+| SoC temp, garage, engine off | 52.9–61.7 °C |
 | Memory | ≥6.7 GB available at all times — not a factor |
 | Kernel watchdog | BCM2835, armed, `RuntimeWatchdogSec=1m`, PID 1 petting it |
 
+---
+
 ## Ranked hypotheses
 
-### 1. Transient 5 V collapse dragging USB VBUS down — the leading explanation for "all four drop at once"
+### 1. A heat-derated supply browning out — the single story that fits every reported detail
 
-The single most diagnostic detail Byron reported is that recovery required
-**killing bike power**. A driver or enumeration problem clears on a controller
-rebind; needing the rail to actually go away points at port power or a device
-stuck below its own reset threshold. That is a supply symptom.
+*Merges what were separately ranked 1st (rail collapse) and 3rd (thermal). Byron's
+answers show they are the same fault.*
 
-The margin supports it. Undervoltage trips at roughly 4.63 V on a Pi 5; the
-lowest reading in an hour of *garage idling* was 4.856 V, leaving ~220 mV, and
-simply running the app spends ~120 mV of it. Add the backlight at full
-brightness, the dongle streaming, GPS and IMU polling, engine heat, and a
-12 V→5 V converter working off a charging system from 1975, and the remaining
-headroom is thin. `usb_max_current_enable=1` makes this worse rather than
-better: it authorises up to 1.6 A of USB draw from a supply the firmware has
-never verified — the flag raises the *permission*, not the *capability*.
+The decisive clue is that by the end of the trip the dash was re-freezing **within
+5–45 seconds of a reboot**. A fault that returns immediately after a restart, and
+only once everything is heat-soaked, is not a random software deadlock. It is a
+component that has drifted out of spec and stays out until it cools. And boot is
+exactly when the Pi draws its peak: four cores spinning up, USB enumerating, the
+backlight coming on, all at once.
 
-Two further details fit. The dongle declares `bMaxPower 0 mA`, so the host
-cannot budget for it at all. And all four devices share one rail, which is
-exactly why they would fail together.
+A 5 A buck converter is rated at 25 °C. Behind a fairing, above an air-cooled
+engine, on a very hot day, ambient at the module can easily reach 60–70 °C, where
+the same part may deliver half its rating before it folds back or its thermal
+protection trips. Every reported detail follows from that one mechanism:
 
-- **Predicts:** simultaneous drops, correlated with load rather than with road
-  surface; `uv_ever` latching; possibly `over-current` in `dmesg`.
-- **Confirms it:** `health.csv` showing `ext5v` below ~4.7 or a nonzero
-  `throttled`/`uv_ever` within seconds of a `USB-GONE` burst in `events.log`.
-- **Kills it:** a multi-device `USB-GONE` burst with `ext5v` flat above 5.0 and
-  `throttled` still `0x0` for the whole window.
+- **Engine always running** — engine heat plus the charging system's ripple.
+- **Worse at the end of a long ride** — heat soak is cumulative.
+- **Instant re-freeze after reboot** — the converter is still hot, and boot is peak draw.
+- **All four USB devices dropping together** — they share one rail.
+- **Recovery only by killing bike power** — that is what lets the module cool and reset.
+- **No correlation with rough road** — this is thermal and electrical, not mechanical.
+
+`usb_max_current_enable=1` is not the cause but it removes the last guard rail:
+the firmware stops asking whether 5 A is really there and lets the load grow to
+1.6 A on USB alone. Setting it was the right call to clear the 27 W nag; the
+consequence is that a supply which is fine cold and sagging hot has nothing
+checking it.
+
+The garage numbers are consistent with a thin margin even *before* heat: 4.856 V
+minimum against a ~4.63 V undervoltage trip, with the app alone costing ~120 mV.
+A genuine 5 V/5 A source at the Pi's pins would normally read closer to 5.1 V, so
+roughly 150–250 mV is already being lost somewhere — in the converter, the cable,
+or the connector.
+
+- **Confirms it:** `uv_ever` latching, or `ext5v` below ~4.7 V, in `health.csv`
+  within seconds of a `USB-GONE` burst or a freeze. Also `over-current` in `dmesg`.
+- **Kills it:** a failure with `ext5v` flat above 5.0 V and `throttled` still `0x0`
+  across the whole window.
 - **Honest limit:** the recorder samples at 1 Hz and cannot see a microsecond
-  droop. The catch for that is `uv_ever`, which is a *sticky* firmware bit — it
-  latches on a transient the sampler would miss entirely. Watch that column, not
-  the instantaneous voltage.
+  droop. The catch is `uv_ever`, a **sticky** firmware bit that latches on exactly
+  the transient the sampler would miss. Watch that column, not the instantaneous
+  voltage.
+- **Instrument gap:** nothing measures the *converter's* temperature. `soc_c` is
+  a poor proxy — the SoC has a heatsink and the converter may not. An IR reading
+  of the module right after a hot ride would be worth more than any log line here.
 
-### 2. Connector fretting from vibration
+### 2. The panel hung, not the Pi
 
-A 1975 airhead vibrates, four unstrained USB-A plugs hang off the Pi, and the
-CHT investigation already established that this harness's weak point is long
-unsupported jumper wire. A partially backed-out plug intermittently opens VBUS,
-which looks identical to a device failure.
+This was missed on the first pass and is ranked second on the strength of one
+observation: **the touch panel takes its power over USB.** If the rail sags, the
+panel's own controller can hang while the Pi carries on perfectly underneath. A
+frozen image on a hung panel is indistinguishable, by eye, from a frozen
+dashboard — the clock stops either way — and it too would need a power cycle to
+clear.
 
-- **Predicts:** drops track rough road and revs rather than load; *individual*
-  devices drop independently far more often than all four together; one port is
-  consistently worse; re-seating fixes it for a while.
-- **Confirms it:** `USB-GONE` for a single device with the rail flat, clustering
-  by riding condition rather than by CPU/GPU activity.
-- **Kills it:** every recorded episode is all-four-at-once — that is a shared-rail
-  signature, not a mechanical one.
-- **Instrument:** the per-port columns `u11`/`u12`/`u31`/`u32` in `health.csv`,
-  which distinguish "one device" from "the whole bus" at 1 Hz.
+This is a sub-case of hypothesis 1 rather than a rival to it, but it matters
+because it changes what to look at, and because of the blind spot below.
 
-### 3. Thermal, as the cause of the *freeze* rather than the USB drops
+> ⚠️ **`livi-freeze-watch` cannot detect this.** It judges liveness from `grim`,
+> which reads what the Pi *composites*, not what the panel *displays*. Through a
+> panel-side hang, grim keeps returning fresh changing frames and the watchdog
+> correctly concludes all is well — while the screen in front of the rider is
+> frozen. Do not read "the watchdog took no action" as "the dash was fine".
 
-61.7 °C in a cool garage with the engine off is a floor, not a ceiling. Behind a
-fairing, in sun, above a hot air-cooled engine, five hours in, 75–85 °C is
-entirely plausible; the Pi 5 soft-throttles at 80 °C and hard-throttles at 85 °C.
-Throttling degrades performance rather than dropping USB, which is why this sits
-under the freeze and not under hypothesis 1.
+- **Confirms it:** a freeze during which `health.csv` shows renderer CPU healthy
+  and frames still changing throughout. That is proof the Pi was alive and the
+  panel was not.
+- **Kills it:** renderer CPU at zero across the freeze — then it really was the app.
+- **How to settle it:** note the wall-clock time of the next freeze and read the
+  CSV for that minute. No new code required; the flight recorder keeps running
+  through a panel freeze, which is the whole point.
 
-- **Predicts:** failures cluster late in a long ride and on the hotter of the two
-  days; `soc_c` climbs monotonically; `throttled` shows `0x2`/`0x8`.
-- **Confirms it:** `soc_c` above 75 °C in the minutes before an event.
-- **Kills it:** `soc_c` under 70 °C across a failure.
+### 3. Ignition EMI
 
-### 4. A userspace deadlock in the renderer or compositor — the freeze itself
+Promoted from sixth. Every failure happened with the engine running and none with
+it off, which is exactly the signature EMI predicts, and this is a points-and-coil
+airhead with unshielded cable runs near USB 2.0 differential pairs. The CHT
+register corruption is already attributed to the same mechanism.
 
-That the *clock* froze is the important part: the clock is drawn by the renderer,
-not by the CarPlay pipeline, so this was not a video-decode stall. And because
-the hardware watchdog is armed and would have rebooted a genuine kernel hang
-within 60 s, the fact that Byron had to power-cycle proves the kernel was alive.
-Something in userspace stopped painting while the kernel kept petting the dog.
+It stays below the supply hypothesis for two reasons. EMI more typically corrupts
+traffic than removes a device from the bus, and removal is what was reported. And
+EMI does not explain the heat correlation or the 5-second re-freeze at the end of
+the trip.
 
-- **Predicts:** renderer CPU at zero while the main process still runs, or the
-  compositor alive but no longer producing frames for `grim`.
-- **Confirms it:** `livi-freeze-watch` firing with `renderer-frozen` or
-  `compositor-wedged`, plus its forensics dump of per-process states.
-- **Instrument:** this is precisely what `livi-freeze-watch` was built for, and
-  it now also *recovers* it — restart first, reboot only if that fails. Core
-  dumps land in `~/LIVI/cores` instead of vanishing with tmpfs.
-
-### 5. The freeze and the USB drops are one event, not two
-
-A touch panel that drops off bus 1 takes an input device out from under the
-compositor; a dongle that disappears mid-stream can wedge the GStreamer pipeline
-while it holds GPU resources. Either could present as a frozen screen whose real
-cause was a USB event seconds earlier. Equally, the causation could run the other
-way. This is worth its own line because **it is the cheapest thing on this list
-to settle** — `events.log` now records USB transitions and freeze verdicts in one
-file against one clock, so the ordering will simply be visible.
-
-### 6. Ignition EMI
-
-CLAUDE.md states that ignition EMI is the trigger for the CHT register
-corruption. **That is stated more confidently there than the evidence supports** —
-bike power measured clean at rest, `throttled=0x0`, `EXT5V ≈ 5.03 V`, and the
-EMI attribution rests on the fault clustering with the engine running rather than
-on any direct measurement. It remains plausible for USB too: a points-and-coil
-airhead, unshielded cable runs, and USB 2.0 differential pairs are a poor
-combination. It is ranked here rather than higher because EMI more typically
-corrupts traffic than removes a device from the bus, and removal is what was
-reported.
+One caveat carried over: CLAUDE.md states the EMI attribution for the CHT fault
+more confidently than the evidence supports. It rests on the fault clustering with
+the engine running, not on direct measurement — and "clusters with the engine
+running" is equally satisfied by engine *heat*, which is hypothesis 1.
 
 - **Kills it:** any drop recorded with the engine off.
+- **Cheap mitigation, worth doing regardless:** shorter, shielded, ferrite-cored
+  USB runs routed away from the plug leads.
+
+### 4. SoC thermal throttling or shutdown, as distinct from the supply
+
+61.7 °C in a cool garage with the engine off is a floor, not a ceiling. Five hours
+in, on a very hot day, above an air-cooled engine, 75–85 °C is entirely plausible;
+the Pi 5 soft-throttles at 80 °C and hard-throttles at 85 °C.
+
+Ranked below the supply because throttling *degrades* rather than freezes, and it
+would not drop USB devices. Kept as its own line because it is trivially separable
+from hypothesis 1 in the data.
+
+- **Confirms it:** `soc_c` above 75 °C with `throttled` showing `0x2`/`0x8`
+  before an event.
+- **Kills it:** `soc_c` under 70 °C across a failure while `ext5v` dips — that is
+  the supply, not the chip.
+
+### 5. A userspace deadlock in the renderer or compositor
+
+Still possible for the freezes that happened at random earlier in the trip, which
+may be a different fault from the end-of-trip cluster. The hardware watchdog is
+armed and would have rebooted a genuine kernel hang within 60 s, so the fact that
+a power-cycle was needed proves the kernel was alive; something in userspace
+stopped painting while the kernel kept petting the dog — *if* the Pi was the thing
+that froze at all, which hypothesis 2 questions.
+
+- **Confirms it:** `livi-freeze-watch` firing with `renderer-frozen` or
+  `compositor-wedged`, plus its forensics dump.
+- **Instrument:** this is what `livi-freeze-watch` was built for, and it now
+  recovers it — restart first, reboot only if that fails. Cores land in
+  `~/LIVI/cores` instead of vanishing with tmpfs.
+
+### 6. Connector fretting from vibration
+
+**Effectively killed.** Byron reports no correlation with rough road. Strain-
+relieving the plugs remains worth doing as hygiene, but it is no longer a
+candidate explanation.
 
 ### 7. Dongle firmware
 
-Wireless CarPlay boxes are a flaky class of hardware, and this one declares no
-power requirement at all. Ranked last on current evidence: of the 67 dongle
-disconnects on record, **65 were artefacts of the app not running** — with
-nothing driving it, the dongle re-enumerates on a fixed ~13 s cycle, and every
-one of those bursts began about a second after `APP LOST telemetry port 4000`.
-**Zero dongle drops have been recorded while the app was healthy.** Do not read
-that disconnect count as a fault rate.
+Ranked last. Of the 67 dongle disconnects on record, **65 were artefacts of the
+app not running** — with nothing driving it the dongle re-enumerates on a fixed
+~13 s cycle, and every burst began about a second after `APP LOST telemetry port
+4000`. **Zero dongle drops have been recorded while the app was healthy.** Do not
+read that disconnect count as a fault rate.
+
+---
 
 ## What is now instrumented
 
 | Question | Where the answer will be |
 |---|---|
 | Did the rail sag? | `health.csv` → `ext5v`, `throttled`, `uv_now`, **`uv_ever`** (sticky) |
-| Was it hot? | `health.csv` → `soc_c` |
+| Was the SoC hot? | `health.csv` → `soc_c` |
+| Was the *converter* hot? | **Nothing measures this.** IR gun after a hot ride |
 | Which device went, and when? | `health.csv` → `u11`/`u12`/`u31`/`u32`; `events.log` → `USB-GONE`/`USB-BACK` |
+| Was it the Pi or the panel that froze? | `health.csv` at the reported minute: Pi healthy throughout ⇒ panel |
 | Did the app freeze, and which part? | `events.log` → `FREEZE-*`; per-process CPU columns |
 | Did a USB event precede the freeze? | `events.log` — one file, one clock, both event types |
 | What did the app say? | `~/LIVI/logs/LIVI-<boot>.log`, one per boot, no longer truncated |
@@ -155,29 +203,22 @@ that disconnect count as a fault rate.
 
 ## What would move this forward fastest
 
-Cheap and diagnostic, in order:
+1. **Point an IR thermometer at the 5 V converter straight after a hot ride.**
+   The cheapest test of the leading hypothesis, and the one number nobody has. If
+   it is above ~60 °C, that is the answer.
+2. **Check the USB-C cable is 5 A rated.** A 5 A supply through a 3 A cable drops
+   voltage under exactly the peak loads that matter, and would produce every
+   symptom here without the converter being at fault at all.
+3. **Ride it and read `events.log` and `health.csv`.** Hypotheses 1–5 are now
+   separated by evidence that gets collected automatically. Note the wall-clock
+   time of any freeze — that single number settles hypothesis 2.
+4. **Move or heatsink the converter** if it runs hot. Getting it out of the engine's
+   heat plume is a better fix than anything in software.
+5. **Shorter shielded USB runs with ferrites**, away from the plug leads. Cheap,
+   and it removes hypothesis 3 from the board.
 
-1. **Ride it and read `events.log`.** Hypotheses 1, 2, 5 and 6 are separated by
-   evidence that now gets collected automatically. This costs nothing.
-2. **Measure the 5 V supply under load with the engine running** — the one number
-   nobody has. Specifically its rated current and its behaviour at peak draw, not
-   its idle voltage.
-3. **Consider setting `usb_max_current_enable=0`** as an experiment. It is a
-   one-line change in `config.txt`. If the failures stop, hypothesis 1 is proven
-   and the fix is a better supply rather than a lower cap. The risk is that
-   600 mA may not run the panel plus the dongle, in which case the experiment
-   fails loudly and immediately rather than subtly.
-4. **Strain-relieve the four USB plugs.** Independently worth doing, and it
-   removes hypothesis 2 from the board.
-
-## Open questions for Byron
-
-Answers to these would re-rank the list immediately:
-
-- Was the engine running at each failure, or did any happen with it off?
-- Did the freezes and the USB drops ever happen at the same time, or always
-  separately?
-- Rough ambient temperature on each day, and was the dash in direct sun?
-- How is the Pi powered off the bike — what converter, what rating, what cable?
-- Did failures correlate with rough road, or with engine start, or with neither?
-- Roughly how far into each ride did they happen?
+Deliberately *not* recommended now: turning `usb_max_current_enable` back off. With
+a genuine 5 A supply the override is legitimate, and capping USB at 600 mA would
+likely starve the panel and the dongle — producing a loud new failure rather than
+information about the old one. Revisit only if the converter measures cool and the
+rail still sags.
