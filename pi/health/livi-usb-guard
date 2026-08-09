@@ -1,0 +1,331 @@
+#!/usr/bin/env python3
+"""USB drop detection and targeted recovery for the LIVI dashboard.
+
+Four devices hang off two independent xHCI controllers:
+
+    xhci-hcd.0 / bus 1     1-1  1314:1520  CarPlay dongle   (usbfs, app owns it)
+                           1-2  0483:5750  touchscreen      (usbhid, class 03)
+    xhci-hcd.1 / bus 3     3-1  1a86:7523  CH340  -> WT901C IMU
+                           3-2  10c4:ea60  CP2102N -> GPS
+
+Video reaches the panel over HDMI, not USB, so losing 1-2 leaves the picture up
+and kills only touch — which is exactly what Byron reported: no way to tap a
+recovery button once it goes. Panel *power*, however, comes up the USB cable.
+That single fact sets the policy here:
+
+    bus 3  — recover freely, up to and including a controller rebind. Nothing
+             on that controller can darken the screen.
+    bus 1  — device-scoped actions only (USBDEVFS_RESET, deauthorize/reauthorize).
+             Both leave VBUS alone. If a bus-1 device has vanished from sysfs
+             entirely there is no device left to reset, and the only remaining
+             lever is a controller rebind that risks cutting panel power — so
+             this program refuses, records NEEDS-REBOOT, and leaves the decision
+             to the supervisor. Automatically blanking the rider's screen at
+             speed is not a recovery.
+
+Recovery is rate limited and boot-gated: the dongle legitimately re-enumerates
+a few seconds after the app claims it, and reacting to that would be a bug.
+
+Create /etc/livi-usb-guard.disabled to keep detection and stop all action.
+"""
+
+import glob
+import os
+import subprocess
+import sys
+import time
+
+EVENTS = '/var/log/livi-health/events.log'
+DISABLE_FLAG = '/etc/livi-usb-guard.disabled'
+USB_ROOT = '/sys/bus/usb/devices'
+XHCI_DRIVER = '/sys/bus/platform/drivers/xhci-hcd'
+
+POLL = 2.0
+BOOT_GRACE = 120.0        # ignore everything until the app has settled
+COOLDOWN = 90.0           # minimum gap between attempts on one device
+HEALTHY_CONFIRM = 60.0    # sustained good time before an episode is closed
+MAX_PER_HOUR = 4
+
+# port, label, bus, grace seconds before we call it a real drop
+DEVICES = (
+    ('1-1', 'dongle', 1, 25.0),
+    ('1-2', 'touch', 1, 10.0),
+    ('3-1', 'imu', 3, 10.0),
+    ('3-2', 'gps', 3, 10.0),
+)
+
+CONTROLLER = {1: 'xhci-hcd.0', 3: 'xhci-hcd.1'}
+
+# Serial devices should also expose a stable by-id node. The device can
+# enumerate on the bus while the tty layer never comes back, which looks fine
+# in sysfs and is still a dead sensor.
+#
+# Match by prefix, not by full path: udev splices the chip's serial number into
+# the middle of the CP2102N's name, and hard-coding the full string made the
+# guard declare a perfectly healthy GPS dead on its first poll.
+BY_ID = {
+    '3-1': '/dev/serial/by-id/usb-1a86_USB_Serial*',
+    '3-2': '/dev/serial/by-id/usb-Silicon_Labs_CP2102N*',
+    # The touchscreen can sit on the bus with its HID interface bound and still
+    # produce no input node, which is a dead touchscreen by any useful measure.
+    '1-2': '/dev/input/by-id/usb-Waveshare*event*',
+}
+
+# The dongle has no equivalent node — the app claims it through usbfs, so the
+# only place its health is visible is the app's own log. This is the exact
+# error the trip log filled up with, and it means the endpoint is gone while
+# the device is still enumerated: CarPlay is already dead, so a device-scoped
+# reset cannot make the ride worse.
+DONGLE_LOG = '/home/byron/LIVI/LIVI.log'
+DONGLE_ERROR = 'endpoint not found'
+DONGLE_WINDOW = 60.0
+DONGLE_THRESHOLD = 5
+
+
+def note(message):
+    line = '%s %s\n' % (time.strftime('%Y-%m-%dT%H:%M:%S%z'), message)
+    try:
+        with open(EVENTS, 'a') as handle:
+            handle.write(line)
+            handle.flush()
+            os.fsync(handle.fileno())
+    except OSError:
+        pass
+    sys.stderr.write(line)
+    sys.stderr.flush()
+
+
+def present(port):
+    return os.path.isdir(os.path.join(USB_ROOT, port))
+
+
+class DongleLogWatch:
+    """Counts recent 'endpoint not found' bursts in the app log.
+
+    Follows the log across boots: ~/LIVI/LIVI.log is a symlink that the launch
+    wrapper repoints at a fresh per-boot file, so track the inode and start
+    over when it changes. Reads only what has been appended since the last
+    poll, so this stays cheap no matter how large the log grows.
+    """
+
+    def __init__(self, path=DONGLE_LOG):
+        self.path = path
+        self.inode = None
+        self.offset = 0
+        self.hits = []
+
+    def poll(self, now):
+        try:
+            stat = os.stat(self.path)
+        except OSError:
+            return 0
+        if stat.st_ino != self.inode or stat.st_size < self.offset:
+            self.inode, self.offset = stat.st_ino, 0
+        if stat.st_size == self.offset:
+            fresh = 0
+        else:
+            try:
+                with open(self.path, 'rb') as handle:
+                    handle.seek(self.offset)
+                    chunk = handle.read(1 << 20)
+                    self.offset += len(chunk)
+            except OSError:
+                return len(self.hits)
+            fresh = chunk.decode('utf-8', 'replace').count(DONGLE_ERROR)
+        self.hits = [t for t in self.hits if now - t < DONGLE_WINDOW]
+        self.hits.extend([now] * fresh)
+        return len(self.hits)
+
+    def clear(self):
+        self.hits = []
+
+
+DONGLE_WATCH = DongleLogWatch()
+
+
+def healthy(port, now=None):
+    """Present on the bus AND usable by the layer above it."""
+    if not present(port):
+        return False
+    pattern = BY_ID.get(port)
+    if pattern is not None and not glob.glob(pattern):
+        return False
+    if port == '1-1' and now is not None:
+        if DONGLE_WATCH.poll(now) >= DONGLE_THRESHOLD:
+            return False
+    return True
+
+
+def read(path, default=''):
+    try:
+        with open(path) as handle:
+            return handle.read().strip()
+    except OSError:
+        return default
+
+
+def run(argv, timeout=15):
+    try:
+        done = subprocess.run(argv, capture_output=True, text=True, timeout=timeout)
+        return done.returncode, (done.stdout + done.stderr).strip()
+    except (OSError, subprocess.SubprocessError) as exc:
+        return -1, repr(exc)
+
+
+def usb_reset(port):
+    """USBDEVFS_RESET — a port reset over the wire. VBUS is untouched."""
+    busnum = read(os.path.join(USB_ROOT, port, 'busnum'))
+    devnum = read(os.path.join(USB_ROOT, port, 'devnum'))
+    if not busnum or not devnum:
+        return False, 'no busnum/devnum'
+    code, output = run(['usbreset', '%03d/%03d' % (int(busnum), int(devnum))])
+    return code == 0, output
+
+
+def reauthorize(port):
+    """Deauthorize then reauthorize: a full re-enumeration, still no VBUS change."""
+    path = os.path.join(USB_ROOT, port, 'authorized')
+    try:
+        with open(path, 'w') as handle:
+            handle.write('0')
+        time.sleep(1.5)
+        with open(path, 'w') as handle:
+            handle.write('1')
+    except OSError as exc:
+        return False, repr(exc)
+    time.sleep(3.0)
+    return present(port), 'reauthorized'
+
+
+def rebind_controller(bus):
+    """Unbind and rebind a whole xHCI controller.
+
+    Only ever called for bus 3. Controller 0 carries the touchscreen, whose
+    panel is powered from that USB cable, and a rebind can drop port power.
+    """
+    name = CONTROLLER[bus]
+    try:
+        with open(os.path.join(XHCI_DRIVER, 'unbind'), 'w') as handle:
+            handle.write(name)
+        time.sleep(2.0)
+        with open(os.path.join(XHCI_DRIVER, 'bind'), 'w') as handle:
+            handle.write(name)
+    except OSError as exc:
+        return False, repr(exc)
+    time.sleep(5.0)
+    return True, 'rebound %s' % name
+
+
+class Guard:
+    def __init__(self, port, label, bus, grace):
+        self.port, self.label, self.bus, self.grace = port, label, bus, grace
+        self.bad_since = None
+        self.good_since = None
+        self.rung = 0
+        self.last_attempt = 0.0
+        self.attempts = []          # monotonic timestamps, for the hourly cap
+
+    def ladder(self):
+        """Actions to try, in order, for this device's current state."""
+        steps = []
+        if present(self.port):
+            steps.append(('usbreset', lambda: usb_reset(self.port)))
+            steps.append(('reauthorize', lambda: reauthorize(self.port)))
+        if self.bus == 3:
+            steps.append(('rebind %s' % CONTROLLER[3], lambda: rebind_controller(3)))
+        return steps
+
+    def throttled(self, now):
+        self.attempts = [t for t in self.attempts if now - t < 3600]
+        if len(self.attempts) >= MAX_PER_HOUR:
+            return 'hourly cap reached'
+        if now - self.last_attempt < COOLDOWN:
+            return 'cooling down'
+        return None
+
+    def poll(self, now, uptime):
+        if healthy(self.port, now):
+            if self.bad_since is None:
+                return
+            # Do not close the episode on the first good poll. A device that
+            # reappears for two seconds and drops again has not recovered, and
+            # resetting the ladder there would leave the guard retrying its
+            # weakest action forever instead of escalating.
+            if self.good_since is None:
+                self.good_since = now
+            elif now - self.good_since >= HEALTHY_CONFIRM:
+                note('USB-RECOVERED %s (%s) after %.0fs, %d attempt(s)'
+                     % (self.label, self.port, now - self.bad_since, self.rung))
+                self.bad_since = self.good_since = None
+                self.rung = 0
+            return
+
+        self.good_since = None
+        if self.bad_since is None:
+            self.bad_since = now
+            note('USB-DOWN %s (%s) present=%s bus=%d%s'
+                 % (self.label, self.port, present(self.port), self.bus,
+                    ' errors=%d' % len(DONGLE_WATCH.hits) if self.port == '1-1' else ''))
+            return
+
+        down_for = now - self.bad_since
+        if down_for < self.grace or uptime < BOOT_GRACE:
+            return
+        if os.path.exists(DISABLE_FLAG):
+            return
+
+        reason = self.throttled(now)
+        if reason:
+            return
+
+        steps = self.ladder()
+        if not steps:
+            # Bus 1, device gone from sysfs. Nothing left that does not risk
+            # the panel's power. Say so once and stop.
+            if self.rung == 0:
+                note('USB-NEEDS-REBOOT %s (%s) vanished from bus 1; refusing a '
+                     'controller rebind because the touch panel is powered from '
+                     'that controller' % (self.label, self.port))
+                self.rung = 1
+            return
+
+        if self.rung >= len(steps):
+            if self.rung == len(steps):
+                note('USB-EXHAUSTED %s (%s) down %.0fs, ladder spent'
+                     % (self.label, self.port, down_for))
+                self.rung += 1
+            return
+
+        name, action = steps[self.rung]
+        self.rung += 1
+        self.last_attempt = now
+        self.attempts.append(now)
+        note('USB-RECOVER %s (%s) down %.0fs -> %s' % (self.label, self.port, down_for, name))
+        ok, detail = action()
+        note('USB-RECOVER %s (%s) %s: %s %s'
+             % (self.label, self.port, name, 'ok' if ok else 'FAILED', detail))
+        if self.port == '1-1':
+            # Errors counted before the reset say nothing about after it.
+            DONGLE_WATCH.clear()
+
+
+def main():
+    note('USB-GUARD start pid=%d poll=%.1fs boot_grace=%.0fs disabled=%s'
+         % (os.getpid(), POLL, BOOT_GRACE, os.path.exists(DISABLE_FLAG)))
+    guards = [Guard(*spec) for spec in DEVICES]
+    while True:
+        now = time.monotonic()
+        try:
+            uptime = float(read('/proc/uptime', '0').split()[0])
+        except (IndexError, ValueError):
+            uptime = 1e9
+        for guard in guards:
+            try:
+                guard.poll(now, uptime)
+            except Exception as exc:                          # noqa: BLE001
+                note('USB-GUARD error on %s: %r' % (guard.port, exc))
+        time.sleep(POLL)
+
+
+if __name__ == '__main__':
+    main()

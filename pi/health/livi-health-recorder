@@ -1,0 +1,385 @@
+#!/usr/bin/env python3
+"""Ride health recorder — the black box for the LIVI dashboard.
+
+Two failure modes were reported after the 2026-08-08/09 trip and neither left
+any evidence, because the journal was volatile and LIVI.log was truncated on
+every boot:
+
+  1. one or more of the four USB devices dropping (sometimes all four), needing
+     a full bike power-off — the touchscreen is one of those devices, so there
+     is no way to tap a recovery button when it happens;
+  2. the whole display freezing, clock included, which looks like a Pi hang.
+
+This process samples the machine once a second and writes a CSV that survives a
+reboot. The single most valuable column is the timestamp itself: if the samples
+stop, the kernel stopped, and we know when to the second. If the samples keep
+coming while the dash is frozen, the kernel was fine and the fault is in
+userspace. Nothing else on the bike can tell those two apart.
+
+Design rules, because this thing has to run for hours on a vibrating
+motorcycle and must never be the reason something breaks:
+  * single threaded, no dependencies outside the stdlib;
+  * every probe is wrapped — a failed read records an empty field, never an
+    exception that kills the loop;
+  * buffered writes with a periodic fsync, so we are not doing a synchronous
+    SD-card write every second, but an *immediate* fsync the moment anything
+    anomalous shows up, so the interesting samples are always on disk;
+  * read-only. It observes and reports. Recovery lives elsewhere.
+"""
+
+import json
+import os
+import signal
+import socket
+import subprocess
+import sys
+import time
+
+LOG_DIR = '/var/log/livi-health'
+CSV = os.path.join(LOG_DIR, 'health.csv')
+EVENTS = os.path.join(LOG_DIR, 'events.log')
+STATE = os.path.join(LOG_DIR, 'state.json')
+
+INTERVAL = 1.0
+FSYNC_EVERY = 5.0          # seconds between routine flushes
+ROTATE_BYTES = 8 << 20
+KEEP = 5
+
+# The four USB devices, by their stable sysfs port path. Ports do not move:
+# the physical socket determines the name, so a missing directory means that
+# socket's device fell off the bus.
+USB = (
+    ('u11', '1-1', 'dongle'),    # 1314:1520 CarPlay Auto Box  — xhci-hcd.0
+    ('u12', '1-2', 'display'),   # 0483:5750 Waveshare 034-HD  — xhci-hcd.0
+    ('u31', '3-1', 'imu'),       # 1a86:7523 CH340 / WT901C    — xhci-hcd.1
+    ('u32', '3-2', 'gps'),       # 10c4:ea60 CP2102N           — xhci-hcd.1
+)
+
+# Process CPU time is how a frozen renderer announces itself: a deadlocked one
+# burns nothing, a spinning one pegs a core. Either is visible against the
+# normal band, and neither is visible from outside the machine.
+PROC_LABELS = ('main', 'rend', 'gpu', 'comp', 'gst')
+
+COLUMNS = (
+    ['ts', 'mono', 'ext5v', 'throttled', 'uv_now', 'uv_ever', 'soc_c', 'load1',
+     'mem_mb', 'p4000']
+    + [name for name, _, _ in USB]
+    + ['cpu_' + name for name in PROC_LABELS]
+)
+
+CLK_TCK = os.sysconf('SC_CLK_TCK')
+
+
+def read(path, default=''):
+    try:
+        with open(path) as handle:
+            return handle.read().strip()
+    except OSError:
+        return default
+
+
+def vcgencmd(*args):
+    try:
+        out = subprocess.run(['vcgencmd', *args], capture_output=True,
+                             text=True, timeout=3)
+        return out.stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return ''
+
+
+def ext5v():
+    """Input rail volts. Undervoltage trips at 4.8 V on a Pi 5."""
+    raw = vcgencmd('pmic_read_adc', 'EXT5V_V')
+    # ' EXT5V_V volt(24)=5.01026000V'
+    if '=' not in raw:
+        return ''
+    try:
+        return round(float(raw.split('=')[1].rstrip('V')), 3)
+    except ValueError:
+        return ''
+
+
+def throttled():
+    raw = vcgencmd('get_throttled')
+    if '=' not in raw:
+        return None
+    try:
+        return int(raw.split('=')[1], 16)
+    except ValueError:
+        return None
+
+
+def soc_c():
+    raw = read('/sys/class/thermal/thermal_zone0/temp')
+    try:
+        return round(int(raw) / 1000.0, 1)
+    except ValueError:
+        return ''
+
+
+def mem_available_mb():
+    for line in read('/proc/meminfo').splitlines():
+        if line.startswith('MemAvailable:'):
+            try:
+                return int(line.split()[1]) // 1024
+            except (IndexError, ValueError):
+                return ''
+    return ''
+
+
+def port_open(port, host='127.0.0.1'):
+    """Does the app's telemetry server still accept a connection?
+
+    This exercises the main process's event loop end to end. A renderer can be
+    frozen solid while this still answers — that difference is the point.
+    """
+    try:
+        with socket.create_connection((host, port), timeout=0.5):
+            return 1
+    except OSError:
+        return 0
+
+
+def find_pids():
+    """Map our process labels to live pids by scanning /proc once.
+
+    Chromium rewrites its own argv in place, so /proc/<pid>/cmdline for a
+    renderer starts with a fragment of the flag blob rather than the binary
+    path — argv[0] reads as 'app.asar' for the renderer and 'LIVI' for the GPU
+    process. Classifying on that basename silently mislabels every Electron
+    child. The exe symlink is maintained by the kernel and cannot be rewritten,
+    so identity comes from there and only the --type= role comes from cmdline.
+
+    The rewrite also flattens the NUL separators into spaces, so cmdline
+    arrives as a single token however you split it. Tokenise on whitespace.
+    """
+    found = {}
+    for entry in os.listdir('/proc'):
+        if not entry.isdigit():
+            continue
+        try:
+            exe = os.path.basename(os.readlink('/proc/%s/exe' % entry))
+        except OSError:
+            continue
+        pid = int(entry)
+
+        if exe == 'livi-compositor':
+            found.setdefault('comp', pid)
+            continue
+        if exe == 'livi-gst-host':
+            found.setdefault('gst', pid)
+            continue
+        if exe != 'livi':
+            continue
+
+        parts = read('/proc/%s/cmdline' % entry).replace('\0', ' ').split()
+        role = next((p.split('=', 1)[1] for p in parts if p.startswith('--type=')), None)
+        if role is None:
+            # The browser process is the only Electron process with no --type=.
+            found.setdefault('main', pid)
+        elif role == 'renderer':
+            found.setdefault('rend', pid)
+        elif role == 'gpu-process':
+            found.setdefault('gpu', pid)
+    return found
+
+
+def cpu_jiffies(pid):
+    raw = read('/proc/%d/stat' % pid)
+    if not raw:
+        return None
+    # comm can contain spaces and parens; everything after the last ')' is safe.
+    try:
+        fields = raw[raw.rindex(')') + 2:].split()
+        return int(fields[11]) + int(fields[12])       # utime + stime
+    except (ValueError, IndexError):
+        return None
+
+
+def rotate_if_needed():
+    try:
+        if os.path.getsize(CSV) < ROTATE_BYTES:
+            return
+    except OSError:
+        return
+    for index in range(KEEP - 1, 0, -1):
+        src, dst = '%s.%d' % (CSV, index), '%s.%d' % (CSV, index + 1)
+        if os.path.exists(src):
+            os.replace(src, dst)
+    os.replace(CSV, CSV + '.1')
+
+
+def note(handle, message):
+    stamp = time.strftime('%Y-%m-%dT%H:%M:%S%z')
+    handle.write('%s %s\n' % (stamp, message))
+    handle.flush()
+    os.fsync(handle.fileno())
+
+
+def previous_state():
+    try:
+        with open(STATE) as handle:
+            return json.load(handle)
+    except (OSError, ValueError):
+        return {}
+
+
+def save_state(payload):
+    tmp = STATE + '.tmp'
+    try:
+        with open(tmp, 'w') as handle:
+            json.dump(payload, handle)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(tmp, STATE)
+    except OSError:
+        pass
+
+
+def main():
+    os.makedirs(LOG_DIR, exist_ok=True)
+    events = open(EVENTS, 'a', buffering=1)
+
+    boot_id = read('/proc/sys/kernel/random/boot_id')
+
+    # The reboot-gap check. If the last recorded sample is far behind the boot
+    # time and the previous run never wrote a clean shutdown marker, the
+    # machine went down hard — and the CSV's final rows are the seconds before
+    # it did. This is the closest thing to a panic log we can have without
+    # reserving memory for ramoops, which is not worth the risk of an
+    # unbootable Pi on a bike.
+    prior = previous_state()
+    if prior and prior.get('boot_id') != boot_id:
+        last, clean = prior.get('last_ts'), prior.get('clean')
+        gap = time.time() - (prior.get('last_epoch') or 0)
+        note(events, 'BOOT new boot_id=%s prev_last_sample=%s clean=%s gap=%.0fs'
+             % (boot_id[:8], last, bool(clean), gap))
+        if not clean:
+            note(events, 'UNCLEAN the previous run stopped without a shutdown '
+                         'marker — inspect the tail of health.csv around %s' % last)
+
+    rotate_if_needed()
+    fresh = not os.path.exists(CSV) or os.path.getsize(CSV) == 0
+    csv = open(CSV, 'a', buffering=1 << 16)
+    if fresh:
+        csv.write(','.join(COLUMNS) + '\n')
+    note(events, 'START boot_id=%s pid=%d interval=%.1fs' % (boot_id[:8], os.getpid(), INTERVAL))
+
+    pids = find_pids()
+    last_jiffies = {}
+    last_row_at = time.monotonic()
+    last_flush = 0.0
+    last_usb = {name: 1 for name, _, _ in USB}
+    last_p4000 = 1
+    uv_ever_seen = 0
+    tick = 0
+    clean = False
+
+    try:
+        while True:
+            started = time.monotonic()
+            tick += 1
+            row = {}
+
+            row['ts'] = time.strftime('%Y-%m-%dT%H:%M:%S')
+            row['mono'] = '%.1f' % started
+            row['ext5v'] = ext5v()
+
+            bits = throttled()
+            row['throttled'] = '' if bits is None else '0x%x' % bits
+            row['uv_now'] = '' if bits is None else int(bool(bits & 0x1))
+            row['uv_ever'] = '' if bits is None else int(bool(bits & 0x10000))
+
+            row['soc_c'] = soc_c()
+            row['load1'] = read('/proc/loadavg').split(' ')[0] if read('/proc/loadavg') else ''
+            row['mem_mb'] = mem_available_mb()
+            row['p4000'] = port_open(4000)
+
+            for name, port, _label in USB:
+                row[name] = 1 if os.path.isdir('/sys/bus/usb/devices/' + port) else 0
+
+            # Refresh the pid map when a tracked process disappears, or every
+            # 30 s regardless — Electron respawns children on their own.
+            if tick % 30 == 0 or any(not os.path.isdir('/proc/%d' % p) for p in pids.values()):
+                pids = find_pids()
+                last_jiffies = {k: v for k, v in last_jiffies.items() if k in pids}
+
+            for label in PROC_LABELS:
+                pid = pids.get(label)
+                value = ''
+                if pid is not None:
+                    now = cpu_jiffies(pid)
+                    if now is not None:
+                        before = last_jiffies.get(label)
+                        last_jiffies[label] = now
+                        if before is not None and now >= before:
+                            # percent of one core over the sample interval
+                            value = round((now - before) * 100.0 / CLK_TCK / max(started - last_row_at, 0.001), 1)
+                row['cpu_' + label] = value
+
+            last_row_at = started
+            csv.write(','.join(str(row.get(column, '')) for column in COLUMNS) + '\n')
+
+            # --- anomaly triage: decide whether this sample must hit the disk now
+            urgent = False
+
+            for name, port, label in USB:
+                if row[name] != last_usb[name]:
+                    note(events, '%s %s (%s) on port %s' %
+                         ('USB-GONE' if row[name] == 0 else 'USB-BACK', label, port,
+                          'bus1/xhci-hcd.0' if port.startswith('1-') else 'bus3/xhci-hcd.1'))
+                    last_usb[name] = row[name]
+                    urgent = True
+
+            if row['p4000'] != last_p4000:
+                note(events, 'APP %s telemetry port 4000' %
+                     ('LOST' if row['p4000'] == 0 else 'BACK'))
+                last_p4000 = row['p4000']
+                urgent = True
+
+            if bits and (bits & 0x1):
+                urgent = True
+            if bits and (bits & 0x10000) and not uv_ever_seen:
+                note(events, 'UNDERVOLT sticky bit set, ext5v=%s' % row['ext5v'])
+                uv_ever_seen = 1
+                urgent = True
+            if isinstance(row['ext5v'], float) and row['ext5v'] < 4.80:
+                urgent = True
+            if isinstance(row['soc_c'], float) and row['soc_c'] >= 80.0:
+                urgent = True
+
+            if urgent or started - last_flush >= FSYNC_EVERY:
+                csv.flush()
+                os.fsync(csv.fileno())
+                last_flush = started
+                save_state({'boot_id': boot_id, 'last_ts': row['ts'],
+                            'last_epoch': time.time(), 'clean': False})
+
+            time.sleep(max(0.0, INTERVAL - (time.monotonic() - started)))
+    except KeyboardInterrupt:
+        clean = True
+    finally:
+        try:
+            csv.flush()
+            os.fsync(csv.fileno())
+        except (OSError, ValueError):
+            pass
+        note(events, 'STOP clean=%s' % clean)
+        save_state({'boot_id': boot_id, 'last_ts': time.strftime('%Y-%m-%dT%H:%M:%S'),
+                    'last_epoch': time.time(), 'clean': clean})
+
+
+def _on_term(_signum, _frame):
+    # systemd stops us with SIGTERM. Route it through the same path as Ctrl-C
+    # so the shutdown is recorded as clean and the next boot does not report a
+    # phantom hard hang.
+    raise KeyboardInterrupt
+
+
+if __name__ == '__main__':
+    signal.signal(signal.SIGTERM, _on_term)
+    try:
+        main()
+    except Exception as exc:                                  # noqa: BLE001
+        sys.stderr.write('livi-health-recorder died: %r\n' % (exc,))
+        raise

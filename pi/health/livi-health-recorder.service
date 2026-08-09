@@ -1,0 +1,19 @@
+[Unit]
+Description=LIVI ride health recorder (power, thermal, USB, app liveness black box)
+Documentation=file:/home/byron/LIVI/CLAUDE.md
+After=systemd-journald.service local-fs.target
+Wants=local-fs.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/livi-health-recorder
+Restart=always
+RestartSec=5
+# It must not be the thing that starves the dashboard.
+Nice=5
+# If the recorder itself wedges, let systemd shoot it rather than lose the log.
+TimeoutStopSec=10
+KillSignal=SIGTERM
+
+[Install]
+WantedBy=multi-user.target

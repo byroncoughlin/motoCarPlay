@@ -1,0 +1,583 @@
+#!/usr/bin/env python3
+"""Total-freeze detection and recovery for the LIVI dashboard.
+
+Byron lost a ride to a dash that froze completely — clock stopped, every gauge
+stopped — with no way to recover it, because the touchscreen is one of the
+devices that drops and there is no other input on the bike. This program is the
+hand that reaches the reboot he cannot.
+
+WHAT IS ALREADY COVERED, AND WHAT IS NOT
+
+Raspberry Pi OS arms the BCM2835 hardware watchdog on every boot
+(/usr/lib/systemd/system.conf.d/40-rpi-enable-watchdog.conf, RuntimeWatchdogSec=1m)
+and PID 1 pets it. A kernel that stops scheduling therefore resets the board
+within 60 seconds, unattended, and always has. Byron's freeze needed a battery
+disconnect, so the kernel was NOT hung: systemd kept running and kept petting.
+The freeze lived in userspace — renderer, GPU, or compositor — and nothing on
+this machine watches userspace. That gap is what this program fills.
+
+It also fills a second gap found along the way: nothing supervises the app at
+all. No systemd unit, no cron, no compositor autostart — just one XDG autostart
+entry fired once at login. If the app exits, the dash stays dark until someone
+reboots it. So "the app died" is a state worth handling here too.
+
+WHY THESE PROBES
+
+Measured on a healthy, parked, idle dash (ten 15-second windows):
+
+    renderer   >= 60 jiffies / 15s      (never lower; it repaints continuously)
+    main       >= 19                    gpu >= 8      gst >= 7    compositor >= 1
+    frame hash changed on 10 of 10 samples
+
+A renderer burning exactly zero CPU is therefore not a close call — it is a
+process that is not running. Pair that with a screen whose pixels have not
+changed and the diagnosis is unambiguous, with no app rebuild and no debug port
+left open. Neither signal is trusted alone: a parked bike showing a static
+CarPlay home screen can legitimately hold a frame for a few seconds, and CPU
+alone cannot tell a wedged renderer from a busy one.
+
+ACTIONS ARE RANKED BY WHAT THEY COST THE RIDER
+
+    restart the app   ~30s of dark screen, keeps the ride going
+    reboot            ~90s plus 18s to first frame
+
+so a restart is always tried first where a restart could plausibly work. A
+wedged labwc is the exception: the app cannot draw through a dead compositor,
+so that goes straight to a reboot. Every action is preceded by a forensics dump
+to persistent disk, because a recovery that destroys the evidence just buys the
+same failure next weekend.
+
+Rate limits persist across reboots. A dashboard stuck in a reboot loop on a
+highway is worse than a frozen one, so after the budget is spent this program
+records NEEDS-HUMAN and does nothing further.
+
+Create /etc/livi-freeze-watch.disabled to keep every probe and stop all action.
+"""
+
+import hashlib
+import json
+import os
+import signal
+import socket
+import subprocess
+import sys
+import time
+
+LOG_DIR = '/var/log/livi-health'
+EVENTS = os.path.join(LOG_DIR, 'events.log')
+STATE = os.path.join(LOG_DIR, 'freeze-state.json')
+DISABLE_FLAG = '/etc/livi-freeze-watch.disabled'
+
+POLL = 10.0
+BOOT_GRACE = 240.0        # the app needs ~18s to first frame; be generous
+CONFIRM = 120.0           # sustained fault before anything is done about it
+GONE_CONFIRM = 30.0       # a missing process needs far less confirmation
+RECOVER_WAIT = 120.0      # how long a restart gets to prove itself
+HISTORY = 120             # ~20 minutes of samples kept for the forensics dump
+
+# Rate limits, persisted across reboots.
+RESTART_WINDOW, MAX_RESTARTS = 1800.0, 2
+REBOOT_WINDOW, MAX_REBOOTS = 1800.0, 1
+REBOOT_DAY_MAX = 3
+
+APP = '/home/byron/LIVI/run-livi.sh'
+USER, UID = 'byron', 1000
+WL_ENV = {
+    'XDG_RUNTIME_DIR': '/run/user/1000',
+    'WAYLAND_DISPLAY': 'wayland-0',
+    'DBUS_SESSION_BUS_ADDRESS': 'unix:path=/run/user/1000/bus',
+    'HOME': '/home/byron',
+    'PATH': '/usr/local/bin:/usr/bin:/bin',
+}
+
+
+def note(message):
+    line = '%s %s\n' % (time.strftime('%Y-%m-%dT%H:%M:%S%z'), message)
+    try:
+        with open(EVENTS, 'a') as handle:
+            handle.write(line)
+            handle.flush()
+            os.fsync(handle.fileno())
+    except OSError:
+        pass
+    sys.stderr.write(line)
+    sys.stderr.flush()
+
+
+def read(path, default=''):
+    try:
+        with open(path) as handle:
+            return handle.read()
+    except OSError:
+        return default
+
+
+def run(argv, timeout=15, env=None):
+    try:
+        done = subprocess.run(argv, capture_output=True, text=True,
+                              timeout=timeout, env=env)
+        return done.returncode, (done.stdout + done.stderr).strip()
+    except (OSError, subprocess.SubprocessError) as exc:
+        return -1, repr(exc)
+
+
+# ---------------------------------------------------------------- probes
+
+def find_pids():
+    """Identify LIVI's processes from the kernel-owned exe link.
+
+    Chromium rewrites its own argv in place, so /proc/<pid>/cmdline reports
+    argv[0] as 'app.asar' or 'LIVI' and collapses the NUL separators into
+    spaces. Only the --type= flag survives usefully, and only after splitting
+    on whitespace rather than NULs.
+    """
+    found = {}
+    for entry in os.listdir('/proc'):
+        if not entry.isdigit():
+            continue
+        try:
+            exe = os.path.basename(os.readlink('/proc/%s/exe' % entry))
+        except OSError:
+            continue
+        pid = int(entry)
+        if exe == 'livi-compositor':
+            found.setdefault('comp', pid); continue
+        if exe == 'livi-gst-host':
+            found.setdefault('gst', pid); continue
+        if exe != 'livi':
+            continue
+        parts = read('/proc/%s/cmdline' % entry).replace('\0', ' ').split()
+        role = next((p.split('=', 1)[1] for p in parts if p.startswith('--type=')), None)
+        if role is None:
+            found.setdefault('main', pid)
+        elif role == 'renderer':
+            found.setdefault('rend', pid)
+        elif role == 'gpu-process':
+            found.setdefault('gpu', pid)
+    return found
+
+
+def jiffies(pid):
+    """utime + stime. Fields are counted after the ') ' so a process whose
+    name contains spaces or parentheses cannot shift them."""
+    raw = read('/proc/%d/stat' % pid)
+    if ') ' not in raw:
+        return None
+    fields = raw.rsplit(') ', 1)[1].split()
+    try:
+        return int(fields[11]) + int(fields[12])
+    except (IndexError, ValueError):
+        return None
+
+
+def proc_state(pid):
+    raw = read('/proc/%d/stat' % pid)
+    if ') ' not in raw:
+        return '?'
+    return raw.rsplit(') ', 1)[1].split()[0]
+
+
+def frame_hash():
+    """Hash the whole screen via grim.
+
+    grim is an ordinary Wayland client, so this doubles as a compositor
+    liveness test: if labwc has stopped serving, grim fails or hangs, and the
+    timeout catches the hang.
+    """
+    env = dict(os.environ); env.update(WL_ENV)
+    try:
+        done = subprocess.run(['grim', '-g', '0,0 800x800', '-'],
+                              capture_output=True, timeout=8, env=env)
+    except subprocess.TimeoutExpired:
+        return None, 'timeout'
+    except OSError as exc:
+        return None, repr(exc)
+    if done.returncode != 0 or not done.stdout:
+        return None, (done.stderr or b'').decode('utf-8', 'replace')[:120] or 'empty'
+    return hashlib.md5(done.stdout).hexdigest(), ''
+
+
+def port_open(port=4000, timeout=2.0):
+    try:
+        with socket.create_connection(('127.0.0.1', port), timeout=timeout):
+            return True
+    except OSError:
+        return False
+
+
+def uptime():
+    try:
+        return float(read('/proc/uptime', '0').split()[0])
+    except (IndexError, ValueError):
+        return 1e9
+
+
+# ---------------------------------------------------------------- forensics
+
+def forensics(tag, samples, verdict):
+    """Dump everything perishable before touching anything.
+
+    Written to persistent disk. The journal is persistent now too, but a
+    recovery that reboots the box must not depend on that having worked.
+    """
+    stamp = time.strftime('%Y%m%d-%H%M%S')
+    path = os.path.join(LOG_DIR, 'freeze-%s-%s.txt' % (stamp, tag))
+    out = ['=== LIVI freeze forensics %s ===' % time.strftime('%Y-%m-%dT%H:%M:%S%z'),
+           'tag:     %s' % tag,
+           'verdict: %s' % verdict,
+           'uptime:  %.0fs' % uptime(),
+           'boot_id: %s' % read('/proc/sys/kernel/random/boot_id').strip(),
+           '']
+    out.append('--- recent samples (oldest first) ---')
+    for s in samples:
+        out.append(json.dumps(s))
+    out.append('')
+    pids = find_pids()
+    out.append('--- processes: %r ---' % pids)
+    for label, pid in sorted(pids.items()):
+        out.append('[%s pid=%d state=%s]' % (label, pid, proc_state(pid)))
+        out.append('wchan:  %s' % read('/proc/%d/wchan' % pid, '?').strip())
+        out.append('stack:  %s' % read('/proc/%d/stack' % pid, 'n/a').strip()[:400])
+        status = read('/proc/%d/status' % pid)
+        out.extend(l for l in status.splitlines()
+                   if l.split(':')[0] in ('State', 'Threads', 'VmRSS', 'voluntary_ctxt_switches',
+                                          'nonvoluntary_ctxt_switches', 'SigQ'))
+        out.append('')
+    for title, argv in (
+            ('dmesg tail', ['dmesg', '--ctime', '--level=err,warn,crit,alert,emerg']),
+            ('throttled', ['vcgencmd', 'get_throttled']),
+            ('ext5v', ['vcgencmd', 'pmic_read_adc', 'EXT5V_V']),
+            ('soc temp', ['vcgencmd', 'measure_temp']),
+            ('usb tree', ['lsusb']),
+            ('pressure cpu', ['cat', '/proc/pressure/cpu']),
+            ('pressure io', ['cat', '/proc/pressure/io']),
+            ('pressure memory', ['cat', '/proc/pressure/memory']),
+            ('loadavg', ['cat', '/proc/loadavg']),
+            ('meminfo', ['head', '-5', '/proc/meminfo']),
+            ('journal tail', ['journalctl', '-n', '120', '--no-pager']),
+            ('app log tail', ['tail', '-n', '80', '/home/byron/LIVI/LIVI.log']),
+    ):
+        code, text = run(argv, timeout=20)
+        out.append('--- %s ---' % title)
+        out.append(text[-6000:] if code == 0 else '(failed: %s)' % text[:200])
+        out.append('')
+    try:
+        with open(path, 'w') as handle:
+            handle.write('\n'.join(out))
+            handle.flush()
+            os.fsync(handle.fileno())
+        note('FREEZE-FORENSICS wrote %s' % path)
+    except OSError as exc:
+        note('FREEZE-FORENSICS failed to write %s: %r' % (path, exc))
+    return path
+
+
+# ---------------------------------------------------------------- actions
+
+def load_state():
+    try:
+        with open(STATE) as handle:
+            data = json.load(handle)
+    except (OSError, ValueError):
+        data = {}
+    data.setdefault('restarts', [])
+    data.setdefault('reboots', [])
+    return data
+
+
+def save_state(data):
+    try:
+        with open(STATE, 'w') as handle:
+            json.dump(data, handle)
+            handle.flush()
+            os.fsync(handle.fileno())
+    except OSError:
+        pass
+
+
+def prune(stamps, window, now):
+    return [t for t in stamps if now - t < window]
+
+
+def stop_app():
+    """Take the app down politely, then insistently.
+
+    CLAUDE.md warns never to pkill the app during debugging, because it churns
+    the Wayland session and drops SSH. That warning is about interactive work.
+    Here the app is already frozen and the alternative is a reboot, which
+    churns strictly more.
+
+    The transient unit is stopped first so that a later start_app() is not
+    refused for a unit name that already exists. On the first freeze after a
+    boot there is no such unit — the app came from the XDG autostart — and the
+    stop is a harmless no-op; the signals below are what actually do the work.
+    """
+    run(['systemctl', 'stop', 'livi-app.service'], timeout=25)
+    pids = find_pids()
+    order = [pids[k] for k in ('gst', 'rend', 'gpu', 'comp', 'main') if k in pids]
+    code, out = run(['pgrep', '-f', 'LIVI.AppImage'])
+    order += [int(p) for p in out.split() if p.isdigit()] if code == 0 else []
+    for pid in order:
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except OSError:
+            pass
+    for _ in range(15):
+        time.sleep(1.0)
+        if not find_pids():
+            break
+    for pid in order:
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except OSError:
+            pass
+    time.sleep(2.0)
+
+
+def start_app():
+    """Relaunch into Byron's existing Wayland session, in its own cgroup.
+
+    The obvious `setsid --fork sudo -u byron ...` is wrong, and wrong in a way
+    that looks right: the app starts, reaches "Server listening on port 4000",
+    draws a frame — and then dies the moment this unit stops, with nothing but
+    a "Broken pipe" from Gdk to explain it. setsid moves the process to a new
+    session but leaves it in the caller's cgroup, and systemd kills the cgroup
+    when the unit exits. Every watchdog restart would have taken the dashboard
+    down with it.
+
+    systemd-run gives the app a cgroup of its own, so it outlives this process
+    entirely. But `systemd-run --uid=1000` is not enough on its own: it sets
+    the uid and drops every supplementary group, and byron needs video(44),
+    render(992) and input(996) to reach /dev/dri. Without them the app writes
+    exactly one line to its log and exits within a second, silently. So the
+    cgroup comes from systemd-run and the group setup comes from sudo, which
+    builds the full credential the way a login would.
+
+    The environment is passed explicitly rather than via `sudo -E`, which only
+    works if sudoers keeps those variables; a silently stripped WAYLAND_DISPLAY
+    would relaunch the app straight into a headless failure.
+
+    Type=forking is load-bearing, and this is the subtlest part. LIVI re-execs
+    itself with --ozone-platform=wayland and the first process exits: a healthy
+    dash has both a bare LIVI.AppImage and a --ozone-platform=wayland one, and
+    both are reparented to init. Under the default Type=simple, systemd sees
+    that first exit ~800ms in, calls the service finished, and tears down the
+    cgroup — taking the real app with it. The journal reports "Finished with
+    result: success" and the screen goes dark. Type=forking is exactly the
+    contract this app honours: wait for the parent to exit, then adopt what is
+    left in the cgroup as the service.
+
+    LimitCORE=infinity is here because run-livi.sh raises the core limit and
+    systemd hands services LimitCORE=0; the failure is only a stderr line (the
+    script has no `set -e`) but it would silently cost the crash dumps that
+    /etc/sysctl.d/60-livi-cores.conf exists to collect.
+    """
+    run(['systemctl', 'reset-failed', 'livi-app.service'], timeout=10)
+    argv = ['systemd-run', '--collect', '--unit', 'livi-app',
+            '--property', 'Type=forking', '--property', 'LimitCORE=infinity',
+            '--description', 'LIVI dashboard (relaunched by livi-freeze-watch)',
+            '--', 'sudo', '-u', USER, 'env']
+    argv += ['%s=%s' % kv for kv in sorted(WL_ENV.items())]
+    argv += [APP]
+    code, out = run(argv, timeout=30)
+    if code != 0:
+        note('FREEZE-RESTART launch failed (%d): %s' % (code, out[:300]))
+        return False
+    return True
+
+
+def restart_app():
+    note('FREEZE-RESTART stopping the app')
+    stop_app()
+    ok = start_app()
+    note('FREEZE-RESTART relaunch %s' % ('issued' if ok else 'FAILED'))
+    return ok
+
+
+def do_reboot(why):
+    note('FREEZE-REBOOT rebooting: %s' % why)
+    run(['sync'], timeout=30)
+    code, out = run(['systemctl', 'reboot', '-i'], timeout=30)
+    if code != 0:
+        note('FREEZE-REBOOT systemctl failed (%s), forcing' % out[:120])
+        run(['systemctl', '--force', 'reboot'], timeout=30)
+
+
+# ---------------------------------------------------------------- policy
+
+class Watch:
+    def __init__(self):
+        self.samples = []
+        self.prev_jiffies = {}
+        self.faults = {}          # name -> monotonic time first seen
+        self.last_hash = None
+        self.hash_since = None    # when the current frame hash first appeared
+        self.recovering_until = 0.0
+        self.announced = set()
+
+    # -- fault bookkeeping -------------------------------------------------
+    def mark(self, name, active, now):
+        if not active:
+            if name in self.faults:
+                if name in self.announced:
+                    note('FREEZE-CLEAR %s recovered after %.0fs' % (name, now - self.faults[name]))
+                self.faults.pop(name, None)
+                self.announced.discard(name)
+            return 0.0
+        if name not in self.faults:
+            self.faults[name] = now
+            note('FREEZE-SUSPECT %s' % name)
+        return now - self.faults[name]
+
+    def sample(self, now):
+        pids = find_pids()
+        deltas = {}
+        for label, pid in pids.items():
+            cur = jiffies(pid)
+            prev = self.prev_jiffies.get(label)
+            deltas[label] = (cur - prev) if (cur is not None and prev is not None) else None
+            self.prev_jiffies[label] = cur
+        for label in list(self.prev_jiffies):
+            if label not in pids:
+                self.prev_jiffies.pop(label)
+
+        fhash, ferr = frame_hash()
+        changed = fhash is not None and self.last_hash is not None and fhash != self.last_hash
+        if fhash is None:
+            self.hash_since = None
+        elif changed or self.hash_since is None:
+            self.hash_since = now
+        self.last_hash = fhash
+
+        row = {
+            't': time.strftime('%H:%M:%S'),
+            'pids': {k: pids[k] for k in sorted(pids)},
+            'cpu': {k: deltas.get(k) for k in sorted(deltas)},
+            'state': {k: proc_state(v) for k, v in sorted(pids.items())},
+            'frame': (fhash or 'FAIL')[:8],
+            'frame_err': ferr,
+            'frame_changed': changed,
+            'p4000': port_open(),
+        }
+        self.samples.append(row)
+        del self.samples[:-HISTORY]
+        return row, pids, deltas, fhash
+
+    # -- the decision ------------------------------------------------------
+    def verdict(self, now, row, pids, deltas, fhash):
+        """Return (tag, description) for a confirmed fault, else None.
+
+        Order matters: the most specific and most costly-to-miss first.
+        """
+        # The app is gone. Nothing else on this machine will bring it back.
+        missing = [k for k in ('main', 'rend', 'comp') if k not in pids]
+        if self.mark('app-gone', bool(missing), now) >= GONE_CONFIRM:
+            return 'app-gone', 'missing processes: %s' % ','.join(missing)
+
+        # grim cannot get a frame: labwc itself is wedged, so the app has
+        # nothing to draw through and restarting it cannot help.
+        if self.mark('compositor', fhash is None, now) >= CONFIRM:
+            return 'compositor-wedged', 'grim has failed for %.0fs (%s)' % (CONFIRM, row['frame_err'])
+
+        # The renderer is not being scheduled at all AND the picture is stale.
+        # Idle floor measured at >=60 jiffies/15s, so zero means stopped.
+        #
+        # Staleness is judged per sample, not as its own elapsed window: mark()
+        # already requires the conjunction to hold for CONFIRM seconds, so
+        # asking the frame to have been stale for CONFIRM as well would stack
+        # the two and quietly double the real confirmation time. A single
+        # changed frame anywhere in the window resets the clock, which is the
+        # behaviour that matters.
+        rend_dead = deltas.get('rend') == 0
+        stale = not row['frame_changed'] and fhash is not None
+        if self.mark('renderer', rend_dead and stale, now) >= CONFIRM:
+            return 'renderer-frozen', 'renderer at 0 CPU with a frozen frame for %.0fs' % CONFIRM
+
+        # Main's event loop stopped answering, so every sensor value on screen
+        # is stale even if the renderer is still painting them.
+        if self.mark('main-wedged', not row['p4000'] and 'main' in pids, now) >= CONFIRM:
+            return 'main-wedged', 'port 4000 has refused connections for %.0fs' % CONFIRM
+
+        # Recorded, never acted on alone: a parked bike can hold a frame.
+        self.mark('frame-static',
+                  self.hash_since is not None and (now - self.hash_since) >= 300 and not rend_dead,
+                  now)
+        return None
+
+    def act(self, tag, why, now):
+        state = load_state()
+        state['restarts'] = prune(state['restarts'], RESTART_WINDOW, time.time())
+        state['reboots'] = prune(state['reboots'], 86400.0, time.time())
+        recent_reboots = [t for t in state['reboots'] if time.time() - t < REBOOT_WINDOW]
+
+        note('FREEZE-CONFIRMED %s: %s' % (tag, why))
+        forensics(tag, self.samples, why)
+
+        if os.path.exists(DISABLE_FLAG):
+            note('FREEZE-DISABLED %s flag present; recorded only, no action' % DISABLE_FLAG)
+            self.faults.clear()
+            return
+
+        restart_first = tag in ('app-gone', 'renderer-frozen', 'main-wedged')
+        if restart_first and len(state['restarts']) < MAX_RESTARTS:
+            state['restarts'].append(time.time())
+            save_state(state)
+            restart_app()
+            self.recovering_until = now + RECOVER_WAIT
+            self.faults.clear()
+            self.prev_jiffies.clear()
+            return
+
+        if len(recent_reboots) >= MAX_REBOOTS:
+            note('FREEZE-NEEDS-HUMAN %s but %d reboot(s) already in the last %.0f min; '
+                 'refusing to loop' % (tag, len(recent_reboots), REBOOT_WINDOW / 60))
+            self.faults.clear()
+            self.recovering_until = now + REBOOT_WINDOW
+            return
+        if len(state['reboots']) >= REBOOT_DAY_MAX:
+            note('FREEZE-NEEDS-HUMAN %s but %d reboots in 24h; refusing to loop'
+                 % (tag, len(state['reboots'])))
+            self.faults.clear()
+            self.recovering_until = now + 3600.0
+            return
+
+        state['reboots'].append(time.time())
+        save_state(state)
+        # Stand down before asking for the reboot, not after. `systemctl
+        # reboot` returns immediately and shutdown takes tens of seconds, so
+        # an un-suppressed loop keeps re-confirming the same fault on the way
+        # down and litters the log with a second forensics dump and a spurious
+        # NEEDS-HUMAN as the rate limiter catches its own reboot.
+        self.faults.clear()
+        self.recovering_until = now + REBOOT_WINDOW
+        do_reboot('%s (%s)' % (tag, why))
+
+    def poll(self, now):
+        row, pids, deltas, fhash = self.sample(now)
+        if uptime() < BOOT_GRACE or now < self.recovering_until:
+            return
+        found = self.verdict(now, row, pids, deltas, fhash)
+        if found:
+            self.act(found[0], found[1], now)
+
+
+def main():
+    state = load_state()
+    note('FREEZE-WATCH start pid=%d poll=%.0fs confirm=%.0fs disabled=%s '
+         'reboots_24h=%d' % (os.getpid(), POLL, CONFIRM,
+                             os.path.exists(DISABLE_FLAG),
+                             len(prune(state['reboots'], 86400.0, time.time()))))
+    watch = Watch()
+    while True:
+        try:
+            watch.poll(time.monotonic())
+        except Exception as exc:                                  # noqa: BLE001
+            note('FREEZE-WATCH error: %r' % exc)
+        time.sleep(POLL)
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except KeyboardInterrupt:
+        pass

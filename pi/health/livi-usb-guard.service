@@ -1,0 +1,15 @@
+[Unit]
+Description=LIVI USB drop detection and targeted recovery
+Documentation=file:/home/byron/LIVI/CLAUDE.md
+After=livi-health-recorder.service
+Wants=livi-health-recorder.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/livi-usb-guard
+Restart=always
+RestartSec=5
+Nice=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,19 @@
+[Unit]
+Description=LIVI total-freeze detection and recovery
+Documentation=file:/home/byron/LIVI/CLAUDE.md
+After=livi-health-recorder.service
+Wants=livi-health-recorder.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/livi-freeze-watch
+Restart=always
+RestartSec=5
+Nice=5
+TimeoutStopSec=15
+# It relaunches the dashboard into Byron's Wayland session; the relaunched app
+# must not be dragged down with this unit when it restarts.
+KillMode=process
+
+[Install]
+WantedBy=multi-user.target
