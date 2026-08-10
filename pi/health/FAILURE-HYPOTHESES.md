@@ -204,6 +204,23 @@ re-enumerates on a fixed ~13 s cycle, and every burst began about a second after
 > devices at once, or the freeze — because the dongle cannot take other ports
 > down with it. The guard handled all four events correctly (one `usbreset` at
 > 17:46, recovery confirmed, and it refused the bus-1 rebind by policy).
+>
+> **Refinement, same day:** the app log shows each crash happened during
+> *session bring-up*, not at idle — the driver received the dongle's fixed
+> boot-banner bytes (an identical five-value sequence, twice), and both drop
+> windows ended in a successful `FirstFrame`. And the circumstances were
+> unusual: a **test phone** was the connected device while Byron's **main
+> phone** — also paired with the dongle — was in the house drifting in and out
+> of WiFi range. Byron's hypothesis, which fits every observation: the dongle
+> crashes when a second paired phone appears and it tries to negotiate/switch
+> between them. On a ride there is one phone, close by, so this failure may
+> barely exist outside the garage. Test: one phone in range vs two, watch for
+> the `Invalid magic` → `USB-GONE` signature in the logs. The dongle reports
+> its paired-device list (`DevList` in BoxInfo, stored as `dongleDevList`);
+> logging it at link time would show both phones. Follow-ups queued: read the
+> firmware version (Settings → System → USB Dongle, or http://192.168.50.2
+> from a joined phone), check the WiFi channel (prefer 5 GHz), and log
+> fw version + BoxInfo on every `Link established`.
 
 ---
 
