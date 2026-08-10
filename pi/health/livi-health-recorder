@@ -86,12 +86,31 @@ PROC_LABELS = ('main', 'rend', 'gpu', 'comp', 'gst')
 
 COLUMNS = (
     ['ts', 'mono', 'ext5v', 'throttled', 'uv_now', 'uv_ever', 'soc_c', 'load1',
-     'mem_mb', 'p4000']
+     'mem_mb', 'p4000', 'hdmi']
     + [name for name, _, _ in USB]
     + ['cpu_' + name for name in PROC_LABELS]
 )
 
 CLK_TCK = os.sysconf('SC_CLK_TCK')
+
+# The display's hot-plug-detect line, as the Pi sees it. Byron reports the
+# picture jittering out for a few seconds mid-ride while touch keeps working,
+# and this is the column that tells apart the two explanations, because the
+# panel's two cables carry different things: USB carries power and touch, HDMI
+# carries only video.
+#
+#   HPD drops + ext5v dips        -> the panel browned out; its HDMI receiver
+#                                    lost power, which also drops HPD
+#   HPD drops + ext5v rock steady -> the link broke mechanically: cable,
+#                                    connector or adapter, wanting strain relief
+#   HPD never drops, picture gone -> the Pi drove a perfectly good link the
+#                                    whole time and the panel failed internally
+#
+# Sampling this is cheap and passive: vc4 caches the HPD state and only probes
+# EDID on a hotplug uevent, so a read is ~20us and does not poke the link we are
+# trying to diagnose. That was measured before trusting it — a status read that
+# forced a probe at 1 Hz would be a spectacular way to cause the fault.
+HDMI_STATUS = '/sys/class/drm/card1-HDMI-A-1/status'
 
 
 def read(path, default=''):
@@ -149,6 +168,14 @@ def mem_available_mb():
             except (IndexError, ValueError):
                 return ''
     return ''
+
+
+def hdmi_connected():
+    """1 if the display asserts hot-plug-detect, 0 if not, '' if unreadable."""
+    status = read(HDMI_STATUS).strip()
+    if not status:
+        return ''
+    return 1 if status == 'connected' else 0
 
 
 def port_open(port, host='127.0.0.1'):
@@ -227,6 +254,15 @@ def roll(path, keep):
         if os.path.exists(src):
             os.replace(src, dst)
     os.replace(path, path + '.1')
+
+
+def first_line(path):
+    """The header, without pulling an 8 MiB file into memory to get it."""
+    try:
+        with open(path) as handle:
+            return handle.readline().strip()
+    except OSError:
+        return ''
 
 
 def oversize(path, limit):
@@ -327,6 +363,22 @@ def main():
                          'marker — inspect the tail of health.csv around %s' % last)
 
     rotate_if_needed()
+
+    # Adding a column changes the schema, and this file is opened in append
+    # mode across restarts. Without this check a new column would silently
+    # interleave 19-field and 20-field rows in one file, which no reader can
+    # untangle after the fact and which would only be noticed while trying to
+    # analyse the very incident the file exists to explain. A schema change
+    # rolls the old file instead: history is preserved under .1, intact and
+    # still readable with the header it was written with.
+    if os.path.exists(CSV) and os.path.getsize(CSV) > 0:
+        header = first_line(CSV)
+        if header and header != ','.join(COLUMNS):
+            roll(CSV, KEEP)
+            note(events, 'SCHEMA columns changed, rolled health.csv to .1 '
+                         '(was %d fields, now %d)'
+                         % (len(header.split(',')), len(COLUMNS)))
+
     fresh = not os.path.exists(CSV) or os.path.getsize(CSV) == 0
     csv = open(CSV, 'a', buffering=1 << 16)
     if fresh:
@@ -340,6 +392,7 @@ def main():
     last_janitor = 0.0
     last_usb = {name: 1 for name, _, _ in USB}
     last_p4000 = 1
+    last_hdmi = hdmi_connected()
     uv_ever_seen = 0
     tick = 0
     clean = False
@@ -363,6 +416,7 @@ def main():
             row['load1'] = read('/proc/loadavg').split(' ')[0] if read('/proc/loadavg') else ''
             row['mem_mb'] = mem_available_mb()
             row['p4000'] = port_open(4000)
+            row['hdmi'] = hdmi_connected()
 
             for name, port, _label in USB:
                 row[name] = 1 if os.path.isdir('/sys/bus/usb/devices/' + port) else 0
@@ -404,6 +458,16 @@ def main():
                 note(events, 'APP %s telemetry port 4000' %
                      ('LOST' if row['p4000'] == 0 else 'BACK'))
                 last_p4000 = row['p4000']
+                urgent = True
+
+            # Carry the rail reading in the HDMI line itself. The whole value of
+            # this event is the correlation, and having to go and line it up
+            # against the CSV by hand is exactly the step that gets skipped.
+            if row['hdmi'] != last_hdmi:
+                note(events, 'HDMI %s (ext5v=%s uv_now=%s throttled=%s)' %
+                     ('LOST hot-plug-detect' if row['hdmi'] == 0 else 'BACK',
+                      row['ext5v'], row['uv_now'], row['throttled']))
+                last_hdmi = row['hdmi']
                 urgent = True
 
             if bits and (bits & 0x1):

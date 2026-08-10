@@ -108,6 +108,7 @@ hr.mem_available_mb = lambda: 6000
 hr.port_open = lambda port, host='127.0.0.1': 1
 hr.find_pids = lambda: {}
 hr.cpu_jiffies = lambda pid: 0
+REAL_READ = hr.read          # the loop stub below is blunt; some checks need the real one
 hr.read = lambda path: '0.5 0.4 0.3' if path == '/proc/loadavg' else ''
 hr.boot_id = lambda: 'testboot'
 hr.load_state = lambda: {}
@@ -160,6 +161,86 @@ check('mid-run: it really did roll more than once', len(rolled) >= 2)
 
 # --- KEEP is honoured over repeated rolls in one run ------------------------
 check('mid-run: never more than KEEP generations on disk', len(rolled) <= hr.KEEP)
+
+# --- hdmi_connected parses hot-plug-detect, and never throws ----------------
+HDMI = tempfile.mkdtemp(prefix='livi-hdmi-test-')
+old_hdmi_path, stub_read = hr.HDMI_STATUS, hr.read
+hr.read = REAL_READ          # this one must actually touch the filesystem
+hr.HDMI_STATUS = os.path.join(HDMI, 'status')
+for text, expected, label in (('connected\n', 1, 'connected -> 1'),
+                              ('disconnected\n', 0, 'disconnected -> 0'),
+                              ('unknown\n', 0, 'unknown is not connected'),
+                              ('', '', 'empty file -> blank, not a guess')):
+    with open(hr.HDMI_STATUS, 'w') as handle:
+        handle.write(text)
+    check('hdmi: %s' % label, hr.hdmi_connected() == expected)
+os.unlink(hr.HDMI_STATUS)
+check('hdmi: a missing connector reads blank rather than raising',
+      hr.hdmi_connected() == '')
+hr.HDMI_STATUS, hr.read = old_hdmi_path, stub_read
+shutil.rmtree(HDMI, ignore_errors=True)
+
+# --- a schema change rolls rather than interleaving -------------------------
+# health.csv is opened in append mode across restarts, so adding a column would
+# otherwise mix old-width and new-width rows in one file — unparseable, and
+# only discovered while trying to analyse the incident the file exists for.
+check('first_line reads the header without slurping the file',
+      hr.first_line(hr.CSV) == ','.join(hr.COLUMNS))
+check('first_line survives a missing file', hr.first_line(hr.CSV + '.nope') == '')
+
+SCHEMA = tempfile.mkdtemp(prefix='livi-schema-test-')
+old_csv, old_events = hr.CSV, hr.EVENTS
+old_events_rotate = hr.EVENTS_ROTATE_BYTES
+hr.EVENTS_ROTATE_BYTES = 1 << 20    # keep events rotation out of this section
+hr.CSV = os.path.join(SCHEMA, 'health.csv')
+hr.EVENTS = os.path.join(SCHEMA, 'events.log')
+with open(hr.CSV, 'w') as handle:
+    handle.write('ts,mono,ext5v\n2026-01-01T00:00:00,1.0,5.05\n')
+TICKS['n'] = 0
+
+
+def two_ticks(seconds):
+    TICKS['n'] += 1
+    if TICKS['n'] >= 2:
+        raise KeyboardInterrupt
+    real_sleep(0)
+
+
+hr.time.sleep = two_ticks
+try:
+    hr.main()
+finally:
+    hr.time.sleep = real_sleep
+
+check('schema: the narrower old file was rolled aside',
+      os.path.exists(hr.CSV + '.1'))
+check('schema: the rolled file kept its own header intact',
+      hr.first_line(hr.CSV + '.1') == 'ts,mono,ext5v')
+check('schema: the live file starts on the new header',
+      hr.first_line(hr.CSV) == ','.join(hr.COLUMNS))
+rows = [l for l in open(hr.CSV).read().splitlines() if l][1:]
+check('schema: no old-width row leaked into the new file',
+      all(len(r.split(',')) == len(hr.COLUMNS) for r in rows))
+check('schema: the roll is recorded, not silent',
+      'SCHEMA columns changed' in open(hr.EVENTS).read())
+
+# An unchanged header must not roll anything — otherwise every restart would
+# throw away a generation of history.
+before = sorted(os.listdir(SCHEMA))
+TICKS['n'] = 0
+hr.time.sleep = two_ticks
+try:
+    hr.main()
+finally:
+    hr.time.sleep = real_sleep
+check('schema: a matching header does not roll on restart',
+      sorted(os.listdir(SCHEMA)) == before)
+check('schema: the restart appended instead of re-headering',
+      open(hr.CSV).read().count(','.join(hr.COLUMNS)) == 1)
+
+shutil.rmtree(SCHEMA, ignore_errors=True)
+hr.CSV, hr.EVENTS = old_csv, old_events
+hr.EVENTS_ROTATE_BYTES = old_events_rotate
 
 # --- events.log is bounded too ----------------------------------------------
 # It had no cap at all. It grows far slower than the CSV, but the loudest case

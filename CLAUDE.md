@@ -672,6 +672,17 @@ Under 300 MB total against 13 GB free. Table and rationale in
 already points at `/tmp` and lexicographic last-write-wins silently beat the
 original `60-` drop-in for a full day.
 
+`health.csv` carries an `hdmi` column: the panel's hot-plug-detect state, sampled
+next to the rail voltage so a mid-ride picture dropout can be attributed. HPD
+drops + `ext5v` dips = the panel browned out; HPD drops + rail steady = the cable
+or adapter; HPD never drops = the panel failed internally with a good link.
+`events.log` carries the rail reading inline on each `HDMI LOST/BACK`. Reading
+`/sys/class/drm/card1-HDMI-A-1/status` is ~20 µs (vc4 caches HPD, EDID is probed
+only on a hotplug uevent), so 1 Hz polling does not poke the link. Adding a column
+**rolls** `health.csv` rather than appending — otherwise rows of two widths
+interleave under one header; the recorder compares the live header to `COLUMNS`
+at startup and logs `SCHEMA columns changed`.
+
 **Before debugging anything on the Pi, stand these down** rather than stopping the
 units — they keep recording but take no action:
 ```bash

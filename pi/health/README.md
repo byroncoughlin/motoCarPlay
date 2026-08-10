@@ -48,7 +48,7 @@ you want to observe a fault without anything intervening.
 ```bash
 python3 pi/health/test_usb_guard.py        # 30 checks
 python3 pi/health/test_freeze_watch.py     # 24 checks
-python3 pi/health/test_health_recorder.py  # 33 checks — log rotation and pruning
+python3 pi/health/test_health_recorder.py  # 48 checks — rotation, pruning, HDMI, schema migration
 ```
 
 Run from the repo root. Both stub every call that touches the machine; what
@@ -56,6 +56,47 @@ they exercise is the policy — when each service waits, when it acts, what it
 refuses to do twice, and what it leaves alone. These programs can reset USB
 devices and reboot a dashboard mid-ride, so the interesting property is not
 that they detect a fault, it is that they never act when they should not.
+
+## The `hdmi` column — why the picture cutting out is not obviously a cable
+
+The picture jitters out for a few seconds mid-ride and comes back, and **touch
+keeps working throughout**. The instinct is a cable or adapter wanting strain
+relief, and that is still a live candidate — but touch surviving does not
+exonerate power, and it is worth being clear about why.
+
+The panel has two cables and they carry different things. USB carries power and
+touch; HDMI carries only video. Those two paths also have very different
+appetites: the touch controller is an STM32 drawing milliamps behind its own
+regulator, while the display path — backlight, LCD driver, HDMI receiver — is
+the largest single load on the 5 V rail. A sag browns out the picture long
+before it disturbs the MCU. **Touch outliving video is exactly what a rail sag
+looks like**, so that detail mildly supports the power hypothesis rather than
+ruling it out.
+
+`health.csv` records the connector's hot-plug-detect state every second next to
+the rail voltage, which is what separates the explanations:
+
+| `hdmi` | `ext5v` / `uv_now` | Reading |
+|---|---|---|
+| drops to 0 | dips, or `uv_now` sets | Panel browned out — its HDMI receiver lost power, which drops HPD too |
+| drops to 0 | rock steady | The link broke mechanically: cable, connector or adapter |
+| stays 1 | anything | The Pi drove a good link the whole time; the panel failed internally |
+
+Each transition also writes an `HDMI LOST/BACK` line to `events.log` carrying the
+rail reading inline, because the correlation is the entire value and looking it
+up by hand against the CSV is the step that gets skipped.
+
+Sampling is passive and cheap — vc4 caches HPD and only probes EDID on a hotplug
+uevent, so a read is ~20 µs. That was measured before being trusted: a status
+read that forced an EDID probe at 1 Hz would have been a spectacular way to
+cause the very fault under investigation.
+
+**This may be the same fault as the full freeze, in a milder form.** Hypothesis
+§ 2 is that the panel hung rather than the Pi. A brief sag gives a few seconds of
+jitter and self-recovery; a deeper one latches the panel controller and needs
+power physically removed. That also explains why a reboot never fixed the freeze
+and killing bike power did: **a warm reboot does not drop USB VBUS**, so a latched
+panel keeps its power right through it.
 
 ## Disk budget — what happens if you leave it on for a week
 
@@ -161,6 +202,14 @@ present and `cat` showed the right value the whole time. It is now
 `99-zz-livi-cores.conf`. **Check `/proc/sys/kernel/core_pattern`, never the
 drop-in.** Verified end-to-end by SIGSEGVing a throwaway process and watching the
 core land on disk with nothing left in `/tmp`.
+
+**Adding a column rolls the CSV instead of appending to it.** `health.csv` is
+opened in append mode and survives restarts, so adding a field would otherwise
+interleave 19-field and 20-field rows under a header that describes neither —
+silently, and only discovered later by whoever tries to read the file. On
+startup the recorder compares the existing header against `COLUMNS`; if they
+differ it rolls the file to `.1` and starts a fresh one, logging `SCHEMA columns
+changed`. The old rows keep their own header and stay readable.
 
 **Nothing else on this machine restarts the app.** CLAUDE.md used to say it
 respawns after a kill; it does not. There is no supervising unit, no cron, and
