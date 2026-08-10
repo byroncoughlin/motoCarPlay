@@ -36,7 +36,7 @@ will capture it next time.
 | Bus 3 (`xhci-hcd.1`) | IMU `3-1` (CH340), GPS `3-2` (CP2102N), 100 mA each |
 | Hubs | None. All four devices are direct, all USB 2.0 |
 | Video | HDMI-A-1. Only the panel's *power* is USB |
-| Rail, engine off, garage | 4.856–5.085 V over 4 065 samples; `throttled` = `0x0` throughout; `uv_ever` never set |
+| Rail, engine off, garage | 4.856–5.085 V over 4 065 samples; `throttled` = `0x0` throughout; `uv_ever` never set. The official 27 W PSU measures **lower** than this — see the reference measurement below |
 | Rail cost of the app | Running the app lowers the minimum by ~120 mV (idle windows bottomed at 5.006 V, app-running windows at 4.856–4.900 V) |
 | SoC temp, garage, engine off | 52.9–61.7 °C |
 | Memory | ≥6.7 GB available at all times — not a factor |
@@ -78,9 +78,15 @@ checking it.
 
 The garage numbers are consistent with a thin margin even *before* heat: 4.856 V
 minimum against a ~4.63 V undervoltage trip, with the app alone costing ~120 mV.
-A genuine 5 V/5 A source at the Pi's pins would normally read closer to 5.1 V, so
-roughly 150–250 mV is already being lost somewhere — in the converter, the cable,
-or the connector.
+
+> **Correction (2026-08-09, measured).** This section used to continue: "a genuine
+> 5 V/5 A source at the Pi's pins would normally read closer to 5.1 V, so roughly
+> 150–250 mV is already being lost somewhere." **That was wrong**, and the reference
+> measurement below shows why. It was an assumption about what a good supply reads,
+> presented as if it were a measured shortfall. The bike converter is not losing
+> 150–250 mV against a good supply; it *beats* one. Nothing else in this section
+> depended on that sentence — the heat-derating argument stands on the trip-return
+> timing, which is untouched.
 
 - **Confirms it:** `uv_ever` latching, or `ext5v` below ~4.7 V, in `health.csv`
   within seconds of a `USB-GONE` burst or a freeze. Also `over-current` in `dmesg`.
@@ -186,6 +192,52 @@ app not running** — with nothing driving it the dongle re-enumerates on a fixe
 read that disconnect count as a fault rate.
 
 ---
+
+## Reference measurement: the official Pi 5 27 W PSU (2026-08-09, garage)
+
+Byron swapped the bike converter for the genuine Raspberry Pi 5 supply to give the
+instrumentation a known-good baseline. The result was the opposite of what was
+expected and is the most useful power number collected so far.
+
+The PD contract is real, which the bike converter's never was:
+
+```
+usbpd_power_data_objects  5V/5A  9V/3A  12V/2.25A  15V/1.8A   (27 W)
+max_current               5000 mA        (was: unnegotiated, firmware-assumed)
+```
+
+So the measurement path is validated — the firmware *can* see and report a
+genuine contract, and reported none for the bike converter. But the rail itself,
+compared load-matched (`load1 ≤ 0.9`) at the same SoC temperature (55.6 vs
+55.7 °C), engine off in both cases:
+
+| Supply | n | min | max | mean | sd |
+|---|---|---|---|---|---|
+| Official 27 W PD PSU | 375 | 4.800 V | 5.033 V | **4.980 V** | 0.030 |
+| Bike 5 V/5 A converter | 658 | 4.898 V | 5.069 V | **5.048 V** | 0.025 |
+
+**The bike converter holds the rail ~68 mV higher and slightly steadier than the
+official supply.** `throttled` stayed `0x0` and `uv_now` never set on either.
+
+Three things follow:
+
+1. **Steady-state supply capacity was never the problem.** Both sit ~350–400 mV
+   above the 4.63 V trip with the app running. Any explanation of the trip
+   failures has to be *transient* — heat derating, crank sag, connector chatter,
+   EMI — not "the converter is too small."
+2. **The bigger USB-C supply Byron ordered will not raise the resting rail.** Its
+   value is headroom during transients and, if the present module is derating,
+   tolerance of under-seat heat. Worth having; just don't expect these numbers to
+   move in the garage.
+3. **~4.98–5.05 V at the PMIC is simply where this Pi sits** under this load. It
+   is not evidence of loss in anyone's cable. Treat 5.1 V as an expectation only
+   at the supply's own terminals, never at `EXT5V_V`.
+
+One transient worth recording, caught while sampling the PMIC directly: a
+`VDD_CORE_A` burst to **4.30 A** pulled `EXT5V_V` momentarily to 4.94 V. That is
+the shape of the thing that matters — a 100 ms core burst costs ~60 mV even on a
+good supply and a cold cable, and it is invisible to a 1 Hz sampler. `uv_ever` is
+the only column that can catch its worse cousin.
 
 ## What is now instrumented
 
