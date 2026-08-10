@@ -45,8 +45,9 @@ you want to observe a fault without anything intervening.
 ## Tests
 
 ```bash
-python3 pi/health/test_usb_guard.py      # 30 checks
-python3 pi/health/test_freeze_watch.py   # 24 checks
+python3 pi/health/test_usb_guard.py        # 30 checks
+python3 pi/health/test_freeze_watch.py     # 24 checks
+python3 pi/health/test_health_recorder.py  # 21 checks — log rotation
 ```
 
 Run from the repo root. Both stub every call that touches the machine; what

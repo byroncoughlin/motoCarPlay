@@ -355,6 +355,29 @@ def main():
                 save_state({'boot_id': boot_id, 'last_ts': row['ts'],
                             'last_epoch': time.time(), 'clean': False})
 
+                # Rotation is considered here and nowhere else in the loop.
+                # Immediately after an fsync the size on disk is the true size
+                # and nothing is sitting in the buffer waiting to land in a file
+                # we are about to rename. Checking at the flush cadence rather
+                # than every tick also keeps a stat() off the 1 Hz path.
+                #
+                # This has to happen mid-run, not just at startup: the recorder
+                # is expected to survive a whole trip, and at ~87 bytes a sample
+                # it crosses ROTATE_BYTES in about a day. A startup-only check
+                # would leave a machine that stays up for days writing one file
+                # that grows without limit and never exercises KEEP at all.
+                try:
+                    oversize = os.path.getsize(CSV) >= ROTATE_BYTES
+                except OSError:
+                    oversize = False
+                if oversize:
+                    csv.close()
+                    rotate_if_needed()
+                    csv = open(CSV, 'a', buffering=1 << 16)
+                    csv.write(','.join(COLUMNS) + '\n')
+                    note(events, 'ROTATE health.csv passed %d bytes, rolled to .1 '
+                                 '(keeping %d)' % (ROTATE_BYTES, KEEP))
+
             time.sleep(max(0.0, INTERVAL - (time.monotonic() - started)))
     except KeyboardInterrupt:
         clean = True
