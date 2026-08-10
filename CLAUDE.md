@@ -664,6 +664,14 @@ Per-boot app logs: `~/LIVI/logs/` (`~/LIVI/LIVI.log` symlinks to the newest).
 Cores: `~/LIVI/cores/`. The journal is now **persistent** (it used to be volatile,
 which destroyed the evidence for every boot-time fault).
 
+Everything written is bounded — `health.csv` 48 MiB (~6.8 days at 7.4 MB/day),
+`events.log` 4 MiB, cores 1 GiB / newest 3, boot logs newest 40, journal 200 MB.
+Under 300 MB total against 13 GB free. Table and rationale in
+`pi/health/README.md` § Disk budget. **Core dumps: check
+`/proc/sys/kernel/core_pattern`, not the sysctl drop-in** — `/etc/sysctl.d/99-core.conf`
+already points at `/tmp` and lexicographic last-write-wins silently beat the
+original `60-` drop-in for a full day.
+
 **Before debugging anything on the Pi, stand these down** rather than stopping the
 units — they keep recording but take no action:
 ```bash

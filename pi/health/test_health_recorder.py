@@ -90,6 +90,14 @@ hr.ROTATE_BYTES = 20000
 hr.INTERVAL = 0.001
 hr.FSYNC_EVERY = 0.0          # consider rotation on every tick
 hr.CLK_TCK = 100
+# Small enough that the handful of lines this run produces actually rolls it.
+hr.EVENTS_ROTATE_BYTES = 200
+# Point the janitor at throwaway directories. Without this the test would sweep
+# the real ~/LIVI/cores and ~/LIVI/logs on whatever machine it runs on, which is
+# an unacceptable thing for a test to do.
+JUNK = tempfile.mkdtemp(prefix='livi-junk-test-')
+hr.CORES_DIR = os.path.join(JUNK, 'cores')
+hr.BOOT_LOGS_DIR = os.path.join(JUNK, 'logs')
 
 # Stub out everything that reads the machine. The values do not matter; the
 # only thing under test is that rows keep being written and the file rolls.
@@ -153,6 +161,77 @@ check('mid-run: it really did roll more than once', len(rolled) >= 2)
 # --- KEEP is honoured over repeated rolls in one run ------------------------
 check('mid-run: never more than KEEP generations on disk', len(rolled) <= hr.KEEP)
 
+# --- events.log is bounded too ----------------------------------------------
+# It had no cap at all. It grows far slower than the CSV, but the loudest case
+# is the unattended one: with the app down the dongle re-enumerates every ~13 s
+# and every cycle writes a line, so "parked in the garage for a week" was the
+# scenario with no ceiling.
+events_rolled = sorted(n for n in os.listdir(TMP) if n.startswith('events.log.'))
+check('events.log rolled during the run', len(events_rolled) >= 1)
+check('events.log: a live file exists after the roll', os.path.exists(hr.EVENTS))
+check('events.log: never more than EVENTS_KEEP generations',
+      len(events_rolled) <= hr.EVENTS_KEEP)
+check('events.log: the roll is announced in the file it describes',
+      'ROTATE events.log' in open(os.path.join(TMP, events_rolled[0])).read())
+check('events.log: the new file says where it came from',
+      'continued from .1' in open(hr.EVENTS).read())
+
+# --- prune_dir keeps the newest and respects both budgets -------------------
+PRUNE = tempfile.mkdtemp(prefix='livi-prune-test-')
+
+
+def make(name, size, mtime):
+    path = os.path.join(PRUNE, name)
+    with open(path, 'wb') as handle:
+        handle.write(b'x' * size)
+    os.utime(path, (mtime, mtime))
+
+
+for index in range(6):
+    make('core.livi.%d' % index, 100, 1000 + index)   # index 5 is newest
+removed = hr.prune_dir(PRUNE, 3)
+left = sorted(os.listdir(PRUNE))
+check('prune: count budget leaves exactly keep_files',
+      left == ['core.livi.3', 'core.livi.4', 'core.livi.5'])
+check('prune: the newest survives', 'core.livi.5' in left)
+check('prune: it deleted the oldest, not the newest', sorted(removed) ==
+      ['core.livi.0', 'core.livi.1', 'core.livi.2'])
+check('prune: a second sweep is a no-op', hr.prune_dir(PRUNE, 3) == [])
+
+# Size budget: three 100-byte files with a 150-byte cap keeps the newest two
+# (100 <= 150, 200 > 150 -> the second one goes as well). The rule is that
+# total must stay inside the budget, newest first.
+shutil.rmtree(PRUNE); os.makedirs(PRUNE)
+for index in range(3):
+    make('core.%d' % index, 100, 2000 + index)
+hr.prune_dir(PRUNE, 10, keep_bytes=150)
+check('prune: size budget drops older files', sorted(os.listdir(PRUNE)) == ['core.2'])
+
+# A single core bigger than the whole budget is still kept. Deleting the only
+# piece of evidence from the crash we are trying to explain would be the worst
+# possible reading of "stay inside the budget".
+shutil.rmtree(PRUNE); os.makedirs(PRUNE)
+make('core.huge', 4000, 3000)
+hr.prune_dir(PRUNE, 10, keep_bytes=150)
+check('prune: never deletes the only file, even if it alone busts the budget',
+      os.listdir(PRUNE) == ['core.huge'])
+
+# The pattern filter is what stops the boot-log sweep eating cores, or
+# anything else that happens to share a directory.
+shutil.rmtree(PRUNE); os.makedirs(PRUNE)
+for index in range(4):
+    make('LIVI-2026080%d.log' % index, 10, 4000 + index)
+make('keep-me.txt', 10, 4100)
+hr.prune_dir(PRUNE, 1, pattern='LIVI-')
+check('prune: pattern confines the sweep',
+      sorted(os.listdir(PRUNE)) == ['LIVI-20260803.log', 'keep-me.txt'])
+
+# Housekeeping must never be the thing that kills the recorder.
+check('prune: a missing directory is survivable',
+      hr.prune_dir(os.path.join(PRUNE, 'nope'), 3) == [])
+
+shutil.rmtree(PRUNE, ignore_errors=True)
+shutil.rmtree(JUNK, ignore_errors=True)
 shutil.rmtree(TMP, ignore_errors=True)
 
 print()

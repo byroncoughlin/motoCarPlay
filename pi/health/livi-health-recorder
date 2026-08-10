@@ -45,6 +45,30 @@ FSYNC_EVERY = 5.0          # seconds between routine flushes
 ROTATE_BYTES = 8 << 20
 KEEP = 5
 
+# events.log is appended to by all three services but rotated only here, because
+# this is the one that is always running and the only one holding a long-lived
+# handle. The other two open, append and close per line, so they simply land in
+# the fresh file after a roll — no cross-process locking needed. It grows far
+# slower than the CSV (~72 bytes a line, and quiet hours produce one or two
+# lines) but it had no bound at all, and the loudest case is unattended: with
+# the app down the dongle re-enumerates every ~13 s and each cycle is a line.
+EVENTS_ROTATE_BYTES = 1 << 20
+EVENTS_KEEP = 3
+
+# Cores now land on the SD card instead of tmpfs, which is what makes them
+# useful after a reboot — and also what makes them a disk risk. An Electron
+# core here is ~260 MB, and a crash loop overnight writes one per attempt, so
+# age-based pruning would not save the card in time. Cap by size, newest first.
+CORES_DIR = '/home/byron/LIVI/cores'
+CORES_KEEP_BYTES = 1 << 30
+CORES_KEEP_FILES = 3
+
+# One app log per boot, ~10 KB. Trivial individually, unbounded in count.
+BOOT_LOGS_DIR = '/home/byron/LIVI/logs'
+BOOT_LOGS_KEEP = 40
+
+JANITOR_EVERY = 300.0      # seconds between housekeeping sweeps
+
 # The four USB devices, by their stable sysfs port path. Ports do not move:
 # the physical socket determines the name, so a missing directory means that
 # socket's device fell off the bus.
@@ -196,17 +220,61 @@ def cpu_jiffies(pid):
         return None
 
 
-def rotate_if_needed():
-    try:
-        if os.path.getsize(CSV) < ROTATE_BYTES:
-            return
-    except OSError:
-        return
-    for index in range(KEEP - 1, 0, -1):
-        src, dst = '%s.%d' % (CSV, index), '%s.%d' % (CSV, index + 1)
+def roll(path, keep):
+    """Shift path.N -> path.N+1, drop the oldest, and move path to path.1."""
+    for index in range(keep - 1, 0, -1):
+        src, dst = '%s.%d' % (path, index), '%s.%d' % (path, index + 1)
         if os.path.exists(src):
             os.replace(src, dst)
-    os.replace(CSV, CSV + '.1')
+    os.replace(path, path + '.1')
+
+
+def oversize(path, limit):
+    try:
+        return os.path.getsize(path) >= limit
+    except OSError:
+        return False
+
+
+def rotate_if_needed():
+    if not oversize(CSV, ROTATE_BYTES):
+        return
+    roll(CSV, KEEP)
+
+
+def prune_dir(directory, keep_files, keep_bytes=None, pattern=None):
+    """Delete oldest entries until the directory is inside both budgets.
+
+    Returns the list of names removed, so the caller can say so in events.log.
+    Never raises: housekeeping must not be the thing that kills the recorder.
+    """
+    removed = []
+    try:
+        names = [n for n in os.listdir(directory)
+                 if pattern is None or n.startswith(pattern)]
+    except OSError:
+        return removed
+    entries = []
+    for name in names:
+        full = os.path.join(directory, name)
+        try:
+            stat = os.stat(full)
+        except OSError:
+            continue
+        entries.append((stat.st_mtime, stat.st_size, full, name))
+    entries.sort(reverse=True)                      # newest first
+    total = 0
+    for position, (_mtime, size, full, name) in enumerate(entries):
+        total += size
+        too_many = position >= keep_files
+        too_big = keep_bytes is not None and total > keep_bytes and position > 0
+        if too_many or too_big:
+            try:
+                os.unlink(full)
+                removed.append(name)
+            except OSError:
+                pass
+    return removed
 
 
 def note(handle, message):
@@ -269,6 +337,7 @@ def main():
     last_jiffies = {}
     last_row_at = time.monotonic()
     last_flush = 0.0
+    last_janitor = 0.0
     last_usb = {name: 1 for name, _, _ in USB}
     last_p4000 = 1
     uv_ever_seen = 0
@@ -366,17 +435,39 @@ def main():
                 # it crosses ROTATE_BYTES in about a day. A startup-only check
                 # would leave a machine that stays up for days writing one file
                 # that grows without limit and never exercises KEEP at all.
-                try:
-                    oversize = os.path.getsize(CSV) >= ROTATE_BYTES
-                except OSError:
-                    oversize = False
-                if oversize:
+                if oversize(CSV, ROTATE_BYTES):
                     csv.close()
-                    rotate_if_needed()
+                    roll(CSV, KEEP)
                     csv = open(CSV, 'a', buffering=1 << 16)
                     csv.write(','.join(COLUMNS) + '\n')
                     note(events, 'ROTATE health.csv passed %d bytes, rolled to .1 '
                                  '(keeping %d)' % (ROTATE_BYTES, KEEP))
+
+                # Same treatment for events.log. Rolled after the CSV so the
+                # line announcing a CSV roll lands in the file it describes.
+                if oversize(EVENTS, EVENTS_ROTATE_BYTES):
+                    note(events, 'ROTATE events.log passed %d bytes, rolling to .1 '
+                                 '(keeping %d)' % (EVENTS_ROTATE_BYTES, EVENTS_KEEP))
+                    events.close()
+                    roll(EVENTS, EVENTS_KEEP)
+                    events = open(EVENTS, 'a')
+                    note(events, 'ROTATE continued from .1')
+
+                # Housekeeping for the two directories nothing else bounds.
+                # Deliberately on a slow cadence and after the flush: it is the
+                # least important thing this loop does and must never delay a
+                # sample. A crash loop is exactly when cores pile up and also
+                # exactly when we must not fill the card and take the dash down
+                # for a reason that has nothing to do with the original fault.
+                if started - last_janitor >= JANITOR_EVERY:
+                    last_janitor = started
+                    gone = prune_dir(CORES_DIR, CORES_KEEP_FILES, CORES_KEEP_BYTES)
+                    if gone:
+                        note(events, 'PRUNE cores removed %d (%s)'
+                                     % (len(gone), ', '.join(gone)))
+                    gone = prune_dir(BOOT_LOGS_DIR, BOOT_LOGS_KEEP, pattern='LIVI-')
+                    if gone:
+                        note(events, 'PRUNE boot logs removed %d' % len(gone))
 
             time.sleep(max(0.0, INTERVAL - (time.monotonic() - started)))
     except KeyboardInterrupt:
