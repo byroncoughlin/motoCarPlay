@@ -185,11 +185,25 @@ candidate explanation.
 
 ### 7. Dongle firmware
 
-Ranked last. Of the 67 dongle disconnects on record, **65 were artefacts of the
-app not running** — with nothing driving it the dongle re-enumerates on a fixed
-~13 s cycle, and every burst began about a second after `APP LOST telemetry port
-4000`. **Zero dongle drops have been recorded while the app was healthy.** Do not
-read that disconnect count as a fault rate.
+Originally ranked last. Of the 67 dongle disconnects on record, **65 were
+artefacts of the app not running** — with nothing driving it the dongle
+re-enumerates on a fixed ~13 s cycle, and every burst began about a second after
+`APP LOST telemetry port 4000`. Do not read that disconnect count as a fault rate.
+
+> **Update (2026-08-10): the dongle now HAS dropped with a healthy app, on bench
+> power.** Four full USB disconnect/re-enumerate cycles (16:25, then three
+> between 17:45–17:48), engine off, no vibration, official 27 W PD supply, app up
+> and touch present throughout. At the second of each drop the rail read a normal
+> 4.96–4.99 V with `uv_now` 0 and nothing in `dmesg` but the clean
+> disconnect/re-attach; the only rail dips in the windows (4.81–4.86 V) came *at
+> re-attach* — that is the dongle's own boot inrush, an effect of the reset, not
+> its cause. So the "Auto Box" firmware reboots itself unprovoked even in the
+> gentlest environment this system will ever see. This hypothesis is no longer
+> last: some fraction of on-ride dongle drops need no bike-side explanation at
+> all. It remains incapable of explaining the *correlated* failures — all four
+> devices at once, or the freeze — because the dongle cannot take other ports
+> down with it. The guard handled all four events correctly (one `usbreset` at
+> 17:46, recovery confirmed, and it refused the bus-1 rebind by policy).
 
 ---
 

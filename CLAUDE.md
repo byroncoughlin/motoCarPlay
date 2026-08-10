@@ -733,6 +733,13 @@ pets it (`wdctl` shows ~5 s left of 60). **A genuine kernel hang self-resets in
 `USB-GONE dongle (1-1)` in a tight ~13 s cycle means **the app is not running**,
 not that the dongle is faulty. With nothing driving it the dongle re-enumerates
 on its own; 65 of the 67 recorded events were of this kind, every one of them
-starting ~1 s after `APP LOST telemetry port 4000`. Zero dongle drops have been
-recorded while the app was healthy. The guard's 25 s grace deliberately rides
-over the cycle, so it takes no action.
+starting ~1 s after `APP LOST telemetry port 4000`. The guard's 25 s grace
+deliberately rides over the cycle, so it takes no action.
+
+⚠️ **Correction (2026-08-10): the dongle also drops with a healthy app.** Four
+clean disconnect/re-enumerate cycles on the bench (wall PD supply, engine off,
+app up, rail normal at each drop second, nothing in dmesg but the re-attach).
+The 4.8 V-ish dips near those events are the dongle's own **re-attach inrush**,
+not a cause. So an isolated `USB-GONE dongle` with the app healthy is real but
+does not implicate bike power — see `FAILURE-HYPOTHESES.md` § 7. Only
+*correlated* drops (multiple devices at once) point at the rail.

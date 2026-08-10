@@ -3427,27 +3427,6 @@ const bigAlertBtn = (bg: string, fg: string): React.CSSProperties => ({
   WebkitTapHighlightColor: 'transparent'
 })
 
-// Graph-page action buttons: Apple tinted capsules — translucent tint fill,
-// no border, capsule radius, >=60px tall for gloved taps.
-const actionBtn = (bg: string, fg: string, compact = false): React.CSSProperties => ({
-  background: bg,
-  border: 0,
-  color: fg,
-  borderRadius: 999,
-  height: compact ? 60 : 64,
-  minWidth: compact ? 116 : 132,
-  padding: compact ? '0 24px' : '0 28px',
-  fontSize: compact ? 17 : 18,
-  fontWeight: 600,
-  letterSpacing: 0.2,
-  cursor: 'pointer',
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  touchAction: 'manipulation',
-  WebkitTapHighlightColor: 'transparent'
-})
-
 // In-flow header-strip button: 76x64 tap zone (glove-friendly) around the
 // smaller visible face — the hit area grows, the artwork doesn't.
 const headerBtnWrap: React.CSSProperties = {
