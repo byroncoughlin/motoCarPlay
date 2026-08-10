@@ -2,7 +2,11 @@ import { PhoneType } from '@shared/types/Config'
 import { AudioCommand, CommandMapping } from '@shared/types/ProjectionEnums'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { describeWaitingUsbPower, Projection } from '../Projection'
-import { motoGraphPaneGeometry, resetMotoGraphHistoryForTests } from '../ProjectionSensorOverlay'
+import {
+  chtChannelStale,
+  motoGraphPaneGeometry,
+  resetMotoGraphHistoryForTests
+} from '../ProjectionSensorOverlay'
 
 const navigateMock = jest.fn()
 let mockPathname = '/'
@@ -247,6 +251,77 @@ describe('Projection page', () => {
     expect(screen.getByLabelText('L cylinder head temperature')).toHaveTextContent('220')
 
     nowSpy.mockRestore()
+  })
+
+  test('a rejected CHT read holds the last value with no visible change', async () => {
+    // Ignition noise on the shared SPI lines makes a single rejected read a
+    // routine event that the driver repairs on its next 2s poll. The gauge used
+    // to react instantly — dimming and blinking NO RESP — which on a moving
+    // bike reads as the gauge dropping out. It must now show nothing at all.
+    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(1000)
+
+    render(<Projection {...baseProps()} />)
+
+    act(() => {
+      telemetryCb?.({ chtLeftC: 151.2, chtRightC: 162.7 })
+    })
+    const left = () => screen.getByLabelText('L cylinder head temperature')
+    expect(left()).toHaveTextContent('151°')
+    expect(left()).toHaveAttribute('data-responding', 'true')
+
+    // One rejected read: the driver sends an explicit null for that cylinder.
+    nowSpy.mockReturnValue(3000)
+    act(() => {
+      telemetryCb?.({ chtLeftC: null, chtRightC: 162.7 })
+    })
+
+    expect(left()).toHaveTextContent('151°')
+    expect(left()).not.toHaveTextContent('--')
+    expect(left()).not.toHaveTextContent('NO RESP')
+    expect(left()).toHaveAttribute('data-responding', 'true')
+    // The healthy cylinder is untouched by its neighbour's dropout.
+    expect(screen.getByLabelText('R cylinder head temperature')).toHaveTextContent('163°')
+
+    // Several more misses, still inside the window: still silent.
+    for (const t of [5000, 7000, 9000, 11000]) {
+      nowSpy.mockReturnValue(t)
+      act(() => {
+        telemetryCb?.({ chtLeftC: null })
+      })
+    }
+    expect(left()).toHaveTextContent('151°')
+    expect(left()).not.toHaveTextContent('NO RESP')
+    expect(left()).toHaveAttribute('data-responding', 'true')
+
+    // The self-heal works and a good reading returns: still no alarm, and the
+    // new value is adopted straight away rather than easing in.
+    nowSpy.mockReturnValue(13000)
+    act(() => {
+      telemetryCb?.({ chtLeftC: 154.4 })
+    })
+    expect(left()).toHaveTextContent('154°')
+    expect(left()).toHaveAttribute('data-responding', 'true')
+
+    nowSpy.mockRestore()
+  })
+
+  test('CHT goes not-responding only after 15s without a good reading', () => {
+    // The tick that applies this is disabled under jsdom, so the policy is
+    // asserted directly. Everything above is cosmetic; this is the actual rule.
+    const t0 = 1_000_000
+
+    expect(chtChannelStale(t0, t0)).toBe(false)
+    expect(chtChannelStale(t0, t0 + 2_000)).toBe(false) // one missed poll
+    expect(chtChannelStale(t0, t0 + 7_000)).toBe(false) // old threshold: was stale here
+    expect(chtChannelStale(t0, t0 + 14_999)).toBe(false)
+    expect(chtChannelStale(t0, t0 + 15_000)).toBe(false) // boundary is exclusive
+    expect(chtChannelStale(t0, t0 + 15_001)).toBe(true)
+    expect(chtChannelStale(t0, t0 + 60_000)).toBe(true)
+
+    // A channel that has never read is not "stale" — it shows a quiet "--"
+    // rather than blinking an alarm about a sensor that was never there.
+    expect(chtChannelStale(0, t0)).toBe(false)
+    expect(chtChannelStale(0, 0)).toBe(false)
   })
 
   test('renders GPS speed on the projection screen', async () => {

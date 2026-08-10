@@ -135,9 +135,24 @@ const IS_JSDOM =
 // payloads to retain between flushes (bounded so the buffer can't grow forever).
 const DIAG_FLUSH_MS = 30 * 1000
 const DIAG_RAW_BUFFER_MAX = 2000
-// CHT emits every ~2s; if no good reading arrives within this window the
-// sensor service is treated as not responding (held value shown, blinking).
-const CHT_STALE_MS = 7000
+// CHT emits every ~2s. A single rejected read is routine on this bike — the
+// SPI lines pick up ignition noise, and the driver repairs a corrupted register
+// block within one 2s poll — so a dropout must not disturb the gauge at all
+// until it looks like a real failure rather than a blip. Below this window the
+// last good reading is held at full brightness and the rider sees nothing;
+// past it the value dims and NO RESP blinks. 15s is ~7 polls, several times
+// what the driver's self-heal needs, so anything that survives it is a fault
+// worth showing.
+const CHT_STALE_MS = 15000
+
+// The single rule deciding whether a CHT channel has been quiet long enough to
+// be called not-responding. Exported because the tick that calls it is disabled
+// under jsdom, so this is the only place the 15s policy can actually be tested.
+// A channel that has never produced a reading (lastGoodTs 0) is never "stale":
+// it shows a quiet "--", which already says no-data without a blinking alarm.
+export function chtChannelStale(lastGoodTs: number, now: number): boolean {
+  return lastGoodTs > 0 && now - lastGoodTs > CHT_STALE_MS
+}
 
 // If no GPS fix update arrives within this window (e.g. the gps service died or
 // the antenna dropped link entirely), treat GPS as not responding so the held
@@ -892,15 +907,19 @@ function useMotoTelemetry(settings: MotoSettings | null): {
         if (patch.ambientF !== undefined) {
           next.ambientF = stableValue(patch.ambientF, stable.ambient, 3, 3000, now)
         }
+        // A null here means one read was rejected, which happens routinely and
+        // usually repairs itself on the next poll. So a null never clears the
+        // responding flag — only age does, in the staleness tick below, after
+        // CHT_STALE_MS. A good reading restores it immediately.
         if (patch.chtLeftC !== undefined) {
           next.chtLeftC = stableValue(patch.chtLeftC, stable.chtLeft, 3, 3000, now)
           const track = chtTrackRef.current.left
           if (next.chtLeftC != null) {
             track.lastGood = next.chtLeftC
             track.lastGoodTs = now
+            next.chtLeftResponding = true
           }
           next.chtLeftLastC = next.chtLeftC ?? track.lastGood
-          next.chtLeftResponding = next.chtLeftC != null
         }
         if (patch.chtRightC !== undefined) {
           next.chtRightC = stableValue(patch.chtRightC, stable.chtRight, 3, 3000, now)
@@ -908,9 +927,9 @@ function useMotoTelemetry(settings: MotoSettings | null): {
           if (next.chtRightC != null) {
             track.lastGood = next.chtRightC
             track.lastGoodTs = now
+            next.chtRightResponding = true
           }
           next.chtRightLastC = next.chtRightC ?? track.lastGood
-          next.chtRightResponding = next.chtRightC != null
         }
 
         // GPS dropout: while we have a fix, remember the latest good
@@ -1007,17 +1026,18 @@ function useMotoTelemetry(settings: MotoSettings | null): {
     }
   }, [logFromState])
 
-  // Detect a CHT service that stops emitting entirely (process died / link
-  // dropped): the value never goes null, so flag "not responding" once the
-  // last good reading is older than CHT_STALE_MS while still showing it.
+  // Sole owner of the "CHT not responding" verdict. Both failure shapes age out
+  // through here — a driver rejecting reads (explicit nulls) and a driver that
+  // has stopped emitting at all (silence) — because in each case what matters
+  // is the same thing: how long since a good reading, not what arrived since.
   React.useEffect(() => {
     if (IS_JSDOM) return
     const id = window.setInterval(() => {
       const now = Date.now()
       setTelemetry((prev) => {
         const track = chtTrackRef.current
-        const leftStale = track.left.lastGoodTs > 0 && now - track.left.lastGoodTs > CHT_STALE_MS
-        const rightStale = track.right.lastGoodTs > 0 && now - track.right.lastGoodTs > CHT_STALE_MS
+        const leftStale = chtChannelStale(track.left.lastGoodTs, now)
+        const rightStale = chtChannelStale(track.right.lastGoodTs, now)
         const nextLeftResponding = !leftStale && prev.chtLeftResponding
         const nextRightResponding = !rightStale && prev.chtRightResponding
         const gpsTrack = gpsTrackRef.current
@@ -1342,10 +1362,14 @@ function ChtGaugeImpl({
   const vh = MOTO_CENTER_SQUARE_SIZE
   const metricKey = side === 'L' ? 'chtLeft' : 'chtRight'
   const isResponding = responding !== false
-  // When the sensor stops responding, keep showing the last good reading
-  // (dimmed) with a blinking "NO RESP" hint instead of going blank.
+  // Always draw the last good reading, whether or not the sensor is currently
+  // responding. Showing the live value only while responding would blank the
+  // gauge the instant one read was rejected, which on this bike is a routine
+  // event that repairs itself — and a gauge that flicks to "--" and back is
+  // worse than one that holds. The only difference the fault makes is
+  // cosmetic: past CHT_STALE_MS the held value dims and NO RESP blinks.
   const heldValue = value ?? lastValue ?? null
-  const displayValue = isResponding ? value : heldValue
+  const displayValue = heldValue
   const hasData = displayValue !== null
   const showStale = !isResponding && hasData
   const clamped = Math.max(0, Math.min(maxTemp, displayValue ?? 0))
