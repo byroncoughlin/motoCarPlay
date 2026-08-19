@@ -55,11 +55,15 @@ describe('ProjectionResolutionControl', () => {
   test('options are named by the content square; streams derived backwards', () => {
     // safe = stream − 2·inset must hold EXACTLY — that is the whole point of
     // the reverse derivation. Streams and insets even (SendViewArea toEven,
-    // H.264); 736 and 656 are even multiples of 16 (macroblock aligned).
+    // H.264 even-dimension requirement).
     for (const [safe, stream, inset] of [
-      [586, 800, 107],
+      [480, 656, 88],
       [540, 736, 98],
-      [480, 656, 88]
+      [586, 800, 107],
+      [800, 1092, 146],
+      [1080, 1472, 196],
+      [1200, 1640, 220],
+      [1600, 2184, 292]
     ] as const) {
       const patch = resolutionPatch(safe)
       expect(patch.projectionWidth).toBe(stream)
@@ -72,8 +76,8 @@ describe('ProjectionResolutionControl', () => {
       expect(stream % 2).toBe(0)
       if (safe !== 586) {
         expect(inset % 2).toBe(0)
-        expect(stream % 16).toBe(0)
-        // The upscaled square stays within ~1px of the native 586 on glass.
+        // Scaled to glass, every content square stays within ~1px of the
+        // native 586 so it never pokes out from under the masks' 1px bleed.
         expect(Math.abs(safe * (800 / stream) - 586)).toBeLessThan(1.1)
       }
     }

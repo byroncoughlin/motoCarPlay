@@ -104,9 +104,15 @@ achieved this project: speed 17.9px, ALT/G ~12px, lean 12.3px, CHT pills 8.1px.
 Settings → Advanced → **CarPlay Resolution** (`ProjectionResolutionControl`).
 Options are named by the **content square** (safe area) Apple draws into, and
 the stream is derived backwards (stream = safe ÷ 0.7325, nudged even):
-**586 native → 800×800 stream/107 insets; 540 → 736/98; 480 → 656/88.**
-`stream − 2·inset === safe` exactly; 736 and 656 are even multiples of 16
-(macroblock-aligned); upscaled to glass the square lands within ±1 px of 586.
+**480 → 656/88, 540 → 736/98, 586 native → 800/107, 800 → 1092/146,
+1080 → 1472/196, 1200 → 1640/220, 1600 → 2184/292** (safe → stream/insets).
+`stream − 2·inset === safe` exactly; scaled to glass every square lands within
+±1 px of 586. Below native = upscaled (chunkier UI); above native =
+supersampled (denser UI, crisper). All seven verified streaming live
+2026-08-19, incl. 2184×2184. **Cost is software H.264 decode**: panning the
+map at native = gst ~23% of one core; at the 1600 tier = **gst ~127% (peak
+160%) + compositor 38%** — roughly half the Pi's total CPU. Fine on the bench;
+on a heat-soaked ride prefer native or below.
 Selecting one writes `projectionWidth/Height` + all four `projectionViewArea*`
 together, then calls `projection-restart` so the phone renegotiates
 (~20–40 s). A hand-edited config shows as `Custom (safeW × safeH)`. What we
@@ -726,6 +732,18 @@ sudo rm -f /etc/livi-usb-guard.disabled /etc/livi-freeze-watch.disabled
 ```
 Otherwise a long CDP session or a deliberate app kill can trip a restart or a
 reboot underneath you.
+
+### Desktop launcher (fixed 2026-08-19)
+`~/Desktop/LIVI.desktop` now execs **`run-livi.sh`** (per-boot log, core
+limits). Two traps removed that day: the old `LIVI v2.desktop` exec'd the
+AppImage with `> ~/LIVI/LIVI.log` — a truncating redirect **through the
+symlink**, destroying the current boot's log every launch; and
+`round-carplay.desktop` ("motoCarPlay") launched the *predecessor app* from
+`~/round-carplay/`, whose old UI (no header buttons, tap-anywhere-opens-
+settings) looks like a broken LIVI. Both deleted. The menu entry
+`~/.local/share/applications/dev.f-io.livi.desktop` also points at
+run-livi.sh. The app holds a single-instance lock, so double-launching is
+safe.
 
 ### Relaunching the app by hand (three traps)
 `LIVI.AppImage` **re-execs itself with `--ozone-platform=wayland` and the first

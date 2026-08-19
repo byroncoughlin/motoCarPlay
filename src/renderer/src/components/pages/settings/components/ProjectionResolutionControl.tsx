@@ -10,16 +10,24 @@ import { SettingsItemRow } from './settingsItemRow'
 // glass square is fixed (586px of the 800px panel, 73.25%), so the stream is
 // derived backwards: stream ≈ safe ÷ 0.7325, nudged so that both the stream
 // size and the insets are even (SendViewArea floors odd top/left insets via
-// toEven, and H.264 wants even dimensions — 736 and 656 are even multiples of
-// 16, so macroblocks align exactly). stream − 2·inset === safe, exactly.
-// Upscaled back to the glass, the content square lands within ±1px of the
-// native 586 (587.0 at 540, 585.4 at 480), under the masks' 1px bleed.
+// toEven, and H.264 wants even dimensions). stream − 2·inset === safe,
+// exactly, and scaled to the glass every content square lands within ±1px of
+// the native 586 — under the masks' 1px bleed, so the overlay never moves.
+// Below native the picture is upscaled (chunkier UI); above native it is
+// downscaled (supersampling — Apple draws finer detail into the same glass).
+// The Pi decodes H.264 in SOFTWARE, so the large tiers cost real CPU; the
+// dongle or phone may also cap what it will encode. Anything that failed to
+// stream when tested live on the bench was left out of this list.
 type ResolutionOption = { safe: number; stream: number; inset: number }
 
 const OPTIONS: ResolutionOption[] = [
-  { safe: 586, stream: 800, inset: 107 },
+  { safe: 480, stream: 656, inset: 88 },
   { safe: 540, stream: 736, inset: 98 },
-  { safe: 480, stream: 656, inset: 88 }
+  { safe: 586, stream: 800, inset: 107 },
+  { safe: 800, stream: 1092, inset: 146 },
+  { safe: 1080, stream: 1472, inset: 196 },
+  { safe: 1200, stream: 1640, inset: 220 },
+  { safe: 1600, stream: 2184, inset: 292 }
 ]
 
 // The coherent group a resolution change must write together. FPS, DPI and the
