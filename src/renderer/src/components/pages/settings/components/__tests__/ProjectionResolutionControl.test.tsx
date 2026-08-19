@@ -15,6 +15,15 @@ jest.mock('react-i18next', () => ({
 
 const restart = jest.fn()
 
+const NATIVE: Partial<Config> = {
+  projectionWidth: 800,
+  projectionHeight: 800,
+  projectionViewAreaTop: 107,
+  projectionViewAreaBottom: 107,
+  projectionViewAreaLeft: 107,
+  projectionViewAreaRight: 107
+}
+
 const renderControl = (cfg: Partial<Config>) =>
   render(
     <ProjectionResolutionControl
@@ -43,60 +52,57 @@ describe('ProjectionResolutionControl', () => {
     ;(window as unknown as { projection: unknown }).projection = { ipc: { restart } }
   })
 
-  test('resolutionPatch writes the coherent group with scaled even insets', () => {
-    // 107/800 = 13.375%; the lower tiers keep the square within a third of a
-    // screen pixel of native (96/720, 72/540, 64/480 all map to 106.67px).
-    expect(resolutionPatch(800)).toEqual({
-      projectionWidth: 800,
-      projectionHeight: 800,
-      projectionViewAreaTop: 107,
-      projectionViewAreaBottom: 107,
-      projectionViewAreaLeft: 107,
-      projectionViewAreaRight: 107
-    })
-    for (const [size, inset] of [
-      [720, 96],
-      [540, 72],
-      [480, 64]
+  test('options are named by the content square; streams derived backwards', () => {
+    // safe = stream − 2·inset must hold EXACTLY — that is the whole point of
+    // the reverse derivation. Streams and insets even (SendViewArea toEven,
+    // H.264); 736 and 656 are even multiples of 16 (macroblock aligned).
+    for (const [safe, stream, inset] of [
+      [586, 800, 107],
+      [540, 736, 98],
+      [480, 656, 88]
     ] as const) {
-      const patch = resolutionPatch(size)
-      expect(patch.projectionWidth).toBe(size)
-      expect(patch.projectionHeight).toBe(size)
+      const patch = resolutionPatch(safe)
+      expect(patch.projectionWidth).toBe(stream)
+      expect(patch.projectionHeight).toBe(stream)
       expect(patch.projectionViewAreaTop).toBe(inset)
       expect(patch.projectionViewAreaBottom).toBe(inset)
       expect(patch.projectionViewAreaLeft).toBe(inset)
       expect(patch.projectionViewAreaRight).toBe(inset)
-      // Even, so SendViewArea's toEven never shifts the square off-center.
-      expect(inset % 2).toBe(0)
-      // Same fraction of the frame as the native square, within rounding.
-      expect(Math.abs(inset / size - 107 / 800)).toBeLessThan(0.002)
+      expect(stream - 2 * inset).toBe(safe)
+      expect(stream % 2).toBe(0)
+      if (safe !== 586) {
+        expect(inset % 2).toBe(0)
+        expect(stream % 16).toBe(0)
+        // The upscaled square stays within ~1px of the native 586 on glass.
+        expect(Math.abs(safe * (800 / stream) - 586)).toBeLessThan(1.1)
+      }
     }
+    expect(resolutionPatch(720)).toEqual({})
   })
 
-  test('shows the saved resolution and confirms before changing anything', () => {
-    renderControl({ projectionWidth: 800, projectionHeight: 800 })
-    expect(screen.getByRole('combobox')).toHaveTextContent('800 × 800 (native)')
+  test('shows the saved content square and confirms before changing anything', () => {
+    renderControl(NATIVE)
+    expect(screen.getByRole('combobox')).toHaveTextContent('586 × 586 (native)')
 
-    const listbox = openSelect()
-    fireEvent.click(within(listbox).getByText('720 × 720'))
+    fireEvent.click(within(openSelect()).getByText('540 × 540'))
 
-    // Nothing is written until the dialog is confirmed.
     expect(saveSettings).not.toHaveBeenCalled()
-    expect(screen.getByRole('dialog')).toHaveTextContent('Switch to 720 × 720?')
+    expect(screen.getByRole('dialog')).toHaveTextContent('Switch to 540 × 540?')
   })
 
-  test('confirm saves the full patch then restarts the projection session', async () => {
-    renderControl({ projectionWidth: 800, projectionHeight: 800 })
+  test('confirm saves the derived stream patch then restarts projection', async () => {
+    renderControl(NATIVE)
     fireEvent.click(within(openSelect()).getByText('540 × 540'))
     fireEvent.click(screen.getByText('Save & Reconnect'))
 
     await waitFor(() => expect(saveSettings).toHaveBeenCalledTimes(1))
     expect(saveSettings).toHaveBeenCalledWith(resolutionPatch(540))
+    expect(saveSettings.mock.calls[0][0].projectionWidth).toBe(736)
     await waitFor(() => expect(restart).toHaveBeenCalledTimes(1))
   })
 
   test('cancel discards the pending change', () => {
-    renderControl({ projectionWidth: 800, projectionHeight: 800 })
+    renderControl(NATIVE)
     fireEvent.click(within(openSelect()).getByText('480 × 480'))
     fireEvent.click(screen.getByText('Cancel'))
 
@@ -105,15 +111,31 @@ describe('ProjectionResolutionControl', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
-  test('re-selecting the current resolution is a no-op', () => {
-    renderControl({ projectionWidth: 720, projectionHeight: 720 })
-    fireEvent.click(within(openSelect()).getByText('720 × 720'))
+  test('re-selecting the current option is a no-op', () => {
+    renderControl({
+      projectionWidth: 736,
+      projectionHeight: 736,
+      projectionViewAreaTop: 98,
+      projectionViewAreaBottom: 98,
+      projectionViewAreaLeft: 98,
+      projectionViewAreaRight: 98
+    })
+    expect(screen.getByRole('combobox')).toHaveTextContent('540 × 540')
+    fireEvent.click(within(openSelect()).getByText('540 × 540'))
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(saveSettings).not.toHaveBeenCalled()
   })
 
-  test('a hand-edited non-square config renders as Custom', () => {
-    renderControl({ projectionWidth: 1280, projectionHeight: 720 })
-    expect(screen.getByRole('combobox')).toHaveTextContent('Custom (1280 × 720)')
+  test('a hand-edited config renders as Custom with its content square', () => {
+    // The old 720-stream option (insets 96): content square 528×528.
+    renderControl({
+      projectionWidth: 720,
+      projectionHeight: 720,
+      projectionViewAreaTop: 96,
+      projectionViewAreaBottom: 96,
+      projectionViewAreaLeft: 96,
+      projectionViewAreaRight: 96
+    })
+    expect(screen.getByRole('combobox')).toHaveTextContent('Custom (528 × 528)')
   })
 })

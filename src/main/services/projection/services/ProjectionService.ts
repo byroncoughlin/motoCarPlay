@@ -1524,6 +1524,14 @@ export class ProjectionService {
     }
 
     await this.autoStartIfNeeded()
+
+    // A restart that brings nothing up must not end the story: the usual
+    // rescuer (a USB attach event) never fires when the dongle stayed
+    // enumerated across the restart. Keep nudging via the retry timer.
+    if (!this.started && !this.isStarting) {
+      console.warn('[ProjectionService] restartSession: no session came up — scheduling retry')
+      this.scheduleStartRetry()
+    }
   }
 
   // Device-list connect entry: phone → switch to wireless AA targeting this MAC
@@ -1992,7 +2000,19 @@ export class ProjectionService {
         const device = (await usb.getDevices()).find((d) =>
           isCarlinkitDongle(d.vendorId, d.productId)
         )
-        if (!device) return
+        if (!device) {
+          // The arbiter said "start the dongle" but WebUSB cannot see one. Seen
+          // live 2026-08-19: back-to-back restartSession calls (resolution
+          // switching) landed here, and a silent return stranded the dash on
+          // the adapter-missing screen with a healthy dongle on the bus. Retry
+          // instead — if the dongle truly unplugs, its detach event flips the
+          // arbiter and decideNextStart ends the loop.
+          console.warn(
+            '[ProjectionService] dongle expected but absent from usb.getDevices() — retrying'
+          )
+          this.scheduleStartRetry()
+          return
+        }
 
         try {
           await device.open()
@@ -2020,6 +2040,10 @@ export class ProjectionService {
           } catch {}
           this.webUsbDevice = null
           this.started = false
+          // Same wedge class as the getDevices miss above: without a retry the
+          // dash sits on the adapter-missing screen until a USB attach event
+          // that may never come.
+          this.scheduleStartRetry()
         }
       } finally {
         this.isStarting = false

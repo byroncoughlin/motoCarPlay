@@ -46,7 +46,7 @@ you want to observe a fault without anything intervening.
 ## Tests
 
 ```bash
-python3 pi/health/test_usb_guard.py        # 30 checks
+python3 pi/health/test_usb_guard.py        # 42 checks
 python3 pi/health/test_freeze_watch.py     # 24 checks
 python3 pi/health/test_health_recorder.py  # 48 checks — rotation, pruning, HDMI, schema migration
 ```
@@ -132,6 +132,22 @@ if it alone busts the budget: deleting the only evidence of the crash you are
 trying to explain would be the worst possible reading of "stay inside the budget".
 
 ## Policy that is not obvious from the code
+
+**The guard has two dongle back-channels, for two different wedges.** The bus
+can say "present" while CarPlay is dead, so bus presence alone is not health.
+(1) An `endpoint not found` burst in the app log — the device is enumerated
+but its endpoints are gone (the trip failure). (2) The app's own
+`statusData.json` saying `dongleConnected=false` with no session active and
+nothing streaming, while the app answers on port 4000 — seen 2026-08-19 when a
+projection restart (resolution switch) raced the driver's close/re-open and
+the app stranded itself on the adapter-missing screen; no errors were logged
+and no detach event was ever coming. Both feed the same episode machinery, so
+the response is the proven one: grace, then a device-scoped `usbreset`
+(verified live to recover case 2 on the spot). The port-4000 probe keeps a
+dead or still-booting app from tripping it, and an active native session
+(which legitimately idles the dongle) is excluded. The app also now retries
+its own session start instead of silently giving up, so the guard is the
+second net, not the first.
 
 **Bus 1 is never rebound.** `xhci-hcd.0` carries the CarPlay dongle (`1-1`) and
 the touch panel (`1-2`). The panel takes its *power* over that USB cable, so a

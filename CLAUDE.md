@@ -101,19 +101,33 @@ not). Target ~**8–12px** clearance to match the other gauges. Reference cleara
 achieved this project: speed 17.9px, ALT/G ~12px, lean 12.3px, CHT pills 8.1px.
 
 ### CarPlay stream resolution is switchable (added 2026-08-19)
-Settings → Advanced → **CarPlay Resolution** (`ProjectionResolutionControl`):
-800 (native) / 720 / 540 / 480, all square, all upscaled by the video plane to
-the same glass area. Selecting one writes the coherent group
-`projectionWidth/Height` + all four `projectionViewArea*` insets (107 / 96 /
-72 / 64 — even values, ~13.375% of the frame each, so the safe square stays
-within ⅓ px of the native 586), then calls `projection-restart` so the phone
-renegotiates (~20–40 s). What we tell Apple at 800 native, extend mode:
-**SendOpen 800×800@60**, **view area = full 800×800 @ (0,0)**, **safe area =
-586×586 @ (106,106)** with drawOutside=1 (`SendViewArea`/`SendSafeArea` floor
-odd top/left insets via `toEven`, hence 106 not 107). Non-extend mode instead
-insets the view area itself (hard clip). `projectionDpi` is NOT part of the
-CarPlay handshake (AA only). Verified live 2026-08-19: decoder caps flipped
-800→720→800, Apple re-rendered chunkier at 720, overlay untouched.
+Settings → Advanced → **CarPlay Resolution** (`ProjectionResolutionControl`).
+Options are named by the **content square** (safe area) Apple draws into, and
+the stream is derived backwards (stream = safe ÷ 0.7325, nudged even):
+**586 native → 800×800 stream/107 insets; 540 → 736/98; 480 → 656/88.**
+`stream − 2·inset === safe` exactly; 736 and 656 are even multiples of 16
+(macroblock-aligned); upscaled to glass the square lands within ±1 px of 586.
+Selecting one writes `projectionWidth/Height` + all four `projectionViewArea*`
+together, then calls `projection-restart` so the phone renegotiates
+(~20–40 s). A hand-edited config shows as `Custom (safeW × safeH)`. What we
+tell Apple at native, extend mode: **SendOpen 800×800@60**, **view area = full
+800×800 @ (0,0)**, **safe area = 586×586 @ (106,106)** with drawOutside=1
+(`SendViewArea`/`SendSafeArea` floor odd top/left insets via `toEven`, hence
+106 not 107). Non-extend mode insets the view area itself (hard clip).
+`projectionDpi` is NOT part of the CarPlay handshake (AA only). Verified live
+2026-08-19: caps flipped 800→736→800, content square filled the same glass.
+
+⚠️ **Rapid resolution switches once wedged the dash on "adapter missing"**
+(2026-08-19): restartSession's dongle re-open silently gave up when
+`usb.getDevices()` came back empty and nothing retried — the usual rescuer (a
+USB attach event) never fires when the dongle stays enumerated. Fixed three
+ways: the getDevices miss and the bring-up catch now `scheduleStartRetry()`,
+restartSession retries if nothing came up, and `livi-usb-guard` gained a
+second dongle back-channel (statusData.json says `dongleConnected=false` + no
+session + app answering :4000 + device present on bus → device-scoped
+`usbreset`, which recovered the live wedge on the spot). Manual recovery:
+`sudo usbreset 1314:1520` — it may print "failed [No such device]" *because
+the reset worked* and the node vanished mid-call.
 
 ### Stream edge artifact + rounded corners (learned 2026-07-04)
 - The CarPlay stream's **outermost view-area row/column can arrive black** (a

@@ -217,6 +217,59 @@ check('handles the log being replaced under it', guard.DONGLE_WATCH.poll(201.0),
 _os.remove(logfile)
 _os.rmdir(tmpdir)
 
+print('app status back-channel (the 2026-08-19 adapter-missing wedge):')
+import json as _json
+
+status_dir = tempfile.mkdtemp()
+status_file = _os.path.join(status_dir, 'statusData.json')
+guard.STATUS_FILE = status_file
+guard.app_up = lambda: True
+
+
+def write_status(dongle, active=None, streaming=False):
+    with open(status_file, 'w') as fh:
+        _json.dump({'version': 1, 'payload': {
+            'usb': {'dongleConnected': dongle, 'phoneConnected': False},
+            'projection': {'active': active, 'streaming': streaming,
+                           'phoneType': None}}}, fh)
+
+
+check('missing status file is not a wedge', guard.app_reports_no_dongle(), False)
+write_status(dongle=False)
+check('live app + no dongle + no session = wedge', guard.app_reports_no_dongle(), True)
+write_status(dongle=True)
+check('app has the dongle: no wedge', guard.app_reports_no_dongle(), False)
+write_status(dongle=False, active='cp')
+check('a native session idles the dongle legitimately', guard.app_reports_no_dongle(), False)
+write_status(dongle=False, streaming=True)
+check('streaming means something works: no wedge', guard.app_reports_no_dongle(), False)
+with open(status_file, 'w') as fh:
+    fh.write('{truncated')
+check('corrupt status file is not a wedge', guard.app_reports_no_dongle(), False)
+write_status(dongle=False)
+guard.app_up = lambda: False
+check('dead app is APP LOST, not a dongle fault', guard.app_reports_no_dongle(), False)
+guard.app_up = lambda: True
+
+# End to end: dongle enumerated and error-free, but the app says it has no
+# dongle — the guard must treat that as unhealthy and reach for usbreset.
+guard.DISABLE_FLAG = '/nonexistent/livi-usb-guard.disabled'
+guard.DONGLE_WATCH.clear()
+STATE['present'] = {'1-1'}
+g = fresh('1-1', 'dongle', 1, 25.0)
+g.poll(3000.0, UP)
+check('wedge opens an episode', g.bad_since, 3000.0)
+check('episode names the back-channel', 'app_wedge=True' in log[0], True)
+g.poll(3026.0, UP)
+check('past grace: device-scoped reset', actions, [('usbreset', '1-1')])
+write_status(dongle=True)
+g.poll(3030.0, UP)
+g.poll(3030.0 + guard.HEALTHY_CONFIRM + 1, UP)
+check('app reclaiming the dongle closes the episode', g.bad_since, None)
+
+_os.remove(status_file)
+_os.rmdir(status_dir)
+
 print()
 if fails:
     print(f'{len(fails)} FAILED')

@@ -30,7 +30,9 @@ Create /etc/livi-usb-guard.disabled to keep detection and stop all action.
 """
 
 import glob
+import json
 import os
+import socket
 import subprocess
 import sys
 import time
@@ -80,6 +82,20 @@ DONGLE_LOG = '/home/byron/LIVI/LIVI.log'
 DONGLE_ERROR = 'endpoint not found'
 DONGLE_WINDOW = 60.0
 DONGLE_THRESHOLD = 5
+
+# The app's own view of the world, written (debounced, on change) by
+# StatusFileWriter. Second dongle back-channel, for a different wedge than the
+# endpoint-error burst above: on 2026-08-19 a projection restart (resolution
+# switch) ended with the app on its adapter-missing screen while a perfectly
+# healthy dongle sat enumerated on the bus — no errors in the log, nothing to
+# count, and no detach event ever coming to wake the app up. The app said
+# dongleConnected=false, no session active, nothing streaming; the bus said
+# present. A device-scoped usbreset (the ladder's first rung) recovered it on
+# the spot, verified live. The port-4000 probe keeps a dead/starting app from
+# tripping this — a stale status file with no listener is APP LOST, not a
+# dongle fault.
+STATUS_FILE = '/home/byron/.config/LIVI/statusData.json'
+APP_PORT = 4000
 
 
 def note(message):
@@ -143,6 +159,42 @@ class DongleLogWatch:
 DONGLE_WATCH = DongleLogWatch()
 
 
+def app_up():
+    try:
+        conn = socket.create_connection(('127.0.0.1', APP_PORT), 0.5)
+        conn.close()
+        return True
+    except OSError:
+        return False
+
+
+def app_reports_no_dongle():
+    """True when a LIVE app says it has no dongle and no session of any kind.
+
+    All three conditions are deliberate: dongleConnected must be exactly False
+    (missing key = old file format, do nothing), no projection may be active
+    (a native AA/CP session legitimately idles the dongle on the bus), and the
+    app must be answering on its telemetry port (otherwise the file is a relic
+    of a dead process). The JSON parse is cheap; the socket probe runs only
+    when the file already claims the wedge.
+    """
+    try:
+        with open(STATUS_FILE) as handle:
+            data = json.load(handle)
+    except (OSError, ValueError):
+        return False
+    payload = data.get('payload') or {}
+    usb = payload.get('usb') or {}
+    projection = payload.get('projection') or {}
+    if usb.get('dongleConnected') is not False:
+        return False
+    if projection.get('active') is not None:
+        return False
+    if projection.get('streaming') is True:
+        return False
+    return app_up()
+
+
 def healthy(port, now=None):
     """Present on the bus AND usable by the layer above it."""
     if not present(port):
@@ -152,6 +204,8 @@ def healthy(port, now=None):
         return False
     if port == '1-1' and now is not None:
         if DONGLE_WATCH.poll(now) >= DONGLE_THRESHOLD:
+            return False
+        if app_reports_no_dongle():
             return False
     return True
 
@@ -265,7 +319,9 @@ class Guard:
             self.bad_since = now
             note('USB-DOWN %s (%s) present=%s bus=%d%s'
                  % (self.label, self.port, present(self.port), self.bus,
-                    ' errors=%d' % len(DONGLE_WATCH.hits) if self.port == '1-1' else ''))
+                    ' errors=%d app_wedge=%s'
+                    % (len(DONGLE_WATCH.hits), app_reports_no_dongle())
+                    if self.port == '1-1' else ''))
             return
 
         down_for = now - self.bad_since
