@@ -221,6 +221,19 @@ re-enumerates on a fixed ~13 s cycle, and every burst began about a second after
 > firmware version (Settings → System → USB Dongle, or http://192.168.50.2
 > from a joined phone), check the WiFi channel (prefer 5 GHz), and log
 > fw version + BoxInfo on every `Link established`.
+>
+> **One-phone baseline (2026-08-11 → 08-18, wall power, test phone connected
+> the whole week):** the dongle still reset itself **7 times in ~7.5 days** —
+> same `Invalid magic` boot-banner signature (5 of 6 disconnects in the long
+> boot's app log), rail steady at every drop minute. The timing is
+> quasi-periodic: 09:17 → 06:30 → 03:57 → 01:45 on successive days (≈21.5 h
+> apart), and after the Aug 15 11:18 reboot the next drop landed 14.6 h later,
+> then 21.4 h, then 20.8 h. That looks like an **internal firmware timer** —
+> a roughly-daily self-reset — not anything the phone or the Pi does. So the
+> two-phone dance is not *required* (it may still explain why 2026-08-10
+> produced four crashes in two hours), and the background rate with a single
+> steady phone is ~1/day, each self-healing in ~10–60 s. A mid-ride CarPlay
+> blip at this rate is expected dongle behaviour, not a bike fault.
 
 ---
 
@@ -269,6 +282,49 @@ One transient worth recording, caught while sampling the PMIC directly: a
 the shape of the thing that matters — a 100 ms core burst costs ~60 mV even on a
 good supply and a cold cable, and it is invisible to a 1 Hz sampler. `uv_ever` is
 the only column that can catch its worse cousin.
+
+### Second reference: the NEW bike supply (installed 2026-08-18 evening)
+
+Byron swapped in a higher-wattage bike USB-C supply; the Pi **still warned at
+boot**. The PD contract explains why, and it is not a fault:
+
+```
+PDOs:  5V/3A (15W)   9V/2.77A (25W)   12V/2.08A (25W)   PPS 3.3–5.9V/3A, 3.3–11V/2.75A
+negotiated max_current: 3000 mA
+```
+
+The Pi 5 can only drink at 5 V, and this supply's 5 V object is **3 A**. The
+"bigger" wattage lives entirely at 9 V/12 V, which the Pi cannot use — the
+classic USB-C trap. The firmware warning is honest: 15 W at 5 V, against the
+27 W (5 V/5 A) it wants. `usb_max_current_enable=1` keeps the USB ports
+uncapped regardless, so nothing is functionally restricted; the warning with an
+explicit 3 A contract is cosmetic but *correct*.
+
+And yet — the rail is the stiffest of the three supplies measured:
+
+| Supply | mean | min (window) |
+|---|---|---|
+| **New bike supply (5V/3A PD)** | **5.133 V** | 4.990 V |
+| Old bike converter (claimed 5A, no PD) | 5.048 V | 4.898 V |
+| Official Pi 27 W PSU | 4.980 V | 4.800 V |
+
+~500 mV of margin above the 4.63 V trip at rest — the best yet. The open risk
+is the **3 A over-current ceiling**: if a boot or decoder transient exceeds the
+contract, a PD supply's OCP does a hard hiccup (momentary power LOSS, worse
+than a sag). Steady draw here is well under 3 A, so the question is only the
+peaks. Watch for: `UNCLEAN` boot events with no shutdown marker while riding =
+the supply cut out. `uv_ever` stays the sag sentinel. If OCP reboots appear,
+the old converter (which never tripped anything either) goes back on.
+
+### The wall-power week (2026-08-11 → 08-18): clean across the board
+
+~7.5 days continuous (one double power-cycle Aug 15 ~11:16, presumably human —
+journalctl's "boot at 05:47" that morning is journal-vacuum truncation, not a
+reboot; health.csv sampled straight through that minute). Across ~645 k
+samples: `uv_now` **0** rows, `throttled` never non-zero, **HDMI HPD never
+dropped once**, GPS/IMU/touch never dropped. The only mover was the dongle
+(§ 7). Hypotheses 1–5 remain starved of bench evidence, exactly as the
+heat-derating story predicts: this fault does not exist without the bike.
 
 ## What is now instrumented
 
