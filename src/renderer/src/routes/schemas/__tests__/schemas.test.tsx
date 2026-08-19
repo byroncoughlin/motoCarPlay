@@ -120,6 +120,7 @@ describe('settings schemas', () => {
       'Wi-Fi Frequency',
       'Auto Connect',
       'Preferred Connection',
+      'CarPlay Resolution',
       'FPS',
       'View Area',
       'USB Dongle Info',

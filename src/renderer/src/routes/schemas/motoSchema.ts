@@ -2,6 +2,7 @@ import type { Config } from '@shared/types'
 import { BackgroundModeControl } from '../../components/pages/settings/components/BackgroundModeControl'
 import { ClearDiagnosticsControl } from '../../components/pages/settings/components/ClearDiagnosticsControl'
 import { ClearGraphHistoryControl } from '../../components/pages/settings/components/ClearGraphHistoryControl'
+import { ProjectionResolutionControl } from '../../components/pages/settings/components/ProjectionResolutionControl'
 import { TiltCalibrationControl } from '../../components/pages/settings/components/TiltCalibrationControl'
 import {
   AREA_STEP,
@@ -122,6 +123,15 @@ const advancedSchema: SettingsNode<Config> = {
         description: 'Which transport to bring up when more than one transport is available.',
         labelDescription: 'settings.preferredConnectionDescription'
       }
+    },
+    // One-tap CarPlay stream resolution (upscaled to the same glass area).
+    // Writes the width/height + view-area inset group coherently, then
+    // reconnects the phone — see ProjectionResolutionControl.
+    {
+      type: 'custom',
+      label: 'CarPlay Resolution',
+      path: '',
+      component: ProjectionResolutionControl
     },
     {
       type: 'number',

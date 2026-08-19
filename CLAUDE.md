@@ -100,6 +100,21 @@ Run it with `/usr/bin/python3` on the Mac (it has PIL; the default `python3` may
 not). Target ~**8–12px** clearance to match the other gauges. Reference clearances
 achieved this project: speed 17.9px, ALT/G ~12px, lean 12.3px, CHT pills 8.1px.
 
+### CarPlay stream resolution is switchable (added 2026-08-19)
+Settings → Advanced → **CarPlay Resolution** (`ProjectionResolutionControl`):
+800 (native) / 720 / 540 / 480, all square, all upscaled by the video plane to
+the same glass area. Selecting one writes the coherent group
+`projectionWidth/Height` + all four `projectionViewArea*` insets (107 / 96 /
+72 / 64 — even values, ~13.375% of the frame each, so the safe square stays
+within ⅓ px of the native 586), then calls `projection-restart` so the phone
+renegotiates (~20–40 s). What we tell Apple at 800 native, extend mode:
+**SendOpen 800×800@60**, **view area = full 800×800 @ (0,0)**, **safe area =
+586×586 @ (106,106)** with drawOutside=1 (`SendViewArea`/`SendSafeArea` floor
+odd top/left insets via `toEven`, hence 106 not 107). Non-extend mode instead
+insets the view area itself (hard clip). `projectionDpi` is NOT part of the
+CarPlay handshake (AA only). Verified live 2026-08-19: decoder caps flipped
+800→720→800, Apple re-rendered chunkier at 720, overlay untouched.
+
 ### Stream edge artifact + rounded corners (learned 2026-07-04)
 - The CarPlay stream's **outermost view-area row/column can arrive black** (a
   1px dark ring at the 586-square boundary). Three coordinated defenses:
@@ -286,13 +301,18 @@ scp -o ConnectTimeout=8 byron@192.168.4.25:/tmp/r.png /tmp/grim.png
   `ImageDraw.ellipse([1,1,799,799], outline=(255,0,0), width=2)` then crop the pill region.
 
 ### CDP (DOM measurement, clicks, geometry)
-Enable by adding the flag INSIDE the `sh -c '… LIVI.AppImage > …log'` autostart Exec:
+⚠️ **Since 2026-08-09 the autostart runs `~/LIVI/run-livi.sh`, not the AppImage
+directly** — the flag goes on the launcher's final `exec` line, and sed'ing the
+desktop file silently does nothing (learned 2026-08-19: the old sed matched
+nothing, grep -c returned 0, and the whole `&&` chain — including the reboot —
+never ran):
 ```bash
 # add:
-ssh … "sed -i 's#LIVI.AppImage >#LIVI.AppImage --remote-debugging-port=9222 --remote-allow-origins=* >#' ~/.config/autostart/LIVI.desktop && sudo systemctl reboot -i"
+ssh … "sed -i 's#^exec \"\$BASE/LIVI.AppImage\" #exec \"\$BASE/LIVI.AppImage\" --remote-debugging-port=9222 --remote-allow-origins=* #' ~/LIVI/run-livi.sh && sudo systemctl reboot -i"
 # remove (restore clean):
-ssh … "sed -i 's# --remote-debugging-port=9222 --remote-allow-origins=\*##' ~/.config/autostart/LIVI.desktop && sudo systemctl reboot -i"
+ssh … "sed -i 's# --remote-debugging-port=9222 --remote-allow-origins=\*##' ~/LIVI/run-livi.sh && sudo systemctl reboot -i"
 ```
+9222 binds to 127.0.0.1 only — run CDP helper scripts ON the Pi (scp them over).
 Then: `GET http://localhost:9222/json` → the `type:"page"` target's
 `webSocketDebuggerUrl`. `websocket-client` + `urllib` are on the Pi.
 - **Write CDP helper scripts to a local file and `scp` them** — heredocs with
